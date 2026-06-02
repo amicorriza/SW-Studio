@@ -1,0 +1,11 @@
+{
+  "name": "scissor-white-seed",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

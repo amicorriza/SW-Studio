@@ -44,25 +44,26 @@ Mapeo desde `localStorage`:
 |---|---|
 | `sw_adm_v2` → servicios | `services/{id}` |
 | `sw_adm_v2` → personal | `staff/{id}` |
-| `sw_adm_v2` → horarios | `schedules/{staffId}` |
+| `sw_adm_v2` → horarios | embebido en `staff/{id}.schedule[]` |
 | `sw_adm_v2` → info | `businessInfo/main` |
 | `sw_adm_v2` → log | `adminLog/{id}` |
 | `sw_bookings` (array) | `bookings/{id}` |
 
 ### Colecciones
 
-- **`services/{id}`**: `name, category (Asesorías|Cortes|Barba), priceCLP, durationMin, active, order`. 19 docs. Rango $8.000–$65.000 CLP.
-- **`staff/{id}`**: `name, bio, photoUrl, role, active, order`. 4 docs: Victoria, Felipe, Esteban, Ariel.
-- **`schedules/{staffId}`**: mapa por día `{ mon:{open,close,enabled}, tue:{…}, …, sun:{enabled:false} }`. Horarios base: Lun-Vie 10:00-20:00, Sáb 10:00-17:00, Dom cerrado.
-- **`businessInfo/main`**: `name, slogan, address, whatsapp, instagram, hours, lat (-36.8270), lng (-73.0444)`.
-- **`bookings/{id}`**: `serviceId, serviceName, staffId, staffName, date (YYYY-MM-DD), time (HH:mm), clientName, clientPhone, clientEmail, status (pending|confirmed|cancelled|done|noshow), confirmationCode, notes, createdAt (serverTimestamp), emailStatus (pending|sent|failed)`.
-- **`adminLog/{id}`**: `action, byUid, byName, target, details, at (serverTimestamp)`.
+> Nombres de campo **alineados con el modelo real** del `index.html` v15 (objeto `D` y array de bookings) para minimizar cambios — Enfoque A.
 
-**Cambio en el formulario de reserva:** agregar campo `clientEmail` (hoy pide solo nombre + teléfono). Requerido para el email automático.
+- **`services/{id}`**: `id, name, cat ('a'=Asesorías | 'c'=Cortes | 'b'=Barba), dur (min), price (CLP), tag, ts, status ('active'|…), desc, photo`. 19 docs. Rango $8.000–$65.000.
+- **`staff/{id}`**: `id, name, role, days, bio, status, photo, schedule[]`. 4 docs: Victoria, Felipe, Esteban, Ariel. **Horario embebido**: `schedule` es un array indexado por `Date.getDay()` (0=Dom … 6=Sáb); cada posición es `null` (cerrado) o `{open:bool, start:'HH:MM', end:'HH:MM'}`.
+- **`businessInfo/main`**: `name, addr, phone, ig, slogan, desc` (+ opcional `lat:-36.8270, lng:-73.0444`).
+- **`bookings/{id}`**: campos que ya emite la app — `code, name, email, phone, svcId, svcName, svcCat, price, dur, barberId, barberName, date (ISO), time, createdAt` — **más nuevos**: `status (pending|confirmed|cancelled|done|noshow)`, `emailStatus (pending|sent|failed)`, `createdAtTs (serverTimestamp)`. El `code` que ya genera la app (`genCode()`) es el código de confirmación.
+- **`adminLog/{id}`**: `action, item, date` (estructura actual `D.log`); opcional `byUid` al integrar Auth.
+
+**Formulario de reserva:** ya captura nombre + **email** (`bkf-email`, validado en el front) + teléfono + consentimiento. **No requiere campos nuevos**; el email automático usa el `email` existente.
 
 ## Reglas de seguridad (Firestore)
 
-- `businessInfo, services, staff, schedules`: `read: if true` (catálogo público); `write: if request.auth != null`.
+- `businessInfo, services, staff`: `read: if true` (catálogo público); `write: if request.auth != null`. (Los horarios viajan dentro de `staff`.)
 - `bookings`:
   - `create: if` payload válido — campos obligatorios presentes, `status == 'pending'`, sin campos no permitidos, tipos correctos.
   - `read, update, delete: if request.auth != null` (solo staff; protege datos personales del cliente). El cliente ve su confirmación en pantalla + email, no consulta la colección.
@@ -70,8 +71,9 @@ Mapeo desde `localStorage`:
 
 ### Índices (`firestore.indexes.json`)
 
-- `bookings`: compuesto `staffId ASC, date ASC, time ASC` (agenda por barbero).
-- `bookings`: compuesto `date ASC, time ASC` (timeline del día).
+Para el volumen de una barbería, el admin puede **cargar todas las reservas y filtrar en memoria** (como hoy), evitando índices al inicio. Si se escala, agregar compuestos:
+
+- `bookings`: `barberId ASC, date ASC` (agenda por barbero).
 - `bookings`: `status ASC, date ASC` (filtros del dashboard).
 
 ## Flujo de reserva + notificación

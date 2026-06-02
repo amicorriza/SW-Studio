@@ -1,0 +1,28 @@
+# Dependencias
+node_modules/
+functions/node_modules/
+
+# Entorno / secretos (nunca versionar claves reales)
+.env
+.env.*
+!.env.example
+functions/.env
+functions/.env.*
+!functions/.env.example
+serviceAccountKey.json
+*-service-account.json
+
+# Firebase
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+*-debug.log
+
+# Respaldo local pesado (zip de 21MB + originales; viven en disco, fuera de git)
+_source/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/

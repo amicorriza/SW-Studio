@@ -2660,6 +2660,7 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
     <img id="adm-ll" alt="SW">
     <div id="adm-lb">SW Studio</div>
     <div id="adm-ls">Panel de Administración</div>
+    <input id="adm-email" type="email" placeholder="email" autocomplete="username" />
     <input id="adm-pass" type="password" placeholder="Contraseña de acceso">
     <button id="adm-login-btn">Ingresar</button>
     <div id="adm-login-err">Contraseña incorrecta.</div>
@@ -3670,20 +3671,24 @@ g('adm-x').addEventListener('click', window.closeAdmin);
 })();
 
 // ═══ LOGIN ═══
-function login(){
-  if(g('adm-pass').value === PASS){
+async function login(){
+  var email = (g('adm-email') ? g('adm-email').value.trim() : 'admin@scissorwhite.cl');
+  try {
+    await window.SWAuth.signIn(email, g('adm-pass').value);
     auth = true;
     g('adm-login').style.display = 'none';
     g('adm-app').style.display = 'flex';
+    await loadFromCloud();
     renderAll();
-  } else {
+  } catch(e) {
     g('adm-login-err').style.display = 'block';
     g('adm-pass').style.borderColor = 'rgba(220,80,80,.6)';
   }
 }
 g('adm-login-btn').addEventListener('click', login);
 g('adm-pass').addEventListener('keydown', function(e){ if(e.key==='Enter') login(); });
-g('adm-lgout').addEventListener('click', function(){
+g('adm-lgout').addEventListener('click', async function(){
+  await window.SWAuth.signOut();
   auth = false;
   g('adm-app').style.display = 'none';
   g('adm-login').style.display = 'flex';

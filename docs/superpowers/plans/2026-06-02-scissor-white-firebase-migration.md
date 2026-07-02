@@ -139,7 +139,7 @@ git commit -m "chore: conectar repo al proyecto Firebase"
 ### Task 1.2: Colocar el index.html en Hosting
 
 **Files:**
-- Create: `_source/scissor_white_v19.html` (respaldo, extraído del zip del usuario)
+- Create: `_source/scissor_white_v19.html` (respaldo local, extraído del zip del usuario — `_source/` está en `.gitignore`, no se commitea)
 - Create: `public/index.html` (copia EXACTA del v19, sin modificar aún)
 
 - [ ] **Step 1: Respaldar el v19 en `_source/`**
@@ -166,10 +166,10 @@ Run: `firebase emulators:start --only hosting`
 Abre http://localhost:5000 → debe verse la landing idéntica al v19 (con el módulo Clientes disponible en el panel admin).
 Detén con Ctrl+C.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Commit** (`_source/` está en `.gitignore` — solo se commitea `public/index.html`)
 
 ```bash
-git add _source/scissor_white_v19.html _source/scissor_white_v19_completo.zip public/index.html
+git add public/index.html
 git commit -m "chore: index.html v19 como entry de Hosting (reemplaza v15)"
 ```
 

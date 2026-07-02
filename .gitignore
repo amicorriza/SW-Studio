@@ -26,3 +26,6 @@ _source/
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Worktrees de desarrollo aislado
+.worktrees/

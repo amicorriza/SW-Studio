@@ -2568,18 +2568,17 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
   const btn=document.getElementById('bk-submit');
   btn.innerHTML='<span class="bk-spinner"></span> Procesando...';
   btn.disabled=true;
-  setTimeout(()=>{
+  setTimeout(async ()=>{
     const code=genCode();
     const fullname=document.getElementById('bkf-name').value.trim();
     const name=fullname.split(' ')[0];
     const email=document.getElementById('bkf-email').value.trim();
     const phone=document.getElementById('bkf-phone').value.trim();
-    // ── Record booking to localStorage + Club SW loyalty tracking ──
     var clubVisitCount = 1;
     var clubBenefitReached = '';
+    // ── Persistir la reserva en Firestore (dispara email + sync de patients) ──
     try{
-      const bookings=JSON.parse(localStorage.getItem('sw_bookings')||'[]');
-      bookings.push({
+      await window.SWData.createBooking({
         code, name:fullname, email, phone,
         svcId:S.svc?.id, svcName:S.svc?.name, svcCat:S.svc?.cat||'',
         price:S.svc?.price||0, dur:S.svc?.dur||0,
@@ -2588,17 +2587,16 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
         club:S.club||'guest',
         createdAt:new Date().toISOString()
       });
-      localStorage.setItem('sw_bookings',JSON.stringify(bookings));
-
-      // Count Member visits for this email (loyalty)
+      // Conteo de visitas Club SW vía Cloud Function (bookings es solo-staff)
       if(S.club==='member' && email){
-        clubVisitCount = bookings.filter(function(b){
-          return b.email && b.email.toLowerCase()===email.toLowerCase() && b.club==='member';
-        }).length;
-        if(clubVisitCount===10) clubBenefitReached='premium';
-        if(clubVisitCount===20) clubBenefitReached='asesoria';
+        const status = await window.SWData.getClubStatus(email);
+        clubVisitCount = status.visitCount;
+        clubBenefitReached = status.benefitReached || '';
       }
-    }catch(e){}
+    }catch(e){
+      console.error('No se pudo guardar la reserva', e);
+      // Fallback: mantener el link de WhatsApp visible para contacto manual
+    }
     document.getElementById('bk-confirm-code').textContent=code;
     document.getElementById('bk-confirm-sub').textContent=
       `Hola ${name}, tu reserva está confirmada. Te enviamos un correo de confirmación a ${email}. Te esperamos en Cochrane 635, Torre B, Of. 303.`;

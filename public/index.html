@@ -4663,7 +4663,7 @@ function renderPatPhotos(p){
   photos.forEach(function(ph, idx){
     var dateLbl = ph.date ? new Date(ph.date).toLocaleDateString('es-CL') : '';
     html += '<div class="a-pm-photo a-pm-filled" data-photo-idx="'+idx+'">' +
-              '<img src="'+ph.src+'" alt="Foto '+(idx+1)+'">' +
+              '<img src="'+ph.url+'" alt="Foto '+(idx+1)+'">' +
               (dateLbl ? '<div class="a-pm-photo-overlay">'+dateLbl+'</div>' : '') +
               '<button class="a-pm-photo-del" data-photo-del="'+idx+'">✕</button>' +
             '</div>';
@@ -4686,7 +4686,7 @@ function renderPatPhotos(p){
       if(e.target.classList.contains('a-pm-photo-del')) return;
       var idx = parseInt(el.dataset.photoIdx);
       if(!isNaN(idx) && p.photos[idx]){
-        g('a-pm-lb-img').src = p.photos[idx].src;
+        g('a-pm-lb-img').src = p.photos[idx].url;
         g('a-pm-lb').classList.add('a-open');
       }
     });
@@ -4698,14 +4698,14 @@ function renderPatPhotos(p){
       e.stopPropagation();
       var idx = parseInt(b.dataset.photoDel);
       if(!confirm('¿Eliminar esta foto?')) return;
-      var patients = getPatients();
-      var stored = patients.find(function(x){return x.id===p.id});
-      if(stored){
-        stored.photos.splice(idx, 1);
-        p.photos = stored.photos;
-        savePatients(patients);
+      var photo = p.photos[idx];
+      if(!photo) return;
+      window.SWData.deletePatientPhoto(p.id, photo.path).then(function(){
+        p.photos.splice(idx, 1);
+        var pidx = PT.findIndex(function(x){return x.id===p.id});
+        if(pidx>-1) PT[pidx].photos = p.photos;
         renderPatPhotos(p);
-      }
+      }).catch(function(e){ console.error('Error eliminando foto', e); alert('No se pudo eliminar la foto.'); });
     });
   });
 
@@ -4721,19 +4721,20 @@ function renderPatPhotos(p){
       var reader = new FileReader();
       reader.onload = function(ev){
         compressImage(ev.target.result, 1200, 0.82, function(compressedSrc){
-          var patients = getPatients();
-          var stored = patients.find(function(x){return x.id===p.id});
-          if(!stored) return;
-          if(!stored.photos) stored.photos = [];
-          if(stored.photos.length >= 4){
+          if((p.photos||[]).length >= 4){
             alert('Ya hay 4 fotos. Elimina una antes de subir otra.');
             return;
           }
-          stored.photos.push({src: compressedSrc, date: new Date().toISOString()});
-          p.photos = stored.photos;
-          savePatients(patients);
-          renderPatPhotos(p);
-          log('Subió foto', p.name);
+          fetch(compressedSrc).then(function(r){ return r.blob(); }).then(function(blob){
+            return window.SWData.uploadPatientPhoto(p.id, blob);
+          }).then(function(photo){
+            if(!p.photos) p.photos = [];
+            p.photos.push(photo);
+            var idx = PT.findIndex(function(x){return x.id===p.id});
+            if(idx>-1) PT[idx].photos = p.photos;
+            renderPatPhotos(p);
+            log('Subió foto', p.name);
+          }).catch(function(e){ console.error('Error subiendo foto', e); alert('No se pudo subir la foto.'); });
         });
       };
       reader.readAsDataURL(f);

@@ -3771,12 +3771,20 @@ function renderDash(){
 }
 
 // ═══ BOOKINGS HELPERS ═══
+// Lectura: devuelve la cache poblada en loadFromCloud()
+function getBk(){ return BK; }
+
+// Escritura: actualiza cache y persiste en Firestore
+function setBk(arr){
+  BK = arr || [];
+  window.SWData.saveBookings(BK).catch(function(e){ console.error('Error guardando reservas', e); });
+}
+
 function getBookings(){
-  try { return JSON.parse(localStorage.getItem(BKEY) || '[]'); }
-  catch(e){ return []; }
+  return getBk();
 }
 function saveBookings(arr){
-  localStorage.setItem(BKEY, JSON.stringify(arr));
+  setBk(arr);
   updateBadges();
 }
 // Check if a proposed booking conflicts with existing ones (same barber, overlapping time)

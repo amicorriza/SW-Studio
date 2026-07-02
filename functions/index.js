@@ -1,10 +1,12 @@
 // functions/index.js — envía emails al crear una reserva.
 'use strict';
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
 const { sendBookingEmails } = require('./email.js');
+const { buildPatientUpsert, countClubVisits } = require('./patients.js');
 
 admin.initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -33,5 +35,31 @@ exports.onBookingCreated = onDocumentCreated(
       });
       // No relanzar: la reserva ya está guardada.
     }
+    try {
+      const db = admin.firestore();
+      const existingSnap = await db.collection('patients').where('email', '==', b.email).limit(1).get();
+      const existingDoc = existingSnap.empty ? null : existingSnap.docs[0];
+      const patient = buildPatientUpsert(existingDoc ? existingDoc.data() : null, b);
+      if (existingDoc) {
+        await existingDoc.ref.set(patient, { merge: true });
+      } else {
+        await db.collection('patients').add(patient);
+      }
+    } catch (err) {
+      logger.error('Fallo al sincronizar patients', err);
+      // No relanzar: la reserva y el email ya se procesaron independientemente.
+    }
+  }
+);
+
+exports.getClubStatus = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const email = (request.data && request.data.email || '').trim();
+    if (!email) throw new HttpsError('invalid-argument', 'email es requerido');
+    const db = admin.firestore();
+    const snap = await db.collection('bookings').where('email', '==', email).where('club', '==', 'member').get();
+    const bookings = snap.docs.map(d => d.data());
+    return countClubVisits(bookings, email);
   }
 );

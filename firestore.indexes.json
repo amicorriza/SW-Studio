@@ -1,4 +1,9 @@
 {
-  "indexes": [],
+  "indexes": [
+    { "collectionGroup": "bookings", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "email", "order": "ASCENDING" },
+      { "fieldPath": "club", "order": "ASCENDING" }
+    ]}
+  ],
   "fieldOverrides": []
 }

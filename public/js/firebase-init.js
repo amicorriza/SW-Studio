@@ -1,10 +1,11 @@
-// public/js/firebase-init.js — inicializa el SDK de Firebase en el cliente.
-// CONFIG PLACEHOLDER: reemplaza los valores REEMPLAZAR con los de tu proyecto
-// (Console → Project settings → "Your apps" → Web app → SDK config). No es secreto.
+// public/js/firebase-init.js
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
 import { getFirestore, connectFirestoreEmulator } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import { getAuth, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+import { getStorage, connectStorageEmulator } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js';
+import { getFunctions, connectFunctionsEmulator } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js';
 
+// Config pública del proyecto (Console → Project settings → SDK setup). No es secreto.
 const firebaseConfig = {
   apiKey: 'REEMPLAZAR',
   authDomain: 'REEMPLAZAR-project-id.firebaseapp.com',
@@ -17,11 +18,15 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+const storage = getStorage(app);
+const functions = getFunctions(app, 'southamerica-east1');
 
-// En local, conectar a los emuladores.
+// Conectar a emuladores en local
 if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
   connectFirestoreEmulator(db, 'localhost', 8080);
   connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+  connectStorageEmulator(storage, 'localhost', 9199);
+  connectFunctionsEmulator(functions, 'localhost', 5001);
 }
 
-export { app, db, auth };
+export { app, db, auth, storage, functions };

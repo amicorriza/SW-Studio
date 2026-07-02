@@ -385,12 +385,13 @@ git commit -m "feat(rules): reglas de Firestore (catálogo público, bookings va
     "test:rules": "firebase emulators:exec --only firestore \"vitest run tests/rules\""
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^4.0.1",
+    "@firebase/rules-unit-testing": "^3.0.4",
     "firebase": "^10.13.0",
     "vitest": "^2.1.0"
   }
 }
 ```
+(`@firebase/rules-unit-testing@^4` requiere `firebase@^11` como peer, lo que chocaría con el `firebase@^10.13.0` que ya usa el front-end vía CDN — se fija la `v3.x`, la última compatible con `firebase@^10.x`.)
 
 - [ ] **Step 2: Escribir el test (debe fallar primero)** en `tests/rules/firestore.rules.test.js`
 

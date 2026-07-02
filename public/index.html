@@ -4476,69 +4476,17 @@ function showAlert(id, type, msg){
 // ════════════════════════════════════════════
 // ═══ PATIENTS MODULE — Database & Export ═══
 // ════════════════════════════════════════════
-var PKEY = 'sw_patients';
 var patSearch = '';
 
-function getPatients(){
-  try { return JSON.parse(localStorage.getItem(PKEY) || '[]'); }
-  catch(e){ return []; }
-}
+function getPatients(){ return PT; }
 function savePatients(arr){
-  localStorage.setItem(PKEY, JSON.stringify(arr));
+  PT = arr || [];
+  window.SWData.savePatients(PT).catch(function(e){ console.error('Error guardando clientes', e); });
   updatePatBadge();
 }
 function updatePatBadge(){
   var el = g('anb-pat');
   if(el) el.textContent = getPatients().length;
-}
-
-// Auto-sync: every booking creates/updates a patient record
-function syncPatientsFromBookings(){
-  var bookings = getBookings();
-  var patients = getPatients();
-  var byEmail = {};
-  patients.forEach(function(p){ if(p.email) byEmail[p.email.toLowerCase()] = p; });
-  var changed = false;
-  bookings.forEach(function(b){
-    if(!b.email) return;
-    var key = b.email.toLowerCase();
-    var p = byEmail[key];
-    if(!p){
-      p = {
-        id: 'pat_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
-        name: b.name || 'Sin nombre',
-        email: b.email,
-        phone: b.phone || '',
-        notes: '',
-        club: b.club || 'guest',
-        visits: [],
-        createdAt: b.createdAt || new Date().toISOString()
-      };
-      patients.push(p);
-      byEmail[key] = p;
-      changed = true;
-    }
-    // Upgrade to member if any booking is from a club visit
-    if(b.club==='member' && p.club!=='member'){
-      p.club = 'member';
-      changed = true;
-    }
-    // Add visit if not already tracked
-    var existing = p.visits.find(function(v){return v.code===b.code});
-    if(!existing){
-      p.visits.push({
-        code: b.code,
-        date: b.date,
-        svcId: b.svcId,
-        svcName: b.svcName,
-        price: b.price,
-        barberName: b.barberName,
-        club: b.club || 'guest'
-      });
-      changed = true;
-    }
-  });
-  if(changed) savePatients(patients);
 }
 
 // Calculate Club SW visits for a patient (only member-type visits)
@@ -4548,7 +4496,6 @@ function getClubVisits(p){
 }
 
 function renderPatients(){
-  syncPatientsFromBookings();
   var patients = getPatients();
   // Update visit count and last service per patient
   patients.forEach(function(p){
@@ -4647,11 +4594,13 @@ function renderPatients(){
       var p = getPatients().find(function(x){return x.id===b.dataset.patDel});
       if(!p) return;
       openDel('¿Eliminar al cliente <strong>' + esc(p.name) + '</strong>? Su historial de visitas también se eliminará.', function(){
-        var pts = getPatients().filter(function(x){return x.id!==p.id});
-        savePatients(pts);
-        log('Eliminó cliente', p.name);
-        renderPatients();
-        showAlert('a-pat-alert', 'ok', 'Cliente eliminado.');
+        window.SWData.deletePatient(p.id).then(function(){
+          PT = PT.filter(function(x){return x.id!==p.id});
+          updatePatBadge();
+          log('Eliminó cliente', p.name);
+          renderPatients();
+          showAlert('a-pat-alert', 'ok', 'Cliente eliminado.');
+        }).catch(function(e){ console.error('Error eliminando cliente', e); });
       });
     });
   });
@@ -4885,12 +4834,14 @@ g('a-pm-del').addEventListener('click', function(){
   var p = getPatients().find(function(x){return x.id===id});
   if(!p) return;
   openDel('¿Eliminar al cliente <strong>' + esc(p.name) + '</strong>?', function(){
-    var pts = getPatients().filter(function(x){return x.id!==id});
-    savePatients(pts);
-    closeModal('a-pm');
-    log('Eliminó cliente', p.name);
-    renderPatients();
-    showAlert('a-pat-alert', 'ok', 'Cliente eliminado.');
+    window.SWData.deletePatient(id).then(function(){
+      PT = PT.filter(function(x){return x.id!==id});
+      updatePatBadge();
+      closeModal('a-pm');
+      log('Eliminó cliente', p.name);
+      renderPatients();
+      showAlert('a-pat-alert', 'ok', 'Cliente eliminado.');
+    }).catch(function(e){ console.error('Error eliminando cliente', e); });
   });
 });
 
@@ -4912,8 +4863,8 @@ function ensureXLSX(callback){
   document.head.appendChild(script);
 }
 
-g('a-pat-export').addEventListener('click', function(){
-  syncPatientsFromBookings();
+g('a-pat-export').addEventListener('click', async function(){
+  PT = await window.SWData.getPatients();
   var patients = getPatients();
   if(!patients.length){
     showAlert('a-pat-alert', 'err', 'No hay clientes para exportar.');
@@ -5033,12 +4984,10 @@ g('a-pat-export').addEventListener('click', function(){
 var __origSaveBookings = saveBookings;
 saveBookings = function(arr){
   __origSaveBookings(arr);
-  syncPatientsFromBookings();
   updatePatBadge();
 };
 
 // Initial sync on load
-syncPatientsFromBookings();
 updatePatBadge();
 
 // Add Pacientes to the panel navigation handler

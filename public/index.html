@@ -3578,6 +3578,7 @@ var bkDate = new Date(); bkDate.setHours(0,0,0,0);
 var bkFilter = '';
 var rmSelectedBarber = null;
 var D = {services:[], staff:[], schedule:[], log:[], info:{}};
+var BK=[]; var PT=[];
 
 // ═══ DEFAULTS ═══
 var DS=[
@@ -3646,20 +3647,8 @@ window.closeAdmin = function(){
 g('adm-backdrop').addEventListener('click', window.closeAdmin);
 g('adm-x').addEventListener('click', window.closeAdmin);
 
-// ═══ INITIAL LOAD ═══
-(function loadInitial(){
-  try {
-    var saved = localStorage.getItem(KEY);
-    if(saved){ D = JSON.parse(saved); }
-    else { defaults(); }
-    // Ensure staff have schedule arrays
-    D.staff.forEach(function(s){
-      if(!s.schedule){
-        s.schedule = JSON.parse(JSON.stringify(DT[0].schedule));
-      }
-    });
-  } catch(e){ defaults(); }
-  // Set logos
+// ═══ INITIAL LOAD (logos — no depende de Firestore, corre antes del login) ═══
+(function setAdminLogos(){
   var src = '';
   var landingLogo = document.querySelector('.nav-logo-img') || document.querySelector('.ft-logo img');
   if(landingLogo) src = landingLogo.src;
@@ -3669,6 +3658,22 @@ g('adm-x').addEventListener('click', window.closeAdmin);
     });
   }
 })();
+
+// ═══ CLOUD LOAD (datos admin desde Firestore, llamado desde login()) ═══
+async function loadFromCloud(){
+  try {
+    D = await window.SWData.loadAdmin();
+    if(!D.services) D.services = [];
+    if(!D.staff) D.staff = [];
+    if(!D.log) D.log = [];
+    if(!D.info) D.info = {};
+    D.staff.forEach(function(s){
+      if(!s.schedule){ s.schedule = JSON.parse(JSON.stringify(DT[0].schedule)); }
+    });
+    BK = await window.SWData.getBookings();    // cache de reservas (ver Task 5.5)
+    PT = await window.SWData.getPatients();    // cache de clientes (ver Task 5.6)
+  } catch(e){ console.error('Error cargando datos', e); defaults(); }
+}
 
 // ═══ LOGIN ═══
 async function login(){
@@ -3697,8 +3702,9 @@ g('adm-lgout').addEventListener('click', async function(){
 });
 
 // ═══ SAVE / LOG ═══
-function admSave(){
-  localStorage.setItem(KEY, JSON.stringify(D));
+async function admSave(){
+  try { await window.SWData.saveAdmin(D); }
+  catch(e){ console.error('Error guardando', e); }
   var el = g('adm-ss');
   el.textContent = '✓ ' + new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
   setTimeout(function(){ el.textContent = ''; }, 2500);

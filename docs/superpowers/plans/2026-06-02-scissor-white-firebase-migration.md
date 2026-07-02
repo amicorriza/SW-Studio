@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans para implementar este plan tarea por tarea. Los pasos usan checkbox (`- [ ]`).
 
-**Goal:** Convertir el sitio single-file de Scissor White (hoy en `localStorage`) en una web desplegable en Firebase donde los clientes agendan y reciben confirmación por email, y el staff administra todo desde un panel protegido por login.
+**Goal:** Convertir el sitio single-file de Scissor White (hoy en `localStorage`, versión **v19**) en una web desplegable en Firebase donde los clientes agendan y reciben confirmación por email, el staff administra todo desde un panel protegido por login, y el módulo de clientes (Club SW + fotos) vive en Firestore/Storage.
 
-**Architecture:** Enfoque A — se preserva el `index.html v15` (UI + SEO) y se le conecta una capa Firebase por debajo: Firestore como base central, Firebase Auth para el panel admin, una Cloud Function que envía emails al crear una reserva, y Firebase Hosting para servir el sitio. La capa de datos (`public/js/*.js`) reemplaza los 6 puntos de `localStorage`.
+**Architecture:** Enfoque A — se preserva `index.html v19` (UI + SEO) y se le conecta una capa Firebase por debajo: Firestore como base central, Firebase Storage para fotos de clientes, Firebase Auth para el panel admin, Cloud Functions (`onBookingCreated` envía emails y sincroniza `patients`; `getClubStatus` calcula la fidelización para el cliente público), y Firebase Hosting para servir el sitio. La capa de datos (`public/js/*.js`) reemplaza los 10 puntos de `localStorage` de v19 (6 originales de v15 + 4 del módulo de clientes).
 
-**Tech Stack:** Firebase Hosting · Firestore · Firebase Auth (Email/Password) · Cloud Functions Gen2 (Node 20) · firebase-admin · Firebase JS SDK v10 (modular, vía CDN, sin build) · Resend (email) · Firebase Emulator Suite · `@firebase/rules-unit-testing` + Vitest (tests de reglas) · `firebase-functions-test` (tests de la function).
+**Tech Stack:** Firebase Hosting · Firestore · Firebase Storage · Firebase Auth (Email/Password) · Cloud Functions Gen2 (Node 20, incl. `onCall`) · firebase-admin · Firebase JS SDK v10 (modular, vía CDN, sin build) · Resend (email) · Firebase Emulator Suite (Auth+Firestore+Storage+Functions) · `@firebase/rules-unit-testing` + Vitest (tests de reglas) · `firebase-functions-test` (tests de las functions).
 
-**Referencia de diseño:** [`docs/superpowers/specs/2026-06-01-scissor-white-firebase-design.md`](../specs/2026-06-01-scissor-white-firebase-design.md)
+**Referencia de diseño:** [`docs/superpowers/specs/2026-06-01-scissor-white-firebase-design.md`](../specs/2026-06-01-scissor-white-firebase-design.md) (diseño base) + [`docs/superpowers/specs/2026-07-02-scissor-white-v19-update-design.md`](../specs/2026-07-02-scissor-white-v19-update-design.md) (addendum v19: clientes, Club SW, fotos)
 
 ---
 
@@ -16,23 +16,27 @@
 
 | Archivo | Responsabilidad |
 |---|---|
-| `public/index.html` | App (copia del v15). Se parchea en 6 puntos para usar la capa de datos. |
-| `public/js/firebase-init.js` | Inicializa Firebase SDK (config) y exporta `app`, `db`, `auth`. |
-| `public/js/data.js` | API de datos: `loadAdmin()`, `saveAdmin(D)`, `getBookings()`, `saveBookings(arr)`, `createBooking(obj)`. Expone `window.SWData`. |
+| `public/index.html` | App (copia del v19). Se parchea en 10 puntos para usar la capa de datos. |
+| `public/js/firebase-init.js` | Inicializa Firebase SDK (config) y exporta `app`, `db`, `auth`, `storage`. |
+| `public/js/data.js` | API de datos: `loadAdmin()`, `saveAdmin(D)`, `getBookings()`, `saveBookings(arr)`, `createBooking(obj)`, `getPatients()`, `uploadPatientPhoto(patientId,file)`, `deletePatientPhoto(patientId,path)`, `getClubStatus(email)`. Expone `window.SWData`. |
 | `public/js/auth.js` | `signIn(email,pass)`, `signOut()`, `onChange(cb)`. Expone `window.SWAuth`. |
-| `functions/index.js` | Cloud Function `onBookingCreated`: envía email al cliente y a la barbería. |
+| `functions/index.js` | Cloud Functions: `onBookingCreated` (envía email + upsertea `patients`) y `getClubStatus` (callable, cuenta visitas Club SW). |
 | `functions/email.js` | Render de plantillas HTML de email + envío vía Resend (unidad testeable). |
+| `functions/patients.js` | Lógica pura de upsert de `patients` a partir de una reserva + conteo de visitas Club SW (unidad testeable). |
 | `functions/package.json` | Deps de Functions (Node 20, firebase-functions v2, firebase-admin, resend). |
 | `functions/test/email.test.js` | Tests unitarios del render de plantillas. |
+| `functions/test/patients.test.js` | Tests unitarios del upsert de pacientes y conteo Club SW. |
 | `seed/seed.js` | Carga inicial de `services`, `staff`, `businessInfo` a Firestore. |
-| `seed/data.js` | Los 19 servicios + 4 barberos + info, extraídos del v15 (fuente única). |
-| `firestore.rules` | Reglas de seguridad. |
+| `seed/data.js` | Los 19 servicios + 4 barberos + info, extraídos del v15/v19 (fuente única, sin cambios entre versiones). |
+| `firestore.rules` | Reglas de seguridad (incl. `patients`). |
 | `firestore.indexes.json` | Índices (vacío al inicio; documentado). |
-| `firebase.json` | Hosting + Functions + Emulators. |
+| `storage.rules` | Reglas de Storage para fotos de clientes (solo staff). |
+| `firebase.json` | Hosting + Functions + Emulators (incl. Storage). |
 | `.firebaserc` | Alias del proyecto. |
-| `tests/rules/firestore.rules.test.js` | Tests de reglas con el emulador. |
+| `tests/rules/firestore.rules.test.js` | Tests de reglas de Firestore con el emulador. |
+| `tests/rules/storage.rules.test.js` | Tests de reglas de Storage con el emulador. |
 
-**Puntos de integración exactos en `index.html` v15** (verificados en el código fuente):
+**Puntos de integración exactos en `index.html` v15 (base)** (verificados en el código fuente):
 
 | Punto | Línea(s) | Hoy | Pasa a |
 |---|---|---|---|
@@ -42,6 +46,16 @@
 | Guardar admin | 3229–3234 | `localStorage.setItem(KEY,…)` | `await SWData.saveAdmin(D)` |
 | Leer bookings (admin) | 3298 | `localStorage.getItem(BKEY)` | cache poblada por `SWData.getBookings()` |
 | Escribir bookings (admin) | 3302 | `localStorage.setItem(BKEY,…)` | `await SWData.saveBookings(arr)` |
+
+**Puntos nuevos en `index.html` v19** (verificados contra el zip v19; re-confirmar línea exacta una vez copiado a `public/index.html` en la Task 1.2, igual que ya se hace con los de arriba):
+
+| Punto | Línea aprox. (v19) | Hoy | Pasa a |
+|---|---|---|---|
+| Submit reserva — campo club | ~2588 | `club:S.club\|\|'guest'` dentro del objeto pusheado a `sw_bookings` | mismo campo, ahora dentro del payload de `SWData.createBooking({...})` |
+| Submit reserva — conteo Club SW | ~2593–2600 | filtra `bookings` locales por email para calcular `clubVisitCount` | `await SWData.getClubStatus(email)` → `{visitCount, benefitReached}` |
+| `PKEY`/`getPatients`/`savePatients` | ~4462–4470 | `localStorage.getItem/setItem('sw_patients',…)` | lectura: `SWData.getPatients()` (cache poblada en `loadFromCloud()`); ya no hay escritura directa desde el admin (la sincroniza la Cloud Function) |
+| Subir foto de cliente | ~4746–4775 (`compressImage` → `stored.photos.push({src,date})`) | guarda base64 en el array `photos` de `sw_patients` | `await SWData.uploadPatientPhoto(patientId, compressedBlob)` → agrega `{url,path,date}` |
+| Borrar foto de cliente | ~4730–4744 | `stored.photos.splice(idx,1)` + `savePatients(patients)` | `await SWData.deletePatientPhoto(patientId, photo.path)` |
 
 ---
 
@@ -125,27 +139,38 @@ git commit -m "chore: conectar repo al proyecto Firebase"
 ### Task 1.2: Colocar el index.html en Hosting
 
 **Files:**
-- Create: `public/index.html` (copia EXACTA del v15, sin modificar aún)
+- Create: `_source/scissor_white_v19.html` (respaldo, extraído del zip del usuario)
+- Create: `public/index.html` (copia EXACTA del v19, sin modificar aún)
 
-- [ ] **Step 1: Copiar el v15 a public/**
+- [ ] **Step 1: Respaldar el v19 en `_source/`**
 
 Run (PowerShell):
 ```powershell
-Copy-Item "_source\scissor_white_v15.html" "public\index.html"
+Expand-Archive -Path "$HOME\Downloads\scissor_white_v19_completo.zip" -DestinationPath "$env:TEMP\sw_v19_unzip" -Force
+Copy-Item "$env:TEMP\sw_v19_unzip\scissor_white_project\1_pagina_web\index.html" "_source\scissor_white_v19.html"
+Copy-Item "$HOME\Downloads\scissor_white_v19_completo.zip" "_source\scissor_white_v19_completo.zip"
 ```
-Expected: `public/index.html` existe (~1.4 MB).
+Expected: `_source/scissor_white_v19.html` existe (~1.5 MB) y `_source/scissor_white_v19_completo.zip` existe. Si el zip está en otra ruta, ajusta el primer `-Path`.
 
-- [ ] **Step 2: Verificar que sirve localmente**
+- [ ] **Step 2: Copiar el v19 a public/**
+
+Run (PowerShell):
+```powershell
+Copy-Item "_source\scissor_white_v19.html" "public\index.html"
+```
+Expected: `public/index.html` existe (~1.5 MB).
+
+- [ ] **Step 3: Verificar que sirve localmente**
 
 Run: `firebase emulators:start --only hosting`
-Abre http://localhost:5000 → debe verse la landing idéntica al v15.
+Abre http://localhost:5000 → debe verse la landing idéntica al v19 (con el módulo Clientes disponible en el panel admin).
 Detén con Ctrl+C.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add public/index.html
-git commit -m "chore: index.html v15 como entry de Hosting"
+git add _source/scissor_white_v19.html _source/scissor_white_v19_completo.zip public/index.html
+git commit -m "chore: index.html v19 como entry de Hosting (reemplaza v15)"
 ```
 
 ---
@@ -321,8 +346,14 @@ service cloud.firestore {
         && d.phone is string && d.phone.size() >= 7
         && d.svcId is string && d.barberId is string
         && d.date is string  && d.time is string
-        && d.code is string;
+        && d.code is string
+        && d.club is string  && (d.club == 'member' || d.club == 'guest');
     }
+
+    // Clientes (v19): nombre, contacto, historial de visitas y fotos.
+    // Nunca hay escritura pública directa — el único creador/actualizador es
+    // la Cloud Function onBookingCreated (Admin SDK, no sujeta a estas reglas).
+    match /patients/{id} { allow read, write: if request.auth != null; }
 
     // Log de actividad: solo staff
     match /adminLog/{id} { allow read, write: if request.auth != null; }
@@ -334,7 +365,7 @@ service cloud.firestore {
 
 ```bash
 git add firestore.rules
-git commit -m "feat(rules): reglas de Firestore (catálogo público, bookings validados, admin autenticado)"
+git commit -m "feat(rules): reglas de Firestore (catálogo público, bookings validados con club, patients y admin autenticado)"
 ```
 
 ### Task 3.2: Tests de reglas (TDD con emulador)
@@ -374,6 +405,7 @@ const valid = {
   status:'pending', name:'Juan Pérez', email:'juan@mail.com', phone:'+56912345678',
   svcId:'lp', svcName:'Corte', barberId:'felipe', barberName:'Felipe',
   date:'2026-06-10T00:00:00.000Z', time:'11:00', code:'SW-AB12345', price:21000, dur:50,
+  club:'guest',
 };
 
 beforeAll(async () => {
@@ -414,6 +446,28 @@ test('staff autenticado SÍ puede leer reservas', async () => {
   const db = env.authenticatedContext('staff1').firestore();
   await assertSucceeds(getDoc(doc(db, 'bookings/b1')));
 });
+
+test('reserva con club inválido es rechazada', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  const bad = { ...valid, club:'vip' };
+  await assertFails(setDoc(doc(db, 'bookings/b3'), bad));
+});
+
+test('anónimo NO puede leer patients', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertFails(getDoc(doc(db, 'patients/p1')));
+});
+
+test('anónimo NO puede crear patients', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertFails(setDoc(doc(db, 'patients/p1'), { name:'Juan', email:'juan@mail.com', club:'guest', visits:[], photos:[] }));
+});
+
+test('staff autenticado SÍ puede leer y escribir patients', async () => {
+  const db = env.authenticatedContext('staff1').firestore();
+  await assertSucceeds(setDoc(doc(db, 'patients/p1'), { name:'Juan', email:'juan@mail.com', club:'guest', visits:[], photos:[] }));
+  await assertSucceeds(getDoc(doc(db, 'patients/p1')));
+});
 ```
 
 - [ ] **Step 3: Instalar y correr — verificar que pasa**
@@ -423,13 +477,105 @@ Run:
 npm install
 npm run test:rules
 ```
-Expected: 6 tests PASS (Vitest arranca el emulador, evalúa las reglas).
+Expected: 10 tests PASS (Vitest arranca el emulador, evalúa las reglas).
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add package.json tests/rules/firestore.rules.test.js
-git commit -m "test(rules): suite de reglas de Firestore con emulador"
+git commit -m "test(rules): suite de reglas de Firestore con emulador (incl. club y patients)"
+```
+
+### Task 3.3: Reglas de Storage (fotos de clientes) + tests
+
+**Files:**
+- Create: `storage.rules`
+- Create: `tests/rules/storage.rules.test.js`
+
+- [ ] **Step 1: Escribir `storage.rules`**
+
+```
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Fotos de clientes: son datos personales, no material de marketing.
+    // Solo staff autenticado sube/lee/borra.
+    match /patients/{patientId}/{photoId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```
+
+- [ ] **Step 2: Escribir el test (debe fallar primero)** en `tests/rules/storage.rules.test.js`
+
+```js
+import { readFileSync } from 'node:fs';
+import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
+import { ref, uploadBytes, getBytes } from 'firebase/storage';
+import { beforeAll, afterAll, test } from 'vitest';
+
+let env;
+const bytes = new Uint8Array([1, 2, 3]);
+
+beforeAll(async () => {
+  env = await initializeTestEnvironment({
+    projectId: 'scissor-white-test',
+    storage: { rules: readFileSync('storage.rules', 'utf8') },
+  });
+});
+afterAll(async () => { await env.cleanup(); });
+
+test('anónimo NO puede subir una foto de cliente', async () => {
+  const storage = env.unauthenticatedContext().storage();
+  await assertFails(uploadBytes(ref(storage, 'patients/p1/photo1.jpg'), bytes));
+});
+
+test('staff autenticado SÍ puede subir y leer una foto de cliente', async () => {
+  const storage = env.authenticatedContext('staff1').storage();
+  await assertSucceeds(uploadBytes(ref(storage, 'patients/p1/photo1.jpg'), bytes));
+  await assertSucceeds(getBytes(ref(storage, 'patients/p1/photo1.jpg')));
+});
+```
+
+- [ ] **Step 3: Agregar Storage a `firebase.json`** (ya existe del andamiaje previo — se modifica, no se crea). Agrega la clave `"storage"` y el puerto del emulador:
+
+```json
+{
+  "hosting": { "...": "sin cambios" },
+  "firestore": { "...": "sin cambios" },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": [
+    { "source": "functions", "codebase": "default", "runtime": "nodejs20" }
+  ],
+  "emulators": {
+    "auth": { "port": 9099 },
+    "firestore": { "port": 8080 },
+    "storage": { "port": 9199 },
+    "functions": { "port": 5001 },
+    "hosting": { "port": 5000 },
+    "ui": { "enabled": true, "port": 4000 },
+    "singleProjectMode": true
+  }
+}
+```
+(Los bloques `"hosting"` y `"firestore"` existentes no cambian — solo agrega `"storage"` y la línea `"storage": { "port": 9199 }` dentro de `"emulators"`.)
+
+- [ ] **Step 4: Correr — debe fallar primero, luego pasar**
+
+Run:
+```bash
+firebase emulators:exec --only storage "vitest run tests/rules/storage.rules.test.js"
+```
+Expected: sin el bloque `storage.rules` del Step 1, ambos tests FAIL; después del Step 1, 2 tests PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add storage.rules tests/rules/storage.rules.test.js firebase.json
+git commit -m "feat(rules): reglas de Storage para fotos de clientes (solo staff) + tests + emulador"
 ```
 
 ---
@@ -448,6 +594,8 @@ git commit -m "test(rules): suite de reglas de Firestore con emulador"
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
 import { getFirestore, connectFirestoreEmulator } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import { getAuth, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+import { getStorage, connectStorageEmulator } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js';
+import { getFunctions, connectFunctionsEmulator } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js';
 
 // Config pública del proyecto (Console → Project settings → SDK setup). No es secreto.
 const firebaseConfig = {
@@ -462,14 +610,18 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+const storage = getStorage(app);
+const functions = getFunctions(app, 'southamerica-east1');
 
 // Conectar a emuladores en local
 if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
   connectFirestoreEmulator(db, 'localhost', 8080);
   connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+  connectStorageEmulator(storage, 'localhost', 9199);
+  connectFunctionsEmulator(functions, 'localhost', 5001);
 }
 
-export { app, db, auth };
+export { app, db, auth, storage, functions };
 ```
 
 - [ ] **Step 2:** Reemplazar los `REEMPLAZAR` y el `projectId` con la config real (Console → Project settings → "Your apps" → Web app → Config). Si no hay web app, créala ahí (botón `</>`).
@@ -490,11 +642,15 @@ git commit -m "feat(web): init de Firebase SDK en el cliente"
 
 ```js
 // public/js/data.js — capa de datos sobre Firestore. Expone window.SWData.
-import { db } from './firebase-init.js';
+import { db, storage, functions } from './firebase-init.js';
 import {
   collection, getDocs, doc, setDoc, addDoc, deleteDoc,
   writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+import {
+  ref, uploadBytes, getDownloadURL, deleteObject,
+} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js';
+import { httpsCallable } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js';
 
 async function readCol(name) {
   const snap = await getDocs(collection(db, name));
@@ -548,15 +704,75 @@ async function createBooking(obj) {
   return ref.id;
 }
 
-window.SWData = { loadAdmin, saveAdmin, getBookings, saveBookings, createBooking };
-export { loadAdmin, saveAdmin, getBookings, saveBookings, createBooking };
+// Clientes (v19). El upsert automático por reserva lo hace la Cloud
+// Function onBookingCreated (Task 6.6); savePatients cubre las escrituras
+// manuales del admin (crear/editar/borrar cliente, notas, visita manual).
+async function getPatients() {
+  return await readCol('patients');
+}
+
+async function savePatients(arr) {
+  const batch = writeBatch(db);
+  (arr || []).forEach(p => batch.set(doc(db, 'patients', p.id), stripId(p), { merge: true }));
+  await batch.commit();
+}
+
+async function deletePatient(id) {
+  await deleteDoc(doc(db, 'patients', id));
+}
+
+// Sube una foto (blob ya comprimido por compressImage) a Storage y devuelve
+// el objeto {url, path, date} que se agrega al array `photos` del paciente.
+async function uploadPatientPhoto(patientId, blob) {
+  const photoId = 'pat_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  const path = `patients/${patientId}/${photoId}.jpg`;
+  const objRef = ref(storage, path);
+  await uploadBytes(objRef, blob, { contentType: 'image/jpeg' });
+  const url = await getDownloadURL(objRef);
+  const photo = { url, path, date: new Date().toISOString() };
+  const patientRef = doc(db, 'patients', patientId);
+  const patients = await getPatients();
+  const p = patients.find(x => x.id === patientId);
+  const photos = [...((p && p.photos) || []), photo];
+  await setDoc(patientRef, { photos }, { merge: true });
+  return photo;
+}
+
+// Borra una foto de Storage y la quita del array `photos` del paciente.
+async function deletePatientPhoto(patientId, path) {
+  await deleteObject(ref(storage, path));
+  const patientRef = doc(db, 'patients', patientId);
+  const patients = await getPatients();
+  const p = patients.find(x => x.id === patientId);
+  const photos = ((p && p.photos) || []).filter(ph => ph.path !== path);
+  await setDoc(patientRef, { photos }, { merge: true });
+}
+
+// Cuenta las visitas Club SW de un email vía Cloud Function (el cliente
+// público no tiene permiso de leer `bookings` directamente — ver Task 6.7).
+async function getClubStatus(email) {
+  const call = httpsCallable(functions, 'getClubStatus');
+  const { data } = await call({ email });
+  return data; // { visitCount, benefitReached }
+}
+
+window.SWData = {
+  loadAdmin, saveAdmin, getBookings, saveBookings, createBooking,
+  getPatients, savePatients, deletePatient,
+  uploadPatientPhoto, deletePatientPhoto, getClubStatus,
+};
+export {
+  loadAdmin, saveAdmin, getBookings, saveBookings, createBooking,
+  getPatients, savePatients, deletePatient,
+  uploadPatientPhoto, deletePatientPhoto, getClubStatus,
+};
 ```
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add public/js/data.js
-git commit -m "feat(web): capa de datos SWData sobre Firestore"
+git commit -m "feat(web): capa de datos SWData sobre Firestore (incl. patients, fotos, getClubStatus)"
 ```
 
 ### Task 4.3: API de auth `SWAuth`
@@ -593,9 +809,9 @@ git commit -m "feat(web): capa de auth SWAuth (Firebase Auth)"
 
 ---
 
-## Fase 5 — Parchear `index.html` (los 6 puntos)
+## Fase 5 — Parchear `index.html` (los 10 puntos de v19)
 
-> Carga los módulos al final del `<body>` y cambia cada punto. Como los IIFE del v15 usan `var`, el puente es vía `window.SWData` / `window.SWAuth`. Tras cada parche, prueba en el emulador.
+> Carga los módulos al final del `<body>` y cambia cada punto. Como los IIFE del v19 usan `var`, el puente es vía `window.SWData` / `window.SWAuth`. Tras cada parche, prueba en el emulador. Los números de línea son del v15 base (Tasks 5.2–5.5) o aproximados del v19 (Tasks 5.6–5.8) — **re-verifica contra `public/index.html` real** (`grep -n "sw_patients\|S.club\|compressImage"`) antes de editar, ya que pueden variar unas líneas por los cambios previos de esta misma fase.
 
 ### Task 5.1: Cargar los módulos
 
@@ -617,12 +833,14 @@ git add public/index.html
 git commit -m "feat(web): cargar módulos Firebase en index.html"
 ```
 
-### Task 5.2: Persistir la reserva del cliente (líneas 2316–2334)
+### Task 5.2: Persistir la reserva del cliente + Club SW (líneas ~2566–2649 en v19)
 
 **Files:**
-- Modify: `public/index.html:2316-2334`
+- Modify: `public/index.html:2566-2649` (aprox. — confirma con `grep -n "bk-submit" public/index.html`)
 
-- [ ] **Step 1:** Convertir el callback en `async` y reemplazar el bloque `try{...}catch` de `localStorage` por:
+El v19 agrega el campo `club` y calcula `clubVisitCount`/`clubBenefitReached` **leyendo localStorage sincrónicamente**. Ambas cosas cambian: `club` viaja en el payload de Firestore, y el conteo pasa a `SWData.getClubStatus()` (ver hallazgo del spec — el cliente público ya no puede leer `bookings` directamente).
+
+- [ ] **Step 1:** Reemplazar el bloque completo dentro del `setTimeout(...)` del listener de `#bk-submit` por:
 
 ```js
   setTimeout(async ()=>{
@@ -631,7 +849,9 @@ git commit -m "feat(web): cargar módulos Firebase en index.html"
     const name=fullname.split(' ')[0];
     const email=document.getElementById('bkf-email').value.trim();
     const phone=document.getElementById('bkf-phone').value.trim();
-    // ── Persistir la reserva en Firestore (dispara email) ──
+    var clubVisitCount = 1;
+    var clubBenefitReached = '';
+    // ── Persistir la reserva en Firestore (dispara email + sync de patients) ──
     try{
       await window.SWData.createBooking({
         code, name:fullname, email, phone,
@@ -639,24 +859,32 @@ git commit -m "feat(web): cargar módulos Firebase en index.html"
         price:S.svc?.price||0, dur:S.svc?.dur||0,
         barberId:S.barber?.id, barberName:S.barber?.name,
         date:S.date?S.date.toISOString():'', time:S.time,
+        club:S.club||'guest',
         createdAt:new Date().toISOString()
       });
+      // Conteo de visitas Club SW vía Cloud Function (bookings es solo-staff)
+      if(S.club==='member' && email){
+        const status = await window.SWData.getClubStatus(email);
+        clubVisitCount = status.visitCount;
+        clubBenefitReached = status.benefitReached || '';
+      }
     }catch(e){
       console.error('No se pudo guardar la reserva', e);
       // Fallback: mantener el link de WhatsApp visible para contacto manual
     }
     document.getElementById('bk-confirm-code').textContent=code;
-    // … (resto del render de confirmación sin cambios)
+    // … (resto del render de confirmación — bloque de fidelización con
+    // clubVisitCount/clubBenefitReached y el resumen de la reserva — sin cambios)
 ```
-(El resto del bloque de confirmación, líneas 2335–2349, queda igual.)
+(El resto del bloque, que arma `loyaltyBlock` y `bk-confirm-details` a partir de `clubVisitCount`/`clubBenefitReached`, queda igual — esas variables ya existían con esos mismos nombres.)
 
-- [ ] **Step 2: Verificar en emulador.** Arranca `firebase emulators:start`, completa una reserva en http://localhost:5000, y confirma en http://localhost:4000/firestore que aparece un doc en `bookings` con `status:pending`.
+- [ ] **Step 2: Verificar en emulador.** Arranca `firebase emulators:start`, completa una reserva como Miembro Club SW en http://localhost:5000, y confirma en http://localhost:4000/firestore que aparece un doc en `bookings` con `status:pending` y `club:'member'`. Repite la reserva con el mismo email un par de veces más y confirma que el contador de visitas en la tarjeta de confirmación sube (requiere que la Task 6.7 — `getClubStatus` — ya esté desplegada en el emulador).
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add public/index.html
-git commit -m "feat(web): la reserva del cliente se guarda en Firestore"
+git commit -m "feat(web): la reserva del cliente se guarda en Firestore, club y contador vía getClubStatus"
 ```
 
 ### Task 5.3: Login admin con Firebase Auth (líneas 3207–3217)
@@ -727,7 +955,8 @@ async function loadFromCloud(){
     D.staff.forEach(function(s){
       if(!s.schedule){ s.schedule = JSON.parse(JSON.stringify(DT[0].schedule)); }
     });
-    BK = await window.SWData.getBookings();   // cache de reservas (ver Task 5.5)
+    BK = await window.SWData.getBookings();    // cache de reservas (ver Task 5.5)
+    PT = await window.SWData.getPatients();    // cache de clientes (ver Task 5.6)
   } catch(e){ console.error('Error cargando datos', e); defaults(); }
 }
 ```
@@ -778,9 +1007,113 @@ git add public/index.html
 git commit -m "feat(web): admin lee/escribe reservas en Firestore"
 ```
 
+### Task 5.6: Lectura/escritura de clientes en el admin (`sw_patients`, líneas ~4462–4470 en v19)
+
+**Files:**
+- Modify: `public/index.html` (confirma línea con `grep -n "PKEY\|getPatients\|savePatients" public/index.html`)
+
+- [ ] **Step 1:** Declarar la cache `var PT=[];` junto a `var BK=[];` y reemplazar `getPatients()`/`savePatients()`:
+
+```js
+// Antes:
+// var PKEY = 'sw_patients';
+// function getPatients(){ try{ return JSON.parse(localStorage.getItem(PKEY)||'[]'); }catch(e){ return []; } }
+// function savePatients(arr){ localStorage.setItem(PKEY, JSON.stringify(arr)); updatePatBadge(); }
+
+// Ahora:
+function getPatients(){ return PT; }
+function savePatients(arr){
+  PT = arr || [];
+  window.SWData.savePatients(PT).catch(function(e){ console.error('Error guardando clientes', e); });
+  updatePatBadge();
+}
+```
+
+- [ ] **Step 2:** El módulo `syncPatientsFromBookings()` (líneas ~4479–4525) deja de ser necesario — ahora lo hace la Cloud Function `onBookingCreated` (Task 6.6) cada vez que se crea una reserva. Elimina la llamada a `syncPatientsFromBookings()` dentro de `renderPatients()` (la función queda sin uso; puedes borrarla junto con su llamada).
+
+- [ ] **Step 3:** Los dos flujos de **borrado** de cliente (fila de la tabla y modal de ficha, líneas ~4628–4640 y ~4865–4878) hoy hacen `pts = getPatients().filter(...); savePatients(pts);` — eso funcionaba en `localStorage` porque se reescribía el array completo, pero en Firestore un `set` con el array filtrado **no borra** el documento ya persistido. Cambia ambos handlers para usar borrado explícito:
+
+```js
+// Antes (en ambos handlers):
+// var pts = getPatients().filter(function(x){return x.id!==p.id});
+// savePatients(pts);
+
+// Ahora:
+window.SWData.deletePatient(p.id).then(function(){
+  PT = PT.filter(function(x){return x.id!==p.id});
+  updatePatBadge();
+}).catch(function(e){ console.error('Error eliminando cliente', e); });
+```
+
+- [ ] **Step 4: Verificar:** crear un cliente manual (+ Nuevo cliente) → guardar → recargar → persiste. Editar sus notas → persiste. Eliminarlo → desaparece y no reaparece tras recargar. Crear una reserva pública nueva → entrar al admin → el cliente aparece solo en Clientes sin necesitar abrir la pestaña dos veces (lo hizo la Cloud Function). Commit:
+
+```bash
+git add public/index.html
+git commit -m "feat(web): admin lee/escribe clientes en Firestore, sync automático vía Cloud Function"
+```
+
+### Task 5.7: Fotos de clientes → Firebase Storage (líneas ~4691–4776 en v19)
+
+**Files:**
+- Modify: `public/index.html` (confirma línea con `grep -n "compressImage\|data-photo-add\|data-photo-del" public/index.html`)
+
+- [ ] **Step 1:** En el handler de subida (dentro de `renderPatPhotos(p)`, sección `[data-photo-add]`), reemplazar el guardado en `stored.photos.push({src, date})` por la subida a Storage. `compressImage` ya produce un dataURL comprimido — se convierte a blob antes de subir:
+
+```js
+reader.onload = function(ev){
+  compressImage(ev.target.result, 1200, 0.82, function(compressedSrc){
+    if((p.photos||[]).length >= 4){
+      alert('Ya hay 4 fotos. Elimina una antes de subir otra.');
+      return;
+    }
+    fetch(compressedSrc).then(function(r){ return r.blob(); }).then(function(blob){
+      return window.SWData.uploadPatientPhoto(p.id, blob);
+    }).then(function(photo){
+      if(!p.photos) p.photos = [];
+      p.photos.push(photo);
+      var idx = PT.findIndex(function(x){return x.id===p.id});
+      if(idx>-1) PT[idx].photos = p.photos;
+      renderPatPhotos(p);
+      log('Subió foto', p.name);
+    }).catch(function(e){ console.error('Error subiendo foto', e); alert('No se pudo subir la foto.'); });
+  });
+};
+reader.readAsDataURL(f);
+```
+(El chequeo de tamaño máximo 5MB y la validación de `f` antes de este bloque no cambian.)
+
+- [ ] **Step 2:** En el handler de borrado (`[data-photo-del]`), reemplazar `stored.photos.splice(idx,1); savePatients(patients);` por:
+
+```js
+grid.querySelectorAll('[data-photo-del]').forEach(function(b){
+  b.addEventListener('click', function(e){
+    e.stopPropagation();
+    var idx = parseInt(b.dataset.photoDel);
+    if(!confirm('¿Eliminar esta foto?')) return;
+    var photo = p.photos[idx];
+    if(!photo) return;
+    window.SWData.deletePatientPhoto(p.id, photo.path).then(function(){
+      p.photos.splice(idx, 1);
+      var pidx = PT.findIndex(function(x){return x.id===p.id});
+      if(pidx>-1) PT[pidx].photos = p.photos;
+      renderPatPhotos(p);
+    }).catch(function(e){ console.error('Error eliminando foto', e); alert('No se pudo eliminar la foto.'); });
+  });
+});
+```
+
+- [ ] **Step 3:** El lightbox y el resto de `renderPatPhotos` leen `photo.src`; cambia esas referencias a `photo.url` (la URL de Storage reemplaza al dataURL base64).
+
+- [ ] **Step 4: Verificar en emulador** (con el emulador de Storage corriendo, Task 3.3): subir una foto en la ficha de un cliente → aparece en la grilla y en http://localhost:4000/storage; recargar la página → sigue ahí; eliminarla → desaparece de ambos lados. Commit:
+
+```bash
+git add public/index.html
+git commit -m "feat(web): fotos de clientes suben/borran desde Firebase Storage"
+```
+
 ---
 
-## Fase 6 — Cloud Function de email
+## Fase 6 — Cloud Functions (email, sync de clientes, Club SW)
 
 ### Task 6.1: Estructura de Functions
 
@@ -998,56 +1331,241 @@ Expected: cada uno confirma "Secret created/updated".
 
 - [ ] **Step 2: Probar con emuladores** (para local, crea `functions/.env` con valores reales — está gitignored). Run: `firebase emulators:start`. Crea una reserva en http://localhost:5000 y revisa en la consola del emulador que la function corrió y `emailStatus` pasó a `sent` (con una API key válida llega el email; con key de prueba revisa los logs).
 
----
-
-## Fase 7 — Configuración de Firebase y verificación integral
-
-### Task 7.1: `firebase.json` y `firestore.indexes.json`
+### Task 6.5: Lógica de upsert de clientes + conteo Club SW (unidad testeable, TDD)
 
 **Files:**
-- Create: `firebase.json`
-- Create: `firestore.indexes.json`
+- Create: `functions/patients.js`
+- Test: `functions/test/patients.test.js`
 
-- [ ] **Step 1: Crear `firebase.json`**
+- [ ] **Step 1: Escribir el test primero** en `functions/test/patients.test.js`
 
-```json
-{
-  "hosting": {
-    "public": "public",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "headers": [
-      { "source": "/js/**", "headers": [{ "key": "Cache-Control", "value": "max-age=3600" }] }
-    ]
-  },
-  "firestore": {
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
-  },
-  "functions": [
-    { "source": "functions", "codebase": "default", "runtime": "nodejs20" }
-  ],
-  "emulators": {
-    "auth": { "port": 9099 },
-    "firestore": { "port": 8080 },
-    "functions": { "port": 5001 },
-    "hosting": { "port": 5000 },
-    "ui": { "enabled": true, "port": 4000 },
-    "singleProjectMode": true
+```js
+const test = require('node:test');
+const assert = require('node:assert');
+const { buildPatientUpsert, countClubVisits } = require('../patients.js');
+
+const booking = {
+  code:'SW-AB12345', name:'Juan Pérez', email:'Juan@Mail.com', phone:'+56912345678',
+  svcId:'lp', svcName:'Corte + Lavado Premium', price:21000, barberName:'Felipe',
+  club:'member', createdAt:'2026-06-10T00:00:00.000Z',
+};
+
+test('buildPatientUpsert crea un cliente nuevo si no existe', () => {
+  const p = buildPatientUpsert(null, booking);
+  assert.strictEqual(p.name, 'Juan Pérez');
+  assert.strictEqual(p.email, 'Juan@Mail.com');
+  assert.strictEqual(p.club, 'member');
+  assert.strictEqual(p.visits.length, 1);
+  assert.strictEqual(p.visits[0].code, 'SW-AB12345');
+});
+
+test('buildPatientUpsert agrega una visita a un cliente existente', () => {
+  const existing = { id:'pat_1', name:'Juan Pérez', email:'juan@mail.com', phone:'', notes:'', club:'guest', visits:[{code:'SW-OLD01'}], createdAt:'2026-01-01T00:00:00.000Z' };
+  const p = buildPatientUpsert(existing, booking);
+  assert.strictEqual(p.visits.length, 2);
+  assert.strictEqual(p.club, 'member'); // sube a member porque esta reserva es club:member
+});
+
+test('buildPatientUpsert no duplica una visita ya registrada (mismo code)', () => {
+  const existing = { id:'pat_1', name:'Juan Pérez', email:'juan@mail.com', phone:'', notes:'', club:'member', visits:[{code:'SW-AB12345'}], createdAt:'2026-01-01T00:00:00.000Z' };
+  const p = buildPatientUpsert(existing, booking);
+  assert.strictEqual(p.visits.length, 1);
+});
+
+test('countClubVisits cuenta solo reservas club:member del email (case-insensitive)', () => {
+  const bookings = [
+    { email:'juan@mail.com', club:'member' },
+    { email:'JUAN@MAIL.COM', club:'member' },
+    { email:'juan@mail.com', club:'guest' },
+    { email:'otro@mail.com', club:'member' },
+  ];
+  const { visitCount, benefitReached } = countClubVisits(bookings, 'juan@mail.com');
+  assert.strictEqual(visitCount, 2);
+  assert.strictEqual(benefitReached, '');
+});
+
+test('countClubVisits marca el beneficio al llegar a 10 y 20', () => {
+  const tenBookings = Array.from({ length: 10 }, () => ({ email:'ana@mail.com', club:'member' }));
+  assert.strictEqual(countClubVisits(tenBookings, 'ana@mail.com').benefitReached, 'premium');
+  const twentyBookings = Array.from({ length: 20 }, () => ({ email:'ana@mail.com', club:'member' }));
+  assert.strictEqual(countClubVisits(twentyBookings, 'ana@mail.com').benefitReached, 'asesoria');
+});
+```
+
+- [ ] **Step 2: Correr — debe fallar**
+
+Run: `cd functions && node --test && cd ..`
+Expected: FAIL (`Cannot find module '../patients.js'`).
+
+- [ ] **Step 3: Implementar `functions/patients.js`**
+
+```js
+// functions/patients.js — lógica pura de upsert de clientes y conteo Club SW.
+// Sin dependencias de Firebase Admin: fácil de testear, se usa desde index.js.
+'use strict';
+
+function buildPatientUpsert(existingPatient, booking) {
+  const visit = {
+    code: booking.code, date: booking.date || booking.createdAt || '',
+    svcId: booking.svcId || '', svcName: booking.svcName || '',
+    price: booking.price || 0, barberName: booking.barberName || '',
+    club: booking.club || 'guest',
+  };
+  if (!existingPatient) {
+    return {
+      name: booking.name || 'Sin nombre', email: booking.email, phone: booking.phone || '',
+      notes: '', club: booking.club || 'guest', visits: [visit],
+      createdAt: booking.createdAt || new Date().toISOString(),
+    };
   }
+  const visits = existingPatient.visits || [];
+  const already = visits.some(v => v.code === booking.code);
+  return {
+    ...existingPatient,
+    club: booking.club === 'member' ? 'member' : existingPatient.club,
+    visits: already ? visits : [...visits, visit],
+  };
 }
+
+function countClubVisits(bookings, email) {
+  const key = (email || '').toLowerCase();
+  const visitCount = (bookings || []).filter(
+    b => (b.email || '').toLowerCase() === key && b.club === 'member'
+  ).length;
+  let benefitReached = '';
+  if (visitCount === 10) benefitReached = 'premium';
+  if (visitCount === 20) benefitReached = 'asesoria';
+  return { visitCount, benefitReached };
+}
+
+module.exports = { buildPatientUpsert, countClubVisits };
 ```
 
-- [ ] **Step 2: Crear `firestore.indexes.json`** (vacío al inicio)
+- [ ] **Step 4: Correr — debe pasar**
 
-```json
-{ "indexes": [], "fieldOverrides": [] }
+Run: `cd functions && node --test && cd ..`
+Expected: 7 tests PASS (2 de `email.test.js` + 5 de `patients.test.js`).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add functions/patients.js functions/test/patients.test.js
+git commit -m "feat(functions): lógica de upsert de clientes y conteo Club SW + tests"
 ```
+
+### Task 6.6: Extender `onBookingCreated` para sincronizar `patients`
+
+**Files:**
+- Modify: `functions/index.js`
+
+- [ ] **Step 1:** Importar `buildPatientUpsert` y agregar el upsert dentro del trigger, después de enviar los emails (si el email falla, el upsert igual debe ocurrir — la reserva ya es válida):
+
+```js
+// functions/index.js — agregar arriba, junto a los otros requires:
+const { buildPatientUpsert } = require('./patients.js');
+
+// Dentro de exports.onBookingCreated, después del bloque try/catch de emails
+// (antes del cierre de la función), agregar:
+    try {
+      const db = admin.firestore();
+      const existingSnap = await db.collection('patients').where('email', '==', b.email).limit(1).get();
+      const existingDoc = existingSnap.empty ? null : existingSnap.docs[0];
+      const patient = buildPatientUpsert(existingDoc ? existingDoc.data() : null, b);
+      if (existingDoc) {
+        await existingDoc.ref.set(patient, { merge: true });
+      } else {
+        await db.collection('patients').add(patient);
+      }
+    } catch (err) {
+      logger.error('Fallo al sincronizar patients', err);
+      // No relanzar: la reserva y el email ya se procesaron independientemente.
+    }
+```
+
+- [ ] **Step 2: Verificar en emulador:** crear una reserva pública (Club SW o invitado) → confirmar en http://localhost:4000/firestore que aparece/actualiza un doc en `patients` con la visita agregada. Crear una segunda reserva con el mismo email → el mismo doc de `patients` gana una segunda entrada en `visits[]` (no un documento duplicado).
 
 - [ ] **Step 3: Commit**
 
 ```bash
+git add functions/index.js
+git commit -m "feat(functions): onBookingCreated sincroniza patients automáticamente"
+```
+
+### Task 6.7: Cloud Function callable `getClubStatus`
+
+**Files:**
+- Modify: `functions/index.js`
+
+- [ ] **Step 1:** Agregar la function callable, usando `countClubVisits` (ya testeado en Task 6.5):
+
+```js
+// functions/index.js — agregar arriba, junto a los otros requires:
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { countClubVisits } = require('./patients.js');
+
+// Agregar como export nuevo, al mismo nivel que onBookingCreated:
+exports.getClubStatus = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const email = (request.data && request.data.email || '').trim();
+    if (!email) throw new HttpsError('invalid-argument', 'email es requerido');
+    const db = admin.firestore();
+    const snap = await db.collection('bookings').where('email', '==', email).where('club', '==', 'member').get();
+    const bookings = snap.docs.map(d => d.data());
+    return countClubVisits(bookings, email);
+  }
+);
+```
+
+- [ ] **Step 2: Agregar el índice compuesto necesario** en `firestore.indexes.json` (la query filtra por `email` + `club`, dos campos `==`, Firestore lo pide como índice compuesto):
+
+```json
+{
+  "indexes": [
+    { "collectionGroup": "bookings", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "email", "order": "ASCENDING" },
+      { "fieldPath": "club", "order": "ASCENDING" }
+    ]}
+  ],
+  "fieldOverrides": []
+}
+```
+(Este bloque reemplaza el `{ "indexes": [], ... }` vacío que crea la Task 7.1 — si esa task ya corrió, edita el archivo existente en vez de sobreescribirlo.)
+
+- [ ] **Step 3: Verificar en emulador:** desde la consola del navegador en http://localhost:5000, tras crear 2-3 reservas de prueba como Club SW con el mismo email, llamar manualmente `await window.SWData.getClubStatus('ese@email.com')` y confirmar que `visitCount` coincide con las reservas creadas.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add functions/index.js firestore.indexes.json
+git commit -m "feat(functions): getClubStatus callable + índice compuesto bookings(email,club)"
+```
+
+---
+
+## Fase 7 — Configuración de Firebase y verificación integral
+
+### Task 7.1: Verificar `firebase.json` y `firestore.indexes.json`
+
+**Files:**
+- Verify: `firebase.json` (ya tiene Hosting/Firestore/Functions del andamiaje inicial + `storage` agregado en Task 3.3)
+- Verify: `firestore.indexes.json` (ya tiene el índice `bookings(email,club)` agregado en Task 6.7)
+
+- [ ] **Step 1:** Confirma que `firebase.json` tiene los 5 bloques: `hosting`, `firestore`, `storage`, `functions`, `emulators` (con `auth`, `firestore`, `storage`, `functions`, `hosting`, `ui`). Si falta alguno de los agregados en tasks anteriores, complétalo ahora con el contenido mostrado en Task 3.3 Step 3.
+
+Run: `node -e "const j=require('./firebase.json'); console.log(Object.keys(j), Object.keys(j.emulators))"`
+Expected: `[ 'hosting', 'firestore', 'storage', 'functions', 'emulators' ] [ 'auth', 'firestore', 'storage', 'functions', 'hosting', 'ui', 'singleProjectMode' ]`
+
+- [ ] **Step 2:** Confirma que `firestore.indexes.json` tiene el índice compuesto de la Task 6.7 Step 2 (no debe estar vacío).
+
+Run: `node -e "const j=require('./firestore.indexes.json'); console.log(j.indexes.length)"`
+Expected: `1`
+
+- [ ] **Step 3: Commit** (solo si el Step 1 o 2 requirió cambios; si ambos archivos ya estaban completos, omite este paso)
+
+```bash
 git add firebase.json firestore.indexes.json
-git commit -m "chore: configuración de Hosting, Firestore, Functions y emuladores"
+git commit -m "chore: completar configuración de Hosting, Firestore, Storage, Functions y emuladores"
 ```
 
 ### Task 7.2: QA integral en emuladores
@@ -1056,15 +1574,22 @@ git commit -m "chore: configuración de Hosting, Firestore, Functions y emulador
 
 - [ ] **Step 1:** `firebase emulators:start` y seed contra el emulador (Task 2.2 Step 4).
 - [ ] **Step 2: Checklist manual** (anota PASS/FAIL):
-  - [ ] La landing carga idéntica al v15 en http://localhost:5000
-  - [ ] Reserva completa de los 4 pasos → aparece doc en `bookings` (`status:pending`)
-  - [ ] La function corre y deja `emailStatus:sent` (o `failed` + log si la key es de prueba)
+  - [ ] La landing carga idéntica al v19 en http://localhost:5000 (incl. selector Miembro Club SW / Invitado en el paso 4 del booking)
+  - [ ] Reserva completa de los 4 pasos como **Invitado** → aparece doc en `bookings` (`status:pending`, `club:'guest'`)
+  - [ ] Reserva completa como **Miembro Club SW** → `club:'member'`; la tarjeta de confirmación muestra el contador de visitas correcto (vía `getClubStatus`)
+  - [ ] Repetir la reserva Club SW con el mismo email 2-3 veces → el contador sube cada vez
+  - [ ] La function `onBookingCreated` corre y deja `emailStatus:sent` (o `failed` + log si la key es de prueba)
+  - [ ] Tras cada reserva, el doc correspondiente en `patients` se crea/actualiza automáticamente (sin abrir el panel admin)
   - [ ] Login admin con la cuenta de prueba (email+pass) entra al panel
   - [ ] La reserva aparece en la Agenda del admin
+  - [ ] El cliente aparece en Clientes con su historial de visitas
+  - [ ] Doble clic en un cliente → abre la ficha → subir una foto → aparece en la grilla y en Storage
+  - [ ] Eliminar esa foto → desaparece de la grilla y de Storage
+  - [ ] Crear un cliente manual (+ Nuevo cliente) → editar sus notas → eliminarlo → no reaparece tras recargar
   - [ ] Editar un servicio → guardar → recargar → persiste
   - [ ] Mover/reasignar una cita → persiste
   - [ ] Logout cierra sesión
-- [ ] **Step 3:** `npm run test:rules` y `cd functions && node --test` → todo PASS.
+- [ ] **Step 3:** `npm run test:rules`, `firebase emulators:exec --only storage "vitest run tests/rules/storage.rules.test.js"` y `cd functions && node --test` → todo PASS.
 
 ---
 
@@ -1076,8 +1601,8 @@ git commit -m "chore: configuración de Hosting, Firestore, Functions y emulador
 
 - [ ] **Step 1: Desplegar reglas e índices**
 
-Run: `firebase deploy --only firestore:rules,firestore:indexes`
-Expected: "Deploy complete!".
+Run: `firebase deploy --only firestore:rules,firestore:indexes,storage`
+Expected: "Deploy complete!". (Nota: Firebase puede tardar unos minutos en construir el índice compuesto `bookings(email,club)` de la Task 6.7 — revisa el estado en Console → Firestore → Indexes antes de probar `getClubStatus` en producción.)
 
 - [ ] **Step 2: Seed de producción.** Genera una service account (Console → Project settings → Service accounts → Generate new private key → guarda como `serviceAccountKey.json`, **gitignored**). Run:
 ```bash
@@ -1092,7 +1617,7 @@ Expected: `Seed OK: 19 servicios, 4 barberos, businessInfo/main`.
 Run: `firebase deploy --only functions,hosting`
 Expected: imprime la URL `https://scissor-white-xxxx.web.app`.
 
-- [ ] **Step 4: Smoke test en producción:** abre la URL, completa una reserva real con tu email → llega el email de confirmación; verifica en la consola Firestore que el doc existe y `emailStatus:sent`.
+- [ ] **Step 4: Smoke test en producción:** abre la URL, completa una reserva real como Miembro Club SW con tu email → llega el email de confirmación, la tarjeta de fidelización muestra el contador correcto, y en la consola Firestore existen `bookings` (`emailStatus:sent`, `club:'member'`) y `patients` (con la visita); en el panel admin, sube una foto al cliente y confirma que aparece en Storage.
 
 - [ ] **Step 5 (opcional): Dominio.** Hosting → Add custom domain → `scissorwhite.cl` → seguir instrucciones de DNS. Luego cambiar las URLs `https://scissorwhite.cl` del `<head>` del index si corresponde.
 
@@ -1102,7 +1627,7 @@ Expected: imprime la URL `https://scissor-white-xxxx.web.app`.
 
 > No bloquean el lanzamiento. Cada una es su propio mini-ciclo spec→plan si se aborda.
 
-- **Externalizar imágenes base64** a `/public/assets/*.webp` para bajar el HTML de 1.4 MB (mejora carga y SEO).
+- **Externalizar imágenes base64** a `/public/assets/*.webp` para bajar el HTML de 1.5 MB (mejora carga y SEO). El zip v19 ya trae las 12 fotos originales sueltas (`2_imagenes_originales/`), listas para esta tarea sin tener que extraerlas del HTML.
 - **Catálogo público dinámico:** que la landing lea `services`/`staff` desde Firestore (hoy están hardcodeadas; el admin ya las gestiona).
 - **Recordatorio 24h antes:** Cloud Function programada (`onSchedule`) que envía email de recordatorio.
 - **Notificación WhatsApp:** sumar canal vía Twilio/Meta cuando haya cuenta WhatsApp Business aprobada.
@@ -1112,12 +1637,26 @@ Expected: imprime la URL `https://scissor-white-xxxx.web.app`.
 
 ## Auto-revisión del plan (cobertura del spec)
 
+**Cobertura del spec base (2026-06-01):**
+
 - ✅ Email automático al cliente y a la barbería → Fase 6 (function + plantillas + tests).
 - ✅ Firebase Auth para el admin → Task 5.3.
 - ✅ Firestore como base central (services/staff/businessInfo/bookings/adminLog) → Fases 2, 4, 5.
 - ✅ Reglas (catálogo público, bookings validados, admin autenticado) → Fase 3 + tests.
 - ✅ Hosting + región `southamerica-east1` → Tasks 0.2, 6.3, 7.1, 8.1.
-- ✅ Modelo de datos con nombres reales del v15 → Task 2.1, 4.2.
+- ✅ Modelo de datos con nombres reales del v15/v19 → Task 2.1, 4.2.
 - ✅ Manejo de errores (reserva guardada aunque falle email; fallback WhatsApp) → Tasks 5.2, 6.3.
 - ✅ Testing (reglas + function + QA emulador) → Tasks 3.2, 6.2, 7.2.
 - ✅ Fase 2 (imágenes, WhatsApp, recordatorio) anotada → Fase 9.
+
+**Cobertura del addendum v19 (2026-07-02):**
+
+- ✅ Reemplazo de `index.html` v15 → v19 → Task 1.2.
+- ✅ Colección `patients/{id}` (name/email/phone/notes/club/visits/photos) → Task 2.1 sin cambios (no es seed), modelo definido en Task 4.2, reglas en Task 3.1.
+- ✅ Campo `club` en `bookings` + validación → Task 3.1 (`isValidBooking`), Task 5.2.
+- ✅ Fotos de clientes en Firebase Storage (no base64) → Tasks 3.3, 4.2, 5.7.
+- ✅ Conteo de visitas Club SW sin abrir lectura pública de `bookings` → Task 6.7 (`getClubStatus` callable) + Task 5.2.
+- ✅ Sincronización de `patients` server-side (sin depender de que el admin abra la pestaña) → Tasks 6.5, 6.6.
+- ✅ Reglas de Storage (solo staff) → Task 3.3.
+- ✅ Escrituras manuales de `patients` desde el admin (crear/editar/borrar cliente) → Task 5.6.
+- ✅ Testing del addendum (reglas de `patients`, reglas de Storage, upsert/conteo Club SW, QA manual ampliado) → Tasks 3.2, 3.3, 6.5, 7.2.

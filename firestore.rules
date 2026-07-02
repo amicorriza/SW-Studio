@@ -2,13 +2,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Catálogo público: lectura libre, escritura solo staff autenticado.
-    // (Los horarios viajan embebidos dentro de cada doc de staff.)
-    match /services/{id}    { allow read: if true; allow write: if request.auth != null; }
-    match /staff/{id}       { allow read: if true; allow write: if request.auth != null; }
+    // Catálogo público: lectura libre, escritura solo staff autenticado
+    match /services/{id}   { allow read: if true; allow write: if request.auth != null; }
+    match /staff/{id}      { allow read: if true; allow write: if request.auth != null; }
     match /businessInfo/{id}{ allow read: if true; allow write: if request.auth != null; }
 
-    // Reservas: el público puede CREAR (validado); solo el staff lee/edita/borra.
+    // Reservas: el público puede CREAR (validado), solo staff lee/edita/borra
     match /bookings/{id} {
       allow read, update, delete: if request.auth != null;
       allow create: if isValidBooking();
@@ -21,10 +20,16 @@ service cloud.firestore {
         && d.phone is string && d.phone.size() >= 7
         && d.svcId is string && d.barberId is string
         && d.date is string  && d.time is string
-        && d.code is string;
+        && d.code is string
+        && d.club is string  && (d.club == 'member' || d.club == 'guest');
     }
 
-    // Log de actividad: solo staff.
+    // Clientes (v19): nombre, contacto, historial de visitas y fotos.
+    // Nunca hay escritura pública directa — el único creador/actualizador es
+    // la Cloud Function onBookingCreated (Admin SDK, no sujeta a estas reglas).
+    match /patients/{id} { allow read, write: if request.auth != null; }
+
+    // Log de actividad: solo staff
     match /adminLog/{id} { allow read, write: if request.auth != null; }
   }
 }

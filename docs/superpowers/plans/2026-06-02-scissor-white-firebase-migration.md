@@ -599,11 +599,15 @@ import { getStorage, connectStorageEmulator } from 'https://www.gstatic.com/fire
 import { getFunctions, connectFunctionsEmulator } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js';
 
 // Config pública del proyecto (Console → Project settings → SDK setup). No es secreto.
+// projectId/authDomain/storageBucket usan el mismo id que .firebaserc (Task 1.1)
+// para que el desarrollo local contra los emuladores funcione sin depender de
+// un proyecto Firebase real. apiKey/messagingSenderId/appId sí deben reemplazarse
+// por los valores reales antes de producción — el emulador no los valida, prod sí.
 const firebaseConfig = {
   apiKey: 'REEMPLAZAR',
-  authDomain: 'scissor-white-xxxx.firebaseapp.com',
-  projectId: 'scissor-white-xxxx',
-  storageBucket: 'scissor-white-xxxx.appspot.com',
+  authDomain: 'demo-scissor-white.firebaseapp.com',
+  projectId: 'demo-scissor-white',
+  storageBucket: 'demo-scissor-white.appspot.com',
   messagingSenderId: 'REEMPLAZAR',
   appId: 'REEMPLAZAR',
 };

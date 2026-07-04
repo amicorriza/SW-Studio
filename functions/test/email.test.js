@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { renderClientEmail, renderShopEmail } = require('../email.js');
+const { renderClientEmail, renderShopEmail, parseRecipients } = require('../email.js');
 
 const booking = {
   code:'SW-AB12345', name:'Juan Pérez', email:'juan@mail.com', phone:'+56912345678',
@@ -21,4 +21,20 @@ test('email a la barbería incluye teléfono y email del cliente', () => {
   assert.match(subject, /Nueva reserva/i);
   assert.match(html, /\+56912345678/);
   assert.match(html, /juan@mail.com/);
+});
+
+test('parseRecipients separa una lista de emails por coma y recorta espacios', () => {
+  assert.deepStrictEqual(
+    parseRecipients('dueno@x.com, recepcion@x.com ,otro@x.com'),
+    ['dueno@x.com', 'recepcion@x.com', 'otro@x.com']
+  );
+});
+
+test('parseRecipients funciona con un solo email', () => {
+  assert.deepStrictEqual(parseRecipients('solo@x.com'), ['solo@x.com']);
+});
+
+test('parseRecipients ignora valores vacíos', () => {
+  assert.deepStrictEqual(parseRecipients(''), []);
+  assert.deepStrictEqual(parseRecipients(undefined), []);
 });

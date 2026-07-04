@@ -8,6 +8,11 @@ function fmtDate(iso) {
 }
 function fmtCLP(n) { return '$' + Number(n || 0).toLocaleString('es-CL'); }
 
+// SHOP_EMAIL puede traer varios destinatarios separados por coma (ej. dueño + recepción).
+function parseRecipients(value) {
+  return String(value || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
 function renderClientEmail(b) {
   const subject = `Tu reserva en Scissor White — ${b.code}`;
   const html = `
@@ -44,8 +49,8 @@ async function sendBookingEmails(b, { apiKey, fromEmail, shopEmail }) {
   const shop = renderShopEmail(b);
   await Promise.all([
     resend.emails.send({ from: fromEmail, to: b.email, subject: client.subject, html: client.html }),
-    resend.emails.send({ from: fromEmail, to: shopEmail, subject: shop.subject, html: shop.html }),
+    resend.emails.send({ from: fromEmail, to: parseRecipients(shopEmail), subject: shop.subject, html: shop.html }),
   ]);
 }
 
-module.exports = { renderClientEmail, renderShopEmail, sendBookingEmails };
+module.exports = { renderClientEmail, renderShopEmail, sendBookingEmails, parseRecipients };

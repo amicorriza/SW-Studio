@@ -1,6 +1,5 @@
 {
   "projects": {
-    "default": "demo-scissor-white",
-    "production": "scissor-white"
+    "default": "scissor-white"
   }
 }

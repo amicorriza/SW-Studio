@@ -598,18 +598,17 @@ import { getAuth, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs
 import { getStorage, connectStorageEmulator } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js';
 import { getFunctions, connectFunctionsEmulator } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js';
 
-// Config pública del proyecto (Console → Project settings → SDK setup). No es secreto.
-// projectId/authDomain/storageBucket usan el mismo id que .firebaserc (Task 1.1)
-// para que el desarrollo local contra los emuladores funcione sin depender de
-// un proyecto Firebase real. apiKey/messagingSenderId/appId sí deben reemplazarse
-// por los valores reales antes de producción — el emulador no los valida, prod sí.
+// Config pública del proyecto real "scissor-white" (Console → Project settings
+// → SDK setup). No es secreto — la seguridad la dan las reglas de Firestore/
+// Storage y Firebase Auth, no ocultar esta config. Se usa el mismo proyecto
+// real en local (redirigido a los emuladores más abajo) y en producción.
 const firebaseConfig = {
-  apiKey: 'REEMPLAZAR',
-  authDomain: 'demo-scissor-white.firebaseapp.com',
-  projectId: 'demo-scissor-white',
-  storageBucket: 'demo-scissor-white.appspot.com',
-  messagingSenderId: 'REEMPLAZAR',
-  appId: 'REEMPLAZAR',
+  apiKey: 'AIzaSyCIRapdq3FmO4hZgnH4uQjK-CEtm4GKtOg',
+  authDomain: 'scissor-white.firebaseapp.com',
+  projectId: 'scissor-white',
+  storageBucket: 'scissor-white.firebasestorage.app',
+  messagingSenderId: '801854192115',
+  appId: '1:801854192115:web:45c4bab322ee6154583a86',
 };
 
 const app = initializeApp(firebaseConfig);
@@ -1609,12 +1608,17 @@ git commit -m "chore: completar configuración de Hosting, Firestore, Storage, F
 Run: `firebase deploy --only firestore:rules,firestore:indexes,storage`
 Expected: "Deploy complete!". (Nota: Firebase puede tardar unos minutos en construir el índice compuesto `bookings(email,club)` de la Task 6.7 — revisa el estado en Console → Firestore → Indexes antes de probar `getClubStatus` en producción.)
 
-- [ ] **Step 2: Seed de producción.** Genera una service account (Console → Project settings → Service accounts → Generate new private key → guarda como `serviceAccountKey.json`, **gitignored**). Run:
+- [ ] **Step 2: Seed de producción.** Necesitas credenciales de administrador contra el proyecto real. Dos caminos:
+  - **Service account key** (Console → Project settings → Service accounts → Generate new private key → guarda como `serviceAccountKey.json`, **gitignored**) — puede estar **bloqueado por política de organización** (`constraints/iam.disableServiceAccountKeyCreation`), como pasó en este proyecto; si `gcloud iam service-accounts keys create` falla con `FAILED_PRECONDITION`, usa el segundo camino.
+  - **Application Default Credentials del propio usuario** (recomendado si la política bloquea la key): `gcloud auth application-default login` (interactivo, requiere el navegador), luego el SDK de Admin las toma automáticamente sin necesitar `GOOGLE_APPLICATION_CREDENTIALS`.
+
+Run:
 ```bash
 cd seed
-GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json GCLOUD_PROJECT=scissor-white-xxxx node seed.js
+GCLOUD_PROJECT=<tu-project-id-real> node seed.js
 cd ..
 ```
+(Si usas service account key, antepone `GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json`.)
 Expected: `Seed OK: 19 servicios, 4 barberos, businessInfo/main`.
 
 - [ ] **Step 3: Desplegar Functions y Hosting**

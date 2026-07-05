@@ -1626,6 +1626,14 @@ Expected: `Seed OK: 19 servicios, 4 barberos, businessInfo/main`.
 Run: `firebase deploy --only functions,hosting`
 Expected: imprime la URL `https://scissor-white-xxxx.web.app`.
 
+**Permisos IAM extra que puede pedir la cuenta de cómputo por defecto** (`<project-number>-compute@developer.gserviceaccount.com`) en proyectos que no traen los roles clásicos de "Editor" preconfigurados (pasó en este proyecto). Si el deploy de una function con **trigger de evento** (Firestore/Eventarc — no le pasa a las `onCall`/HTTPS simples) falla con "Build failed: An unexpected error occurred" u otro genérico, revisa el log real del build en Cloud Build (Console → Cloud Build → Historial → el build fallido — el CLI no siempre expone el texto útil) y busca estos 4 permisos, en el orden en que suelen aparecer uno tras otro:
+1. `roles/iam.serviceAccountUser` — quien despliega necesita "actuar como" esa cuenta de cómputo (`gcloud iam service-accounts add-iam-policy-binding <sa> --member=user:tu@email --role=roles/iam.serviceAccountUser`).
+2. `roles/storage.objectViewer` en el bucket `gcf-v2-sources-<project-number>-<region>` (lectura del código fuente subido).
+3. `roles/logging.logWriter` a nivel de proyecto (el build necesita escribir sus propios logs; sin esto, además, ni siquiera vas a poder ver el log del error real — aparece un aviso explícito en la consola cuando falta).
+4. `roles/artifactregistry.reader` y `roles/artifactregistry.writer` en el repositorio `gcf-artifacts` (leer/escribir la imagen y su caché de build).
+
+Si además la función queda con un "shell" roto (aparece con trigger `https` en `firebase functions:list` en vez del trigger de evento esperado, típicamente por haber fallado a mitad de un intento previo), bórrala antes de reintentar: `firebase functions:delete <nombre> --region <region> --project <project-id> --force`.
+
 - [ ] **Step 4: Smoke test en producción:** abre la URL, completa una reserva real como Miembro Club SW con tu email → llega el email de confirmación, la tarjeta de fidelización muestra el contador correcto, y en la consola Firestore existen `bookings` (`emailStatus:sent`, `club:'member'`) y `patients` (con la visita); en el panel admin, sube una foto al cliente y confirma que aparece en Storage.
 
 - [ ] **Step 5 (opcional): Dominio.** Hosting → Add custom domain → `scissorwhite.cl` → seguir instrucciones de DNS. Luego cambiar las URLs `https://scissorwhite.cl` del `<head>` del index si corresponde.

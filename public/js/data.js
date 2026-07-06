@@ -29,9 +29,20 @@ async function loadAdmin() {
   };
 }
 
-// Guarda todo el objeto D (batch). Reemplaza servicios/staff/info; agrega log nuevo.
+// Guarda todo el objeto D (batch). Reemplaza servicios/staff/info y BORRA de
+// Firestore los docs que ya no están en D — sin esto, un barbero/servicio
+// eliminado en el admin reaparece al recargar porque loadAdmin lee la
+// colección completa.
 async function saveAdmin(D) {
   const batch = writeBatch(db);
+  const [svcSnap, stfSnap] = await Promise.all([
+    getDocs(collection(db, 'services')),
+    getDocs(collection(db, 'staff')),
+  ]);
+  const keepSvc = new Set((D.services || []).map(s => s.id));
+  const keepStf = new Set((D.staff || []).map(s => s.id));
+  svcSnap.docs.forEach(d => { if (!keepSvc.has(d.id)) batch.delete(d.ref); });
+  stfSnap.docs.forEach(d => { if (!keepStf.has(d.id)) batch.delete(d.ref); });
   (D.services || []).forEach(s => batch.set(doc(db, 'services', s.id), stripId(s)));
   (D.staff || []).forEach(s => batch.set(doc(db, 'staff', s.id), stripId(s)));
   if (D.info) batch.set(doc(db, 'businessInfo', 'main'), D.info);
@@ -39,6 +50,13 @@ async function saveAdmin(D) {
 }
 
 function stripId(o) { const { id, ...rest } = o; return rest; }
+
+// Catálogo para el widget público de reservas: solo services + staff
+// (lectura pública según firestore.rules; adminLog/bookings requieren auth).
+async function loadCatalog() {
+  const [services, staff] = await Promise.all([readCol('services'), readCol('staff')]);
+  return { services, staff };
+}
 
 // Reservas
 async function getBookings() {
@@ -114,12 +132,12 @@ async function getClubStatus(email) {
 }
 
 window.SWData = {
-  loadAdmin, saveAdmin, getBookings, saveBookings, createBooking,
+  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, createBooking,
   getPatients, savePatients, deletePatient,
   uploadPatientPhoto, deletePatientPhoto, getClubStatus,
 };
 export {
-  loadAdmin, saveAdmin, getBookings, saveBookings, createBooking,
+  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, createBooking,
   getPatients, savePatients, deletePatient,
   uploadPatientPhoto, deletePatientPhoto, getClubStatus,
 };

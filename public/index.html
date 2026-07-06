@@ -2206,8 +2206,11 @@
 (function(){
 // ═══════════════════════════════════════
 // DATA — catálogo de servicios SW Studio
+// Los arreglos de abajo son solo el fallback inicial: en cuanto Firestore
+// responde (refreshCatalog), CATS y BARBERS se reemplazan con los datos
+// reales del admin (colecciones `services` y `staff`, filtradas por activo).
 // ═══════════════════════════════════════
-const CATS = [
+let CATS = [
   {id:'a', name:'Asesorías', items:[
     {id:'vis', name:'Asesoría con Visagismo', dur:120, price:55000, tag:'Premium', ts:'s',
      desc:'Análisis facial + corte ideal. Incluye corte, masaje, lavado y cortesía.'},
@@ -2254,13 +2257,45 @@ const CATS = [
   ]}
 ];
 
-const BARBERS = [
+let BARBERS = [
   {id:'any', name:'Sin preferencia', init:'SW', role:'Cualquier barbero disponible', any:true},
   {id:'victoria', name:'Victoria', init:'V', role:'Barbera Senior · Visagismo'},
   {id:'felipe', name:'Felipe', init:'F', role:'Especialista en degradados'},
   {id:'esteban', name:'Esteban', init:'E', role:'Barbero'},
   {id:'ariel', name:'Ariel', init:'A', role:'Barbero'}
 ];
+
+// ══ CATÁLOGO DESDE FIRESTORE ══
+// Reemplaza CATS/BARBERS con los datos reales del admin. Se llama en cada
+// apertura del widget para que altas/bajas/eliminaciones se reflejen sin
+// recargar la página. Si la lectura falla (offline, emulador caído) se
+// conserva el último catálogo bueno.
+const CAT_NAMES = {a:'Asesorías', c:'Cortes', b:'Barba'};
+async function refreshCatalog(){
+  if(!window.SWData) return;
+  const { services, staff } = await window.SWData.loadCatalog();
+  const activeSvcs = (services||[]).filter(s=>s.status==='active');
+  if(activeSvcs.length){
+    CATS = Object.keys(CAT_NAMES).map(cid=>({
+      id: cid, name: CAT_NAMES[cid],
+      items: activeSvcs.filter(s=>s.cat===cid).map(s=>({
+        id:s.id, name:s.name, dur:s.dur, price:s.price,
+        tag:s.tag||'', ts:s.ts||'', desc:s.desc||'', cat:s.cat
+      }))
+    })).filter(c=>c.items.length);
+  }
+  const activeStaff = (staff||[]).filter(s=>s.status==='active');
+  if(activeStaff.length){
+    BARBERS = [
+      {id:'any', name:'Sin preferencia', init:'SW', role:'Cualquier barbero disponible', any:true},
+      ...activeStaff.map(b=>({
+        id:b.id, name:b.name,
+        init:(b.name&&b.name[0]||'?').toUpperCase(),
+        role:b.role||'Barbero'
+      }))
+    ];
+  }
+}
 
 const HOURS = {1:[10,20],2:[10,20],3:[10,20],4:[10,20],5:[10,20],6:[10,17],0:null};
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -2279,6 +2314,12 @@ function openBK(){
   S = {step:1, svc:null, barber:null, date:null, time:null};
   renderSvcs(); renderBarbers(); renderCal(); updateSummary();
   bkGoTo(1);
+  // Refrescar catálogo desde Firestore y re-pintar solo lo que el usuario
+  // aún no seleccionó (para no pisar una selección en curso).
+  refreshCatalog().then(()=>{
+    if(!S.svc) renderSvcs();
+    if(!S.barber) renderBarbers();
+  }).catch(e=>console.error('No se pudo cargar el catálogo desde Firestore', e));
 }
 function closeBK(){
   document.getElementById('booking-overlay').style.display='none';

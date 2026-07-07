@@ -33,4 +33,25 @@ function buildTemplateComponents(b) {
   }];
 }
 
-module.exports = { normalizePhone, buildTextBody, buildTemplateComponents };
+async function sendBookingWhatsApp(b, { apiKey, phoneNumberId, mode, templateName, templateLang }) {
+  const to = normalizePhone(b.phone);
+  const body = mode === 'template'
+    ? {
+        messaging_product: 'whatsapp', to, type: 'template',
+        template: { name: templateName, language: { code: templateLang }, components: buildTemplateComponents(b) },
+      }
+    : { messaging_product: 'whatsapp', to, type: 'text', text: { body: buildTextBody(b) } };
+
+  const res = await fetch(`https://api.kapso.ai/meta/whatsapp/v24.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Kapso respondió ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+module.exports = { normalizePhone, buildTextBody, buildTemplateComponents, sendBookingWhatsApp };

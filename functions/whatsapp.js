@@ -20,4 +20,17 @@ function buildTextBody(b) {
     `Te esperamos en Cochrane 635, Of. 303, Torre B, Concepción.`;
 }
 
-module.exports = { normalizePhone, buildTextBody };
+function buildTemplateComponents(b) {
+  return [{
+    type: 'body',
+    parameters: [
+      { type: 'text', text: b.name },
+      { type: 'text', text: b.svcName },
+      { type: 'text', text: b.barberName },
+      { type: 'text', text: `${fmtDate(b.date)} · ${b.time} hrs` },
+      { type: 'text', text: b.code },
+    ],
+  }];
+}
+
+module.exports = { normalizePhone, buildTextBody, buildTemplateComponents };

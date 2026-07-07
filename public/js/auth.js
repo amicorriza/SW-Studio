@@ -1,12 +1,15 @@
 // public/js/auth.js — login del panel admin. Expone window.SWAuth.
-//
-// STUB / PENDIENTE DE IMPLEMENTAR — ver el plan, Task 4.3:
-//   docs/superpowers/plans/2026-06-02-scissor-white-firebase-migration.md
 import { auth } from './firebase-init.js';
+import {
+  signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged,
+} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 
-async function signIn(email, password) { throw new Error('SWAuth.signIn no implementado (Task 4.3)'); }
-async function signOut()               { throw new Error('SWAuth.signOut no implementado (Task 4.3)'); }
-function onChange(cb)                  { throw new Error('SWAuth.onChange no implementado (Task 4.3)'); }
+async function signIn(email, password) {
+  const cred = await signInWithEmailAndPassword(auth, email, password);
+  return cred.user;
+}
+async function signOut() { await fbSignOut(auth); }
+function onChange(cb) { return onAuthStateChanged(auth, cb); }
 
 window.SWAuth = { signIn, signOut, onChange };
 export { signIn, signOut, onChange };

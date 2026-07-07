@@ -972,7 +972,182 @@
       .team-card{border-radius:12px}
       .gal-item{border-radius:8px}
     }
-  </style>
+  
+
+/* ═══ CLUB SW — Membership UI ═══ */
+#bk-club-choice{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  margin-top:6px
+}
+@media(max-width:520px){#bk-club-choice{grid-template-columns:1fr}}
+.bk-club-opt{
+  background:#fff;border:1.5px solid var(--bk-g200,#E0E0E0);border-radius:11px;
+  padding:13px 14px;cursor:pointer;transition:all .2s;
+  display:flex;align-items:center;gap:11px;position:relative
+}
+.bk-club-opt:hover{
+  border-color:var(--bk-steel-mid,#9AAABB);
+  transform:translateY(-1px);
+  box-shadow:0 4px 14px -6px rgba(120,130,145,.18)
+}
+.bk-club-opt.bk-club-selected{
+  border-color:var(--bk-ink,#0A0A0A);
+  background:linear-gradient(180deg,#fff 0%,#FAFAFA 100%);
+  box-shadow:0 0 0 1.5px var(--bk-ink,#0A0A0A)
+}
+.bk-club-opt .bk-club-check{
+  width:22px;height:22px;border-radius:50%;
+  background:var(--bk-ink,#0A0A0A);color:#fff;
+  display:none;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;
+  font-family:Arial,sans-serif;flex-shrink:0
+}
+.bk-club-opt.bk-club-selected .bk-club-check{display:flex}
+.bk-club-icon{
+  font-family:'Audiowide','Orbitron',sans-serif;
+  font-size:22px;color:var(--bk-steel-dark,#6A7888);
+  flex-shrink:0;width:24px;text-align:center
+}
+.bk-club-opt.bk-club-selected .bk-club-icon{
+  background:linear-gradient(135deg,#9AAABB 0%,#E6EAEF 40%,#FFFFFF 50%,#C8D0DA 60%,#6A7888 100%);
+  background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent
+}
+.bk-club-info{flex:1;min-width:0}
+.bk-club-title{
+  font-family:'Orbitron',sans-serif;
+  font-size:13px;font-weight:600;color:var(--bk-ink,#0A0A0A);
+  line-height:1.2
+}
+.bk-club-sub{font-size:11.5px;color:var(--bk-text-meta,#505050);margin-top:3px;line-height:1.35}
+
+/* Welcome card */
+#bk-club-welcome{display:none}
+#bk-club-welcome.bk-show{display:block;animation:bkClubFade .4s ease}
+@keyframes bkClubFade{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.bk-club-card{
+  background:linear-gradient(135deg,#0A0A0A 0%,#1A1A1A 100%);
+  border-radius:14px;
+  padding:18px 20px;
+  position:relative;overflow:hidden;
+  color:#fff
+}
+.bk-club-card-shimmer{
+  position:absolute;inset:0;
+  background:linear-gradient(115deg,
+    transparent 0%,transparent 30%,
+    rgba(200,210,220,.06) 45%,
+    rgba(255,255,255,.12) 50%,
+    rgba(200,210,220,.06) 55%,
+    transparent 70%,transparent 100%);
+  pointer-events:none
+}
+.bk-club-card-hd{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:13px;position:relative;z-index:1
+}
+.bk-club-card-brand{
+  font-family:'Audiowide','Orbitron',sans-serif;
+  font-size:13px;letter-spacing:.18em;
+  background:linear-gradient(115deg,#C8D0DA 0%,#FFFFFF 35%,#9AAABB 70%,#FFFFFF 100%);
+  background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent
+}
+.bk-club-card-badge{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:9px;font-weight:700;letter-spacing:.28em;
+  padding:3px 9px;border-radius:3px;
+  background:rgba(200,210,220,.14);color:#C8D0DA;
+  border:1px solid rgba(200,210,220,.22)
+}
+.bk-club-card-msg{position:relative;z-index:1;margin-bottom:16px}
+.bk-club-card-msg strong{
+  display:block;
+  font-family:'Orbitron',sans-serif;
+  font-size:15px;font-weight:600;margin-bottom:5px;color:#fff
+}
+.bk-club-card-msg p{
+  font-size:12.5px;line-height:1.55;
+  color:rgba(255,255,255,.78);margin:0
+}
+.bk-club-card-msg strong + p strong{
+  display:inline;font-family:'Orbitron',sans-serif;font-size:12.5px;
+  color:#C8D0DA;margin:0;background:none;-webkit-text-fill-color:initial
+}
+.bk-club-progress{position:relative;z-index:1}
+.bk-club-progress-row{
+  display:flex;align-items:center;gap:6px
+}
+.bk-club-progress-stage{
+  display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0
+}
+.bk-club-progress-num{
+  width:34px;height:34px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Orbitron',sans-serif;font-size:12px;font-weight:600;
+  background:linear-gradient(135deg,#9AAABB 0%,#E6EAEF 40%,#FFFFFF 50%,#C8D0DA 60%,#6A7888 100%);
+  color:#0A0A0A;
+  box-shadow:0 2px 8px -2px rgba(200,210,220,.4),inset 0 -1px 3px rgba(120,130,145,.3)
+}
+.bk-club-progress-lbl{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:8.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;
+  color:rgba(255,255,255,.55);white-space:nowrap;text-align:center
+}
+.bk-club-progress-line{
+  flex:1;height:1px;background:linear-gradient(90deg,#6A7888,#C8D0DA,#6A7888);
+  margin-bottom:18px;opacity:.5
+}
+@media(max-width:480px){
+  .bk-club-progress-lbl{font-size:7.5px}
+  .bk-club-progress-num{width:30px;height:30px;font-size:11px}
+}
+
+/* ═══ CONFIRMATION — Loyalty info ═══ */
+.bk-loyalty-block{
+  margin:18px 0;padding:16px 18px;
+  background:linear-gradient(135deg,#0A0A0A 0%,#1A1A1A 100%);
+  color:#fff;border-radius:12px;
+  position:relative;overflow:hidden
+}
+.bk-loyalty-block .bk-club-card-shimmer{position:absolute;inset:0}
+.bk-loyalty-hd{
+  display:flex;align-items:center;gap:9px;
+  margin-bottom:11px;position:relative;z-index:1
+}
+.bk-loyalty-hex{
+  font-family:'Audiowide','Orbitron',sans-serif;
+  font-size:22px;
+  background:linear-gradient(135deg,#9AAABB 0%,#E6EAEF 40%,#FFFFFF 50%,#C8D0DA 60%,#6A7888 100%);
+  background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent
+}
+.bk-loyalty-title{
+  font-family:'Orbitron',sans-serif;font-size:13px;font-weight:600;
+  letter-spacing:.04em;color:#fff
+}
+.bk-loyalty-counter{
+  font-family:'Orbitron',sans-serif;font-size:11px;
+  margin-left:auto;color:#C8D0DA;
+  padding:3px 9px;border-radius:3px;
+  background:rgba(200,210,220,.14);
+  border:1px solid rgba(200,210,220,.22)
+}
+.bk-loyalty-msg{
+  position:relative;z-index:1;
+  font-size:12.5px;line-height:1.6;
+  color:rgba(255,255,255,.82)
+}
+.bk-loyalty-msg strong{color:#C8D0DA;font-weight:600}
+.bk-loyalty-progress{
+  margin-top:11px;
+  height:5px;background:rgba(255,255,255,.1);
+  border-radius:3px;overflow:hidden;position:relative;z-index:1
+}
+.bk-loyalty-progress-fill{
+  height:100%;
+  background:linear-gradient(90deg,#6A7888,#C8D0DA,#FFFFFF,#9AAABB);
+  border-radius:3px;transition:width .8s ease
+}
+
+</style>
 </head>
 <body>
 
@@ -1475,6 +1650,63 @@
             <input id="bkf-email" type="email" class="bk-input" placeholder="tu@email.com" autocomplete="email">
             <span class="bk-ferr">Email inválido.</span>
           </div>
+
+          <!-- ── CLUB SW MEMBERSHIP CHOICE ── -->
+          <div class="bk-field bk-full">
+            <label class="bk-lbl">Tipo de Cliente</label>
+            <div id="bk-club-choice">
+              <div class="bk-club-opt bk-club-selected" data-club="member">
+                <div class="bk-club-icon">⬡</div>
+                <div class="bk-club-info">
+                  <div class="bk-club-title">Miembro Club SW</div>
+                  <div class="bk-club-sub">Acumula cortes y desbloquea beneficios exclusivos</div>
+                </div>
+                <div class="bk-club-check">✓</div>
+              </div>
+              <div class="bk-club-opt" data-club="guest">
+                <div class="bk-club-icon" style="opacity:.7">○</div>
+                <div class="bk-club-info">
+                  <div class="bk-club-title">Invitado</div>
+                  <div class="bk-club-sub">Reserva sin inscribirte al club</div>
+                </div>
+                <div class="bk-club-check">✓</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── CLUB SW WELCOME PANEL (shown when member) ── -->
+          <div id="bk-club-welcome" class="bk-field bk-full">
+            <div class="bk-club-card">
+              <div class="bk-club-card-shimmer"></div>
+              <div class="bk-club-card-hd">
+                <div class="bk-club-card-brand">CLUB · SW</div>
+                <div class="bk-club-card-badge">MIEMBRO</div>
+              </div>
+              <div class="bk-club-card-msg">
+                <strong>Bienvenido al Club SW</strong>
+                <p>Cada visita suma. A los <strong>10 cortes</strong> obtienes un servicio premium gratis. A los <strong>20 cortes</strong> desbloqueas una asesoría con visagismo de regalo.</p>
+              </div>
+              <div class="bk-club-progress">
+                <div class="bk-club-progress-row">
+                  <div class="bk-club-progress-stage">
+                    <div class="bk-club-progress-num">1</div>
+                    <div class="bk-club-progress-lbl">Primera visita</div>
+                  </div>
+                  <div class="bk-club-progress-line"></div>
+                  <div class="bk-club-progress-stage">
+                    <div class="bk-club-progress-num">10</div>
+                    <div class="bk-club-progress-lbl">Premium gratis</div>
+                  </div>
+                  <div class="bk-club-progress-line"></div>
+                  <div class="bk-club-progress-stage">
+                    <div class="bk-club-progress-num">20</div>
+                    <div class="bk-club-progress-lbl">Asesoría gratis</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="bk-field bk-full">
             <label class="bk-lbl" for="bkf-notes">Comentarios (opcional)</label>
             <textarea id="bkf-notes" class="bk-input bk-ta" placeholder="¿Preferencias o información para el barbero?"></textarea>
@@ -1974,8 +2206,11 @@
 (function(){
 // ═══════════════════════════════════════
 // DATA — catálogo de servicios SW Studio
+// Los arreglos de abajo son solo el fallback inicial: en cuanto Firestore
+// responde (refreshCatalog), CATS y BARBERS se reemplazan con los datos
+// reales del admin (colecciones `services` y `staff`, filtradas por activo).
 // ═══════════════════════════════════════
-const CATS = [
+let CATS = [
   {id:'a', name:'Asesorías', items:[
     {id:'vis', name:'Asesoría con Visagismo', dur:120, price:55000, tag:'Premium', ts:'s',
      desc:'Análisis facial + corte ideal. Incluye corte, masaje, lavado y cortesía.'},
@@ -2022,7 +2257,7 @@ const CATS = [
   ]}
 ];
 
-const BARBERS = [
+let BARBERS = [
   {id:'any', name:'Sin preferencia', init:'SW', role:'Cualquier barbero disponible', any:true},
   {id:'victoria', name:'Victoria', init:'V', role:'Barbera Senior · Visagismo'},
   {id:'felipe', name:'Felipe', init:'F', role:'Especialista en degradados'},
@@ -2030,11 +2265,43 @@ const BARBERS = [
   {id:'ariel', name:'Ariel', init:'A', role:'Barbero'}
 ];
 
+// ══ CATÁLOGO DESDE FIRESTORE ══
+// Reemplaza CATS/BARBERS con los datos reales del admin. Se llama en cada
+// apertura del widget para que altas/bajas/eliminaciones se reflejen sin
+// recargar la página. Si la lectura falla (offline, emulador caído) se
+// conserva el último catálogo bueno.
+const CAT_NAMES = {a:'Asesorías', c:'Cortes', b:'Barba'};
+async function refreshCatalog(){
+  if(!window.SWData) return;
+  const { services, staff } = await window.SWData.loadCatalog();
+  const activeSvcs = (services||[]).filter(s=>s.status==='active');
+  if(activeSvcs.length){
+    CATS = Object.keys(CAT_NAMES).map(cid=>({
+      id: cid, name: CAT_NAMES[cid],
+      items: activeSvcs.filter(s=>s.cat===cid).map(s=>({
+        id:s.id, name:s.name, dur:s.dur, price:s.price,
+        tag:s.tag||'', ts:s.ts||'', desc:s.desc||'', cat:s.cat
+      }))
+    })).filter(c=>c.items.length);
+  }
+  const activeStaff = (staff||[]).filter(s=>s.status==='active');
+  if(activeStaff.length){
+    BARBERS = [
+      {id:'any', name:'Sin preferencia', init:'SW', role:'Cualquier barbero disponible', any:true},
+      ...activeStaff.map(b=>({
+        id:b.id, name:b.name,
+        init:(b.name&&b.name[0]||'?').toUpperCase(),
+        role:b.role||'Barbero'
+      }))
+    ];
+  }
+}
+
 const HOURS = {1:[10,20],2:[10,20],3:[10,20],4:[10,20],5:[10,20],6:[10,17],0:null};
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 // STATE
-let S = {step:1, svc:null, barber:null, date:null, time:null};
+let S = {step:1, svc:null, barber:null, date:null, time:null, club:'member'};
 let calCursor = new Date(); calCursor.setDate(1);
 const TODAY = new Date(); TODAY.setHours(0,0,0,0);
 const MAX_DATE = new Date(TODAY); MAX_DATE.setMonth(MAX_DATE.getMonth()+2);
@@ -2047,6 +2314,12 @@ function openBK(){
   S = {step:1, svc:null, barber:null, date:null, time:null};
   renderSvcs(); renderBarbers(); renderCal(); updateSummary();
   bkGoTo(1);
+  // Refrescar catálogo desde Firestore y re-pintar solo lo que el usuario
+  // aún no seleccionó (para no pisar una selección en curso).
+  refreshCatalog().then(()=>{
+    if(!S.svc) renderSvcs();
+    if(!S.barber) renderBarbers();
+  }).catch(e=>console.error('No se pudo cargar el catálogo desde Firestore', e));
 }
 function closeBK(){
   document.getElementById('booking-overlay').style.display='none';
@@ -2054,6 +2327,29 @@ function closeBK(){
 }
 window.closeBK = closeBK;
 window.openBK = openBK;
+
+  // ══ CLUB SW — toggle Miembro/Invitado ══
+  function updateClubUI(){
+    var opts = document.querySelectorAll('.bk-club-opt');
+    var welcome = document.getElementById('bk-club-welcome');
+    if(!opts.length) return;
+    opts.forEach(function(o){
+      var isSel = o.dataset.club === S.club;
+      o.classList.toggle('bk-club-selected', isSel);
+    });
+    if(welcome){
+      welcome.classList.toggle('bk-show', S.club === 'member');
+    }
+  }
+  document.querySelectorAll('.bk-club-opt').forEach(function(o){
+    o.addEventListener('click', function(){
+      S.club = o.dataset.club;
+      updateClubUI();
+    });
+  });
+  // Initial UI sync
+  updateClubUI();
+
 
 document.getElementById('bk-backdrop').addEventListener('click', closeBK);
 document.getElementById('bk-close').addEventListener('click', closeBK);
@@ -2313,29 +2609,71 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
   const btn=document.getElementById('bk-submit');
   btn.innerHTML='<span class="bk-spinner"></span> Procesando...';
   btn.disabled=true;
-  setTimeout(()=>{
+  setTimeout(async ()=>{
     const code=genCode();
     const fullname=document.getElementById('bkf-name').value.trim();
     const name=fullname.split(' ')[0];
     const email=document.getElementById('bkf-email').value.trim();
     const phone=document.getElementById('bkf-phone').value.trim();
-    // ── Record booking to localStorage for admin statistics ──
+    var clubVisitCount = 1;
+    var clubBenefitReached = '';
+    // ── Persistir la reserva en Firestore (dispara email + sync de patients) ──
     try{
-      const bookings=JSON.parse(localStorage.getItem('sw_bookings')||'[]');
-      bookings.push({
+      await window.SWData.createBooking({
         code, name:fullname, email, phone,
         svcId:S.svc?.id, svcName:S.svc?.name, svcCat:S.svc?.cat||'',
         price:S.svc?.price||0, dur:S.svc?.dur||0,
         barberId:S.barber?.id, barberName:S.barber?.name,
         date:S.date?S.date.toISOString():'', time:S.time,
+        club:S.club||'guest',
         createdAt:new Date().toISOString()
       });
-      localStorage.setItem('sw_bookings',JSON.stringify(bookings));
-    }catch(e){}
+      // Conteo de visitas Club SW vía Cloud Function (bookings es solo-staff)
+      if(S.club==='member' && email){
+        const status = await window.SWData.getClubStatus(email);
+        clubVisitCount = status.visitCount;
+        clubBenefitReached = status.benefitReached || '';
+      }
+    }catch(e){
+      console.error('No se pudo guardar la reserva', e);
+      // Fallback: mantener el link de WhatsApp visible para contacto manual
+    }
     document.getElementById('bk-confirm-code').textContent=code;
     document.getElementById('bk-confirm-sub').textContent=
-      `Hola ${name}, tu reserva está confirmada. Te esperamos en Cochrane 635, Torre B, Of. 303.`;
-    document.getElementById('bk-confirm-details').innerHTML=`
+      `Hola ${name}, tu reserva está confirmada. Te enviamos un correo de confirmación a ${email}. Te esperamos en Cochrane 635, Torre B, Of. 303.`;
+
+    // Build loyalty block for Club SW members
+    var loyaltyBlock = '';
+    if(S.club==='member'){
+      var toBenefit1 = Math.max(0, 10 - clubVisitCount);
+      var toBenefit2 = Math.max(0, 20 - clubVisitCount);
+      var progress = Math.min(100, (clubVisitCount/20)*100);
+      var msg = '';
+      if(clubBenefitReached==='premium'){
+        msg = '<strong>¡Felicitaciones, alcanzaste 10 cortes!</strong> Tu próximo servicio premium es <strong>cortesía del Club SW</strong>. Nos contactaremos contigo para coordinarlo.';
+      } else if(clubBenefitReached==='asesoria'){
+        msg = '<strong>¡Increíble, ya son 20 cortes!</strong> Tu <strong>asesoría con visagismo</strong> es completamente gratis. Te llamaremos para agendar tu sesión exclusiva.';
+      } else if(clubVisitCount===1){
+        msg = '<strong>Bienvenido al Club SW.</strong> Esta es tu primera visita. Te faltan <strong>9 cortes</strong> para tu servicio premium gratis, y <strong>19</strong> para tu asesoría con visagismo de cortesía.';
+      } else {
+        if(clubVisitCount<10){
+          msg = 'Llevas <strong>'+clubVisitCount+' visitas</strong>. Te faltan <strong>'+toBenefit1+' cortes</strong> para tu servicio premium gratis y <strong>'+toBenefit2+'</strong> para tu asesoría con visagismo.';
+        } else {
+          msg = 'Llevas <strong>'+clubVisitCount+' visitas</strong>. Te faltan <strong>'+toBenefit2+' cortes</strong> para tu asesoría con visagismo de cortesía.';
+        }
+      }
+      loyaltyBlock = '<div class="bk-loyalty-block">'+
+        '<div class="bk-club-card-shimmer"></div>'+
+        '<div class="bk-loyalty-hd">'+
+          '<span class="bk-loyalty-hex">⬡</span>'+
+          '<span class="bk-loyalty-title">Club SW</span>'+
+          '<span class="bk-loyalty-counter">'+clubVisitCount+(clubVisitCount===1?' visita':' visitas')+'</span>'+
+        '</div>'+
+        '<div class="bk-loyalty-msg">'+msg+'</div>'+
+        '<div class="bk-loyalty-progress"><div class="bk-loyalty-progress-fill" style="width:'+progress+'%"></div></div>'+
+      '</div>';
+    }
+    document.getElementById('bk-confirm-details').innerHTML=loyaltyBlock+`
       <div class="bk-sum-row"><div class="bk-sum-lbl">Servicio</div><div class="bk-sum-val">${S.svc.name}</div></div>
       <div class="bk-sum-row"><div class="bk-sum-lbl">Barbero</div><div class="bk-sum-val">${S.barber.name}</div></div>
       <div class="bk-sum-row"><div class="bk-sum-lbl">Fecha & Hora</div><div class="bk-sum-val">${S.date.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long'})} · ${S.time} hrs</div></div>
@@ -2363,6 +2701,7 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
     <img id="adm-ll" alt="SW">
     <div id="adm-lb">SW Studio</div>
     <div id="adm-ls">Panel de Administración</div>
+    <input id="adm-email" type="email" placeholder="email" autocomplete="username" />
     <input id="adm-pass" type="password" placeholder="Contraseña de acceso">
     <button id="adm-login-btn">Ingresar</button>
     <div id="adm-login-err">Contraseña incorrecta.</div>
@@ -2394,6 +2733,11 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
         <button class="an-item" data-p="stats">
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 16V8M7 16V3M12 16v-6M17 16V6"/></svg>
           <span>Estadísticas</span>
+        </button>
+        <button class="an-item" data-p="patients">
+          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 16v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><circle cx="9" cy="5" r="3"/></svg>
+          <span>Clientes</span>
+          <span class="an-badge" id="anb-pat">0</span>
         </button>
         <div class="an-sec">Catálogo</div>
         <button class="an-item" data-p="services">
@@ -2474,6 +2818,29 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
           <div id="a-top-svcs" style="margin-bottom:22px"></div>
           <div class="a-sh"><div><div class="a-st">Reservas por barbero</div></div></div>
           <div id="a-barber-stats"></div>
+        </div>
+
+
+        <!-- ─ PATIENTS / CLIENTS DATABASE ─ -->
+        <div class="a-panel" id="adm-p-patients">
+          <div id="a-pat-alert" class="a-alert"></div>
+          <div id="a-pat-stats"></div>
+          <div class="a-sh">
+            <div><div class="a-st">Base de Clientes</div><div class="a-ss">Doble clic en una fila para ver ficha completa + galería de fotos</div></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="a-btn a-btn-g" id="a-pat-export">⬇ Exportar Excel</button>
+              <button class="a-btn a-btn-p" id="a-pat-new">+ Nuevo cliente</button>
+            </div>
+          </div>
+          <div id="a-pat-search-bar" style="margin-bottom:14px">
+            <input class="a-in" id="a-pat-search" placeholder="🔍 Buscar por nombre, email o teléfono..." style="max-width:420px">
+          </div>
+          <div class="a-tw">
+            <table class="a-t">
+              <thead><tr><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Visitas</th><th>Última prestación</th><th>Barbero</th><th>Acciones</th></tr></thead>
+              <tbody id="a-pat-body"></tbody>
+            </table>
+          </div>
         </div>
 
         <!-- ─ SERVICES ─ -->
@@ -2616,6 +2983,54 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
     </div>
     <div class="a-mf"><button class="a-btn a-btn-g" data-close="a-rm">Cancelar</button><button class="a-btn a-btn-p" id="a-rm-save">Reasignar</button></div>
   </div>
+</div>
+
+
+<!-- ─ MODAL: PATIENT ─ -->
+<div id="a-pm" class="a-mb">
+  <div class="a-mo">
+    <div class="a-mh"><div class="a-mt" id="a-pm-t">Nuevo cliente</div><button class="a-mc" data-close="a-pm">✕</button></div>
+    <div class="a-mb2">
+      <input type="hidden" id="a-pm-id">
+      <div class="a-fr">
+        <div class="a-f"><label class="a-lbl">Nombre completo *</label><input class="a-in" id="a-pm-name" placeholder="Nombre del cliente"><span class="a-fe">Obligatorio.</span></div>
+        <div class="a-f"><label class="a-lbl">Teléfono</label><input class="a-in" id="a-pm-phone" placeholder="+56 9 ..."></div>
+      </div>
+      <div class="a-f"><label class="a-lbl">Email *</label><input class="a-in" id="a-pm-email" type="email" placeholder="email@ejemplo.cl"><span class="a-fe">Email no válido.</span></div>
+      <div class="a-f"><label class="a-lbl">Última prestación realizada</label>
+        <select class="a-in" id="a-pm-svc">
+          <option value="">— Selecciona servicio —</option>
+        </select>
+      </div>
+      <div class="a-f"><label class="a-lbl">Fecha de la prestación</label><input class="a-in" id="a-pm-date" type="date"></div>
+      <div class="a-f"><label class="a-lbl">Notas / observaciones</label><textarea class="a-in a-ta" id="a-pm-notes" rows="2" placeholder="Alergias, preferencias, alguna observación..."></textarea></div>
+      <div id="a-pm-history" style="display:none">
+        <label class="a-lbl">Historial de visitas</label>
+        <div id="a-pm-history-list" style="background:var(--a-off);border-radius:8px;padding:10px 12px;max-height:160px;overflow-y:auto;font-size:12.5px"></div>
+      </div>
+
+      <!-- ── PHOTO GALLERY (max 4) ── -->
+      <div id="a-pm-photos-wrap" style="display:none">
+        <div class="a-pm-photos-hd">
+          <label class="a-lbl" style="margin:0">Fotos del corte</label>
+          <span class="a-pm-photos-count" id="a-pm-photos-count">0/4</span>
+        </div>
+        <div class="a-pm-photos" id="a-pm-photos"></div>
+        <div class="a-pm-photos-hint">Puedes subir hasta 4 fotos del trabajo realizado. Toca una foto para verla en grande.</div>
+      </div>
+    </div>
+    <div class="a-mf">
+      <button class="a-btn a-btn-danger" id="a-pm-del" style="margin-right:auto;display:none">Eliminar</button>
+      <button class="a-btn a-btn-g" data-close="a-pm">Cancelar</button>
+      <button class="a-btn a-btn-p" id="a-pm-save">Guardar paciente</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─ LIGHTBOX: Full photo view ─ -->
+<div id="a-pm-lb" class="a-pm-lb">
+  <button class="a-pm-lb-close" onclick="document.getElementById('a-pm-lb').classList.remove('a-open')">✕</button>
+  <img id="a-pm-lb-img" alt="">
 </div>
 
 <!-- ─ MODAL: DELETE CONFIRM ─ -->
@@ -3095,6 +3510,99 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
 @media(min-width:1200px){
   #adm-scroll{padding:28px 32px}
 }
+
+/* ═══ CLIENT ROW DBLCLICK CUE ═══ */
+.a-pat-row{cursor:pointer;transition:background .15s}
+.a-pat-row:hover td{background:#FAFAFA}
+.a-pat-row:active td{background:#F2F2F2}
+
+/* ═══ PATIENT PHOTOS GALLERY ═══ */
+.a-pm-photos{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:8px;margin-top:6px
+}
+@media(max-width:520px){.a-pm-photos{grid-template-columns:repeat(2,1fr)}}
+.a-pm-photo{
+  aspect-ratio:1;border-radius:9px;
+  background:var(--a-off);border:1.5px dashed var(--a-g2);
+  position:relative;overflow:hidden;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .18s
+}
+.a-pm-photo:hover{border-color:var(--a-sm)}
+.a-pm-photo.a-pm-filled{border-style:solid;border-color:var(--a-g2)}
+.a-pm-photo.a-pm-filled:hover{border-color:var(--a-ink);box-shadow:0 4px 14px -4px rgba(120,130,145,.25)}
+.a-pm-photo img{width:100%;height:100%;object-fit:cover}
+.a-pm-photo input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;font-size:0}
+.a-pm-photo-plus{
+  font-family:'Orbitron',sans-serif;font-size:24px;font-weight:600;
+  color:var(--a-steel-dark,#6A7888);
+  line-height:1;pointer-events:none
+}
+.a-pm-photo-plus-lbl{
+  position:absolute;bottom:10px;left:0;right:0;
+  text-align:center;font-family:'Barlow Condensed',sans-serif;
+  font-size:9px;font-weight:700;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--a-meta);
+  pointer-events:none
+}
+.a-pm-photo-del{
+  position:absolute;top:5px;right:5px;
+  width:22px;height:22px;border-radius:50%;
+  background:rgba(10,10,10,.78);color:#fff;border:none;
+  cursor:pointer;font-size:12px;line-height:1;
+  display:none;align-items:center;justify-content:center;
+  font-family:Arial,sans-serif;font-weight:700;
+  backdrop-filter:blur(4px);
+  transition:all .18s
+}
+.a-pm-photo.a-pm-filled:hover .a-pm-photo-del{display:flex}
+.a-pm-photo-del:hover{background:var(--a-err)}
+.a-pm-photo-overlay{
+  position:absolute;left:0;right:0;bottom:0;
+  background:linear-gradient(0deg,rgba(0,0,0,.65) 0%,transparent 100%);
+  color:#fff;font-family:'Barlow Condensed',sans-serif;
+  font-size:9px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;
+  padding:18px 8px 7px;text-align:center;
+  pointer-events:none
+}
+.a-pm-photos-hd{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:7px
+}
+.a-pm-photos-count{
+  font-family:'Orbitron',sans-serif;font-size:11px;font-weight:600;
+  color:var(--a-meta);
+  background:var(--a-off);padding:2px 8px;border-radius:4px
+}
+.a-pm-photos-hint{
+  font-size:11px;color:var(--a-meta);margin-top:6px;font-style:italic
+}
+
+/* Lightbox for full image */
+.a-pm-lb{
+  position:fixed;inset:0;z-index:10200;
+  background:rgba(0,0,0,.88);backdrop-filter:blur(8px);
+  display:none;align-items:center;justify-content:center;
+  padding:30px;cursor:zoom-out;
+  animation:admFI .2s ease
+}
+.a-pm-lb.a-open{display:flex}
+.a-pm-lb img{
+  max-width:100%;max-height:100%;
+  border-radius:8px;
+  box-shadow:0 20px 60px -10px rgba(0,0,0,.5)
+}
+.a-pm-lb-close{
+  position:absolute;top:18px;right:18px;
+  width:42px;height:42px;border-radius:50%;
+  background:rgba(255,255,255,.12);color:#fff;
+  border:1px solid rgba(255,255,255,.2);
+  cursor:pointer;font-size:18px;
+  display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(8px);transition:background .18s
+}
+.a-pm-lb-close:hover{background:rgba(255,255,255,.22)}
 </style>
 
 <script>
@@ -3111,6 +3619,7 @@ var bkDate = new Date(); bkDate.setHours(0,0,0,0);
 var bkFilter = '';
 var rmSelectedBarber = null;
 var D = {services:[], staff:[], schedule:[], log:[], info:{}};
+var BK=[]; var PT=[];
 
 // ═══ DEFAULTS ═══
 var DS=[
@@ -3179,20 +3688,8 @@ window.closeAdmin = function(){
 g('adm-backdrop').addEventListener('click', window.closeAdmin);
 g('adm-x').addEventListener('click', window.closeAdmin);
 
-// ═══ INITIAL LOAD ═══
-(function loadInitial(){
-  try {
-    var saved = localStorage.getItem(KEY);
-    if(saved){ D = JSON.parse(saved); }
-    else { defaults(); }
-    // Ensure staff have schedule arrays
-    D.staff.forEach(function(s){
-      if(!s.schedule){
-        s.schedule = JSON.parse(JSON.stringify(DT[0].schedule));
-      }
-    });
-  } catch(e){ defaults(); }
-  // Set logos
+// ═══ INITIAL LOAD (logos — no depende de Firestore, corre antes del login) ═══
+(function setAdminLogos(){
   var src = '';
   var landingLogo = document.querySelector('.nav-logo-img') || document.querySelector('.ft-logo img');
   if(landingLogo) src = landingLogo.src;
@@ -3203,21 +3700,41 @@ g('adm-x').addEventListener('click', window.closeAdmin);
   }
 })();
 
+// ═══ CLOUD LOAD (datos admin desde Firestore, llamado desde login()) ═══
+async function loadFromCloud(){
+  try {
+    D = await window.SWData.loadAdmin();
+    if(!D.services) D.services = [];
+    if(!D.staff) D.staff = [];
+    if(!D.log) D.log = [];
+    if(!D.info) D.info = {};
+    D.staff.forEach(function(s){
+      if(!s.schedule){ s.schedule = JSON.parse(JSON.stringify(DT[0].schedule)); }
+    });
+    BK = await window.SWData.getBookings();    // cache de reservas (ver Task 5.5)
+    PT = await window.SWData.getPatients();    // cache de clientes (ver Task 5.6)
+  } catch(e){ console.error('Error cargando datos', e); defaults(); }
+}
+
 // ═══ LOGIN ═══
-function login(){
-  if(g('adm-pass').value === PASS){
+async function login(){
+  var email = (g('adm-email') ? g('adm-email').value.trim() : 'admin@scissorwhite.cl');
+  try {
+    await window.SWAuth.signIn(email, g('adm-pass').value);
     auth = true;
     g('adm-login').style.display = 'none';
     g('adm-app').style.display = 'flex';
+    await loadFromCloud();
     renderAll();
-  } else {
+  } catch(e) {
     g('adm-login-err').style.display = 'block';
     g('adm-pass').style.borderColor = 'rgba(220,80,80,.6)';
   }
 }
 g('adm-login-btn').addEventListener('click', login);
 g('adm-pass').addEventListener('keydown', function(e){ if(e.key==='Enter') login(); });
-g('adm-lgout').addEventListener('click', function(){
+g('adm-lgout').addEventListener('click', async function(){
+  await window.SWAuth.signOut();
   auth = false;
   g('adm-app').style.display = 'none';
   g('adm-login').style.display = 'flex';
@@ -3226,8 +3743,9 @@ g('adm-lgout').addEventListener('click', function(){
 });
 
 // ═══ SAVE / LOG ═══
-function admSave(){
-  localStorage.setItem(KEY, JSON.stringify(D));
+async function admSave(){
+  try { await window.SWData.saveAdmin(D); }
+  catch(e){ console.error('Error guardando', e); }
   var el = g('adm-ss');
   el.textContent = '✓ ' + new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
   setTimeout(function(){ el.textContent = ''; }, 2500);
@@ -3262,7 +3780,7 @@ function admPnl(p){
   for(var j=0;j<items.length;j++) items[j].classList.remove('an-on');
   var btn = document.querySelector('.an-item[data-p="'+p+'"]');
   if(btn) btn.classList.add('an-on');
-  var T = {dashboard:'Dashboard', calendar:'Agenda', stats:'Estadísticas', services:'Servicios', staff:'Personal', schedule:'Horarios', info:'Info & Contacto'};
+  var T = {dashboard:'Dashboard', calendar:'Agenda', stats:'Estadísticas', patients:'Clientes', services:'Servicios', staff:'Personal', schedule:'Horarios', info:'Info & Contacto'};
   g('adm-top-title').textContent = T[p] || p;
   g('adm-scroll').scrollTop = 0;
   // refresh panel-specific data
@@ -3294,12 +3812,20 @@ function renderDash(){
 }
 
 // ═══ BOOKINGS HELPERS ═══
+// Lectura: devuelve la cache poblada en loadFromCloud()
+function getBk(){ return BK; }
+
+// Escritura: actualiza cache y persiste en Firestore
+function setBk(arr){
+  BK = arr || [];
+  window.SWData.saveBookings(BK).catch(function(e){ console.error('Error guardando reservas', e); });
+}
+
 function getBookings(){
-  try { return JSON.parse(localStorage.getItem(BKEY) || '[]'); }
-  catch(e){ return []; }
+  return getBk();
 }
 function saveBookings(arr){
-  localStorage.setItem(BKEY, JSON.stringify(arr));
+  setBk(arr);
   updateBadges();
 }
 // Check if a proposed booking conflicts with existing ones (same barber, overlapping time)
@@ -3986,8 +4512,551 @@ function showAlert(id, type, msg){
   setTimeout(function(){ el.classList.remove('a-show'); el.style.display='none'; }, 3000);
 }
 
+
+
+// ════════════════════════════════════════════
+// ═══ PATIENTS MODULE — Database & Export ═══
+// ════════════════════════════════════════════
+var patSearch = '';
+
+function getPatients(){ return PT; }
+function savePatients(arr){
+  PT = arr || [];
+  window.SWData.savePatients(PT).catch(function(e){ console.error('Error guardando clientes', e); });
+  updatePatBadge();
+}
+function updatePatBadge(){
+  var el = g('anb-pat');
+  if(el) el.textContent = getPatients().length;
+}
+
+// Calculate Club SW visits for a patient (only member-type visits)
+function getClubVisits(p){
+  if(!p || !p.visits) return 0;
+  return p.visits.filter(function(v){return v.club==='member'}).length;
+}
+
+function renderPatients(){
+  var patients = getPatients();
+  // Update visit count and last service per patient
+  patients.forEach(function(p){
+    p.visits.sort(function(a,b){
+      return new Date(b.date||0) - new Date(a.date||0);
+    });
+  });
+  
+  // Stats cards
+  var total = patients.length;
+  var withVisits = patients.filter(function(p){return p.visits.length>0}).length;
+  var recurring = patients.filter(function(p){return p.visits.length>1}).length;
+  var allVisits = patients.reduce(function(a,p){return a + p.visits.length}, 0);
+  
+  var members = patients.filter(function(p){return p.club==='member'}).length;
+  g('a-pat-stats').innerHTML =
+    '<div class="a-sc"><div class="a-scl">Total Clientes</div><div class="a-scv">' + total + '</div></div>' +
+    '<div class="a-sc"><div class="a-scl">Club SW · ⬡</div><div class="a-scv">' + members + '</div><div class="a-scs">miembros activos</div></div>' +
+    '<div class="a-sc"><div class="a-scl">Recurrentes</div><div class="a-scv">' + recurring + '</div><div class="a-scs">2+ visitas</div></div>' +
+    '<div class="a-sc"><div class="a-scl">Visitas Totales</div><div class="a-scv">' + allVisits + '</div></div>';
+
+  // Filter by search
+  var q = patSearch.toLowerCase().trim();
+  var filtered = patients;
+  if(q){
+    filtered = patients.filter(function(p){
+      return (p.name||'').toLowerCase().indexOf(q)>=0 ||
+             (p.email||'').toLowerCase().indexOf(q)>=0 ||
+             (p.phone||'').toLowerCase().indexOf(q)>=0;
+    });
+  }
+  // Sort by last visit desc, then name
+  filtered.sort(function(a,b){
+    var la = a.visits[0] ? new Date(a.visits[0].date||0) : new Date(0);
+    var lb = b.visits[0] ? new Date(b.visits[0].date||0) : new Date(0);
+    return lb - la;
+  });
+
+  var body = g('a-pat-body');
+  if(!filtered.length){
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#888;padding:30px">' + 
+      (q ? 'Sin resultados para "' + esc(q) + '".' : 'Aún no hay clientes registrados. Se crean automáticamente al recibir reservas.') + 
+      '</td></tr>';
+    return;
+  }
+  body.innerHTML = filtered.map(function(p){
+    var lastVisit = p.visits[0];
+    var lastSvc = lastVisit ? lastVisit.svcName : '—';
+    var lastDate = lastVisit && lastVisit.date ? new Date(lastVisit.date).toLocaleDateString('es-CL') : '';
+    var lastBarber = lastVisit && lastVisit.barberName ? lastVisit.barberName : '—';
+    // Compute the most-frequent barber for this client (overall)
+    var barberCount = {};
+    p.visits.forEach(function(v){
+      if(v.barberName) barberCount[v.barberName] = (barberCount[v.barberName]||0)+1;
+    });
+    var topBarber = null, topBarberCount = 0;
+    Object.keys(barberCount).forEach(function(k){
+      if(barberCount[k] > topBarberCount){ topBarber = k; topBarberCount = barberCount[k]; }
+    });
+    var clubVis = getClubVisits(p);
+    var isMember = p.club === 'member';
+    var clubBadge = isMember
+      ? '<span class="a-tag" style="background:linear-gradient(135deg,#1A1A1A,#2A2A2A);color:#C8D0DA;border:1px solid #6A7888">⬡ CLUB · '+clubVis+'</span>'
+      : '<span class="a-tag" style="background:var(--a-off);color:var(--a-meta);border:1px solid var(--a-g2)">Invitado</span>';
+    return '<tr class="a-pat-row" data-pat-id="' + esc(p.id) + '">' +
+      '<td><div class="a-tn">' + esc(p.name) + '</div><div style="margin-top:3px">'+clubBadge+'</div></td>' +
+      '<td style="font-size:12px;color:var(--a-meta)">' + esc(p.email || '—') + '</td>' +
+      '<td style="font-size:12px;color:var(--a-meta)">' + esc(p.phone || '—') + '</td>' +
+      '<td><span class="a-tag a-tinfo">' + p.visits.length + (p.visits.length===1?' visita':' visitas') + '</span></td>' +
+      '<td><div style="font-size:12px">' + esc(lastSvc) + '</div>' + (lastDate?'<div style="font-size:10.5px;color:var(--a-meta);margin-top:2px">' + esc(lastDate) + '</div>':'') + '</td>' +
+      '<td><div style="font-size:12px;font-weight:600;color:var(--a-txt)">' + esc(lastBarber) + '</div>' + (topBarber && topBarberCount>=2 && topBarber!==lastBarber ? '<div style="font-size:10px;color:var(--a-meta);margin-top:2px">Recurrente con: '+esc(topBarber)+'</div>' : (topBarber && topBarberCount>=2 ? '<div style="font-size:10px;color:var(--a-meta);margin-top:2px">'+topBarberCount+' visitas con él/ella</div>' : '')) + '</td>' +
+      '<td><div class="a-tacts">' +
+        '<button class="a-btn a-btn-g" data-pat-edit="' + esc(p.id) + '" style="padding:5px 9px;font-size:9px">Ver</button>' +
+        '<button class="a-btn a-btn-danger" data-pat-del="' + esc(p.id) + '" style="padding:5px 8px;font-size:9px">✕</button>' +
+      '</div></td>' +
+    '</tr>';
+  }).join('');
+  
+  body.querySelectorAll('[data-pat-edit]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var p = getPatients().find(function(x){return x.id===b.dataset.patEdit});
+      if(p) openPatModal(p);
+    });
+  });
+  // ── Double click on row opens the full client profile ──
+  body.querySelectorAll('.a-pat-row').forEach(function(row){
+    row.addEventListener('dblclick', function(e){
+      // Ignore double clicks on action buttons
+      if(e.target.closest('.a-tacts')) return;
+      var p = getPatients().find(function(x){return x.id===row.dataset.patId});
+      if(p) openPatModal(p);
+    });
+  });
+  body.querySelectorAll('[data-pat-del]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var p = getPatients().find(function(x){return x.id===b.dataset.patDel});
+      if(!p) return;
+      openDel('¿Eliminar al cliente <strong>' + esc(p.name) + '</strong>? Su historial de visitas también se eliminará.', function(){
+        window.SWData.deletePatient(p.id).then(function(){
+          PT = PT.filter(function(x){return x.id!==p.id});
+          updatePatBadge();
+          log('Eliminó cliente', p.name);
+          renderPatients();
+          showAlert('a-pat-alert', 'ok', 'Cliente eliminado.');
+        }).catch(function(e){ console.error('Error eliminando cliente', e); });
+      });
+    });
+  });
+}
+
+function openPatModal(p){
+  g('a-pm-t').textContent = p ? 'Ficha de cliente' : 'Nuevo cliente';
+  g('a-pm-id').value = p ? p.id : '';
+  g('a-pm-name').value = p ? (p.name||'') : '';
+  g('a-pm-email').value = p ? (p.email||'') : '';
+  g('a-pm-phone').value = p ? (p.phone||'') : '';
+  g('a-pm-notes').value = p ? (p.notes||'') : '';
+  g('a-pm-date').value = '';
+  
+  // Populate services select
+  var svcSel = g('a-pm-svc');
+  svcSel.innerHTML = '<option value="">— Selecciona servicio —</option>' +
+    D.services.filter(function(s){return s.status==='active'}).map(function(s){
+      return '<option value="' + esc(s.id) + '" data-name="' + esc(s.name) + '" data-price="' + s.price + '">' + esc(s.name) + '</option>';
+    }).join('');
+  svcSel.value = '';
+  
+  // Show history if patient has visits
+  var hist = g('a-pm-history');
+  if(p && p.visits && p.visits.length){
+    hist.style.display = 'block';
+    g('a-pm-history-list').innerHTML = p.visits.slice(0,15).map(function(v){
+      var dt = v.date ? new Date(v.date).toLocaleDateString('es-CL') : '—';
+      return '<div style="padding:6px 0;border-bottom:1px solid var(--a-g1)">' +
+        '<div style="font-weight:600;color:var(--a-txt)">' + esc(v.svcName||'—') + '</div>' +
+        '<div style="color:var(--a-meta);font-size:11px;margin-top:1px">' + dt + (v.barberName?' · ' + esc(v.barberName):'') + (v.price?' · ' + fmtCLP(v.price):'') + '</div>' +
+      '</div>';
+    }).join('');
+  } else {
+    hist.style.display = 'none';
+  }
+  
+  g('a-pm-del').style.display = p ? 'inline-flex' : 'none';
+  document.querySelectorAll('#a-pm .a-f').forEach(function(f){f.classList.remove('a-err')});
+
+  // ══ Photo gallery ══
+  var photosWrap = g('a-pm-photos-wrap');
+  if(p){
+    photosWrap.style.display = 'block';
+    renderPatPhotos(p);
+  } else {
+    photosWrap.style.display = 'none';
+  }
+
+  g('a-pm').classList.add('a-open');
+}
+
+// ══ PATIENT PHOTOS GALLERY ══
+function renderPatPhotos(p){
+  if(!p.photos) p.photos = [];
+  var photos = p.photos.slice(0, 4);
+  var grid = g('a-pm-photos');
+  var html = '';
+  // Render existing photos
+  photos.forEach(function(ph, idx){
+    var dateLbl = ph.date ? new Date(ph.date).toLocaleDateString('es-CL') : '';
+    html += '<div class="a-pm-photo a-pm-filled" data-photo-idx="'+idx+'">' +
+              '<img src="'+ph.url+'" alt="Foto '+(idx+1)+'">' +
+              (dateLbl ? '<div class="a-pm-photo-overlay">'+dateLbl+'</div>' : '') +
+              '<button class="a-pm-photo-del" data-photo-del="'+idx+'">✕</button>' +
+            '</div>';
+  });
+  // Render empty slots up to 4
+  for(var k = photos.length; k < 4; k++){
+    html += '<div class="a-pm-photo">' +
+              '<input type="file" accept="image/*" data-photo-add="'+k+'">' +
+              '<div class="a-pm-photo-plus">+</div>' +
+              '<div class="a-pm-photo-plus-lbl">Subir</div>' +
+            '</div>';
+  }
+  grid.innerHTML = html;
+  g('a-pm-photos-count').textContent = photos.length + '/4';
+
+  // View photo (click filled)
+  grid.querySelectorAll('.a-pm-photo.a-pm-filled').forEach(function(el){
+    el.addEventListener('click', function(e){
+      // Ignore clicks on delete button
+      if(e.target.classList.contains('a-pm-photo-del')) return;
+      var idx = parseInt(el.dataset.photoIdx);
+      if(!isNaN(idx) && p.photos[idx]){
+        g('a-pm-lb-img').src = p.photos[idx].url;
+        g('a-pm-lb').classList.add('a-open');
+      }
+    });
+  });
+
+  // Delete photo
+  grid.querySelectorAll('[data-photo-del]').forEach(function(b){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      var idx = parseInt(b.dataset.photoDel);
+      if(!confirm('¿Eliminar esta foto?')) return;
+      var photo = p.photos[idx];
+      if(!photo) return;
+      window.SWData.deletePatientPhoto(p.id, photo.path).then(function(){
+        p.photos.splice(idx, 1);
+        var pidx = PT.findIndex(function(x){return x.id===p.id});
+        if(pidx>-1) PT[pidx].photos = p.photos;
+        renderPatPhotos(p);
+      }).catch(function(e){ console.error('Error eliminando foto', e); alert('No se pudo eliminar la foto.'); });
+    });
+  });
+
+  // Upload photo (compressed)
+  grid.querySelectorAll('[data-photo-add]').forEach(function(input){
+    input.addEventListener('change', function(e){
+      var f = e.target.files[0];
+      if(!f) return;
+      if(f.size > 5*1024*1024){
+        alert('La imagen es muy pesada (máx 5MB). Intenta con otra.');
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function(ev){
+        compressImage(ev.target.result, 1200, 0.82, function(compressedSrc){
+          if((p.photos||[]).length >= 4){
+            alert('Ya hay 4 fotos. Elimina una antes de subir otra.');
+            return;
+          }
+          fetch(compressedSrc).then(function(r){ return r.blob(); }).then(function(blob){
+            return window.SWData.uploadPatientPhoto(p.id, blob);
+          }).then(function(photo){
+            if(!p.photos) p.photos = [];
+            p.photos.push(photo);
+            var idx = PT.findIndex(function(x){return x.id===p.id});
+            if(idx>-1) PT[idx].photos = p.photos;
+            renderPatPhotos(p);
+            log('Subió foto', p.name);
+          }).catch(function(e){ console.error('Error subiendo foto', e); alert('No se pudo subir la foto.'); });
+        });
+      };
+      reader.readAsDataURL(f);
+    });
+  });
+}
+
+// Compress image via canvas to keep localStorage small
+function compressImage(dataUrl, maxWidth, quality, cb){
+  var img = new Image();
+  img.onload = function(){
+    var w = img.width, h = img.height;
+    if(w > maxWidth){
+      h = h * (maxWidth / w);
+      w = maxWidth;
+    }
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    cb(canvas.toDataURL('image/jpeg', quality));
+  };
+  img.onerror = function(){ cb(dataUrl); };
+  img.src = dataUrl;
+}
+
+// Close lightbox on background click or Escape
+g('a-pm-lb').addEventListener('click', function(e){
+  if(e.target === g('a-pm-lb')) g('a-pm-lb').classList.remove('a-open');
+});
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape' && g('a-pm-lb').classList.contains('a-open')){
+    g('a-pm-lb').classList.remove('a-open');
+  }
+});
+
+g('a-pat-new').addEventListener('click', function(){ openPatModal(null); });
+
+g('a-pm-save').addEventListener('click', function(){
+  var ne = g('a-pm-name');
+  var ee = g('a-pm-email');
+  var ok = true;
+  [ne, ee].forEach(function(el){el.parentElement.classList.remove('a-err')});
+  if(!ne.value.trim()){ ne.parentElement.classList.add('a-err'); ok=false; }
+  if(!ee.value.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ee.value.trim())){ 
+    ee.parentElement.classList.add('a-err'); ok=false; 
+  }
+  if(!ok) return;
+  
+  var eid = g('a-pm-id').value;
+  var patients = getPatients();
+  var svcSel = g('a-pm-svc');
+  var svcOpt = svcSel.options[svcSel.selectedIndex];
+  var newVisit = null;
+  if(svcSel.value && g('a-pm-date').value){
+    newVisit = {
+      code: 'MAN-' + Date.now().toString(36).toUpperCase().slice(-5),
+      date: g('a-pm-date').value + 'T00:00:00.000Z',
+      svcId: svcSel.value,
+      svcName: svcOpt.dataset.name,
+      price: parseInt(svcOpt.dataset.price || 0),
+      barberName: ''
+    };
+  }
+  
+  if(eid){
+    var idx = patients.findIndex(function(x){return x.id===eid});
+    if(idx > -1){
+      patients[idx].name = ne.value.trim();
+      patients[idx].email = ee.value.trim();
+      patients[idx].phone = g('a-pm-phone').value.trim();
+      patients[idx].notes = g('a-pm-notes').value.trim();
+      if(newVisit) patients[idx].visits.push(newVisit);
+      log('Editó cliente', patients[idx].name);
+    }
+  } else {
+    var p = {
+      id: 'pat_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      name: ne.value.trim(),
+      email: ee.value.trim(),
+      phone: g('a-pm-phone').value.trim(),
+      notes: g('a-pm-notes').value.trim(),
+      visits: newVisit ? [newVisit] : [],
+      createdAt: new Date().toISOString()
+    };
+    patients.push(p);
+    log('Registró cliente', p.name);
+  }
+  savePatients(patients);
+  closeModal('a-pm');
+  renderPatients();
+  showAlert('a-pat-alert', 'ok', 'Cliente guardado correctamente.');
+});
+
+g('a-pm-del').addEventListener('click', function(){
+  var id = g('a-pm-id').value;
+  if(!id) return;
+  var p = getPatients().find(function(x){return x.id===id});
+  if(!p) return;
+  openDel('¿Eliminar al cliente <strong>' + esc(p.name) + '</strong>?', function(){
+    window.SWData.deletePatient(id).then(function(){
+      PT = PT.filter(function(x){return x.id!==id});
+      updatePatBadge();
+      closeModal('a-pm');
+      log('Eliminó cliente', p.name);
+      renderPatients();
+      showAlert('a-pat-alert', 'ok', 'Cliente eliminado.');
+    }).catch(function(e){ console.error('Error eliminando cliente', e); });
+  });
+});
+
+// Search
+g('a-pat-search').addEventListener('input', function(e){
+  patSearch = e.target.value;
+  renderPatients();
+});
+
+// ═══ EXPORTAR EXCEL (.xlsx) usando SheetJS desde CDN ═══
+function ensureXLSX(callback){
+  if(typeof XLSX !== 'undefined'){ callback(); return; }
+  var script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+  script.onload = callback;
+  script.onerror = function(){
+    showAlert('a-pat-alert', 'err', 'No se pudo cargar la librería de Excel. Verifica tu conexión.');
+  };
+  document.head.appendChild(script);
+}
+
+g('a-pat-export').addEventListener('click', async function(){
+  PT = await window.SWData.getPatients();
+  var patients = getPatients();
+  if(!patients.length){
+    showAlert('a-pat-alert', 'err', 'No hay clientes para exportar.');
+    return;
+  }
+  var btn = g('a-pat-export');
+  var origTxt = btn.textContent;
+  btn.textContent = '⏳ Cargando...';
+  btn.disabled = true;
+  
+  ensureXLSX(function(){
+    try {
+      // Sheet 1: Resumen de clientes (con barbero atendiente)
+      var sheet1Data = [['Nombre','Email','Teléfono','Tipo','Visitas totales','Visitas Club','Última prestación','Último barbero','Barbero recurrente','Última fecha','Notas']];
+      patients.forEach(function(p){
+        var last = p.visits[0] || {};
+        // Most frequent barber for this client
+        var bc = {};
+        p.visits.forEach(function(v){ if(v.barberName) bc[v.barberName] = (bc[v.barberName]||0)+1; });
+        var topB = '', topN = 0;
+        Object.keys(bc).forEach(function(k){ if(bc[k]>topN){ topB = k; topN = bc[k]; } });
+        var recurrente = (topB && topN>=2) ? topB + ' ('+topN+' visitas)' : '';
+        sheet1Data.push([
+          p.name || '',
+          p.email || '',
+          p.phone || '',
+          p.club==='member' ? 'Club SW' : 'Invitado',
+          p.visits.length,
+          getClubVisits(p),
+          last.svcName || '',
+          last.barberName || '',
+          recurrente,
+          last.date ? new Date(last.date).toLocaleDateString('es-CL') : '',
+          p.notes || ''
+        ]);
+      });
+      
+      // Sheet 2: Historial detallado (cada visita una fila)
+      var sheet2Data = [['Nombre','Email','Teléfono','Servicio','Barbero','Precio CLP','Fecha','Código']];
+      patients.forEach(function(p){
+        if(p.visits.length === 0){
+          sheet2Data.push([p.name||'', p.email||'', p.phone||'', '— Sin visitas —','','','','']);
+        } else {
+          p.visits.forEach(function(v){
+            sheet2Data.push([
+              p.name || '',
+              p.email || '',
+              p.phone || '',
+              v.svcName || '',
+              v.barberName || '',
+              v.price || 0,
+              v.date ? new Date(v.date).toLocaleDateString('es-CL') : '',
+              v.code || ''
+            ]);
+          });
+        }
+      });
+      
+      // Sheet 3: Estadísticas por servicio
+      var svcCount = {};
+      var svcRevenue = {};
+      patients.forEach(function(p){
+        p.visits.forEach(function(v){
+          if(!v.svcName) return;
+          svcCount[v.svcName] = (svcCount[v.svcName]||0) + 1;
+          svcRevenue[v.svcName] = (svcRevenue[v.svcName]||0) + (v.price||0);
+        });
+      });
+      var sheet3Data = [['Servicio','Cantidad de prestaciones','Ingreso total CLP']];
+      var svcKeys = Object.keys(svcCount).sort(function(a,b){return svcCount[b]-svcCount[a]});
+      svcKeys.forEach(function(k){
+        sheet3Data.push([k, svcCount[k], svcRevenue[k]]);
+      });
+      
+      var wb = XLSX.utils.book_new();
+      var ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
+      var ws2 = XLSX.utils.aoa_to_sheet(sheet2Data);
+      var ws3 = XLSX.utils.aoa_to_sheet(sheet3Data);
+      // Column widths
+      ws1['!cols'] = [{wch:25},{wch:28},{wch:18},{wch:12},{wch:10},{wch:13},{wch:28},{wch:16},{wch:24},{wch:13},{wch:30}];
+      ws2['!cols'] = [{wch:25},{wch:28},{wch:18},{wch:32},{wch:14},{wch:12},{wch:12},{wch:18}];
+      ws3['!cols'] = [{wch:32},{wch:14},{wch:18}];
+      
+      XLSX.utils.book_append_sheet(wb, ws1, 'Clientes');
+      XLSX.utils.book_append_sheet(wb, ws2, 'Historial de prestaciones');
+      XLSX.utils.book_append_sheet(wb, ws3, 'Estadísticas por servicio');
+      
+      // Sheet 4: Club SW members tracker
+      var sheet4Data = [['Nombre','Email','Teléfono','Visitas Club','Falta para Premium (10)','Falta para Asesoría (20)','Estado beneficio']];
+      patients.filter(function(p){return p.club==='member'}).forEach(function(p){
+        var cv = getClubVisits(p);
+        var f10 = Math.max(0, 10-cv);
+        var f20 = Math.max(0, 20-cv);
+        var estado = cv>=20 ? '20+ visitas — Asesoría reclamada' : 
+                     cv>=10 ? '10+ visitas — Premium reclamado' : 'En progreso';
+        sheet4Data.push([p.name||'', p.email||'', p.phone||'', cv, f10, f20, estado]);
+      });
+      var ws4 = XLSX.utils.aoa_to_sheet(sheet4Data);
+      ws4['!cols'] = [{wch:25},{wch:28},{wch:18},{wch:14},{wch:22},{wch:22},{wch:32}];
+      XLSX.utils.book_append_sheet(wb, ws4, 'Club SW');
+      
+      var today = new Date();
+      var fname = 'SW_Clientes_' + today.getFullYear() + '-' + pad2(today.getMonth()+1) + '-' + pad2(today.getDate()) + '.xlsx';
+      XLSX.writeFile(wb, fname);
+      
+      log('Exportó clientes', patients.length + ' registros');
+      showAlert('a-pat-alert', 'ok', 'Excel descargado: ' + fname);
+    } catch(err){
+      showAlert('a-pat-alert', 'err', 'Error al generar Excel: ' + err.message);
+    }
+    btn.textContent = origTxt;
+    btn.disabled = false;
+  });
+});
+
+// Hook into existing booking save to auto-update patients
+var __origSaveBookings = saveBookings;
+saveBookings = function(arr){
+  __origSaveBookings(arr);
+  updatePatBadge();
+};
+
+// Initial sync on load
+updatePatBadge();
+
+// Add Pacientes to the panel navigation handler
+var __origRenderAll = renderAll;
+renderAll = function(){
+  __origRenderAll();
+  renderPatients();
+  updatePatBadge();
+};
+
+// Refresh patients when navigating to it
+var __origAdmPnl = admPnl;
+admPnl = function(p){
+  __origAdmPnl(p);
+  if(p === 'patients'){
+    renderPatients();
+  }
+};
+
+// Add label to topbar titles
+// (TopbarTitle is set inside admPnl — extend the T map)
+
 })();
 
 </script>
+<script type="module" src="/js/firebase-init.js"></script>
+<script type="module" src="/js/data.js"></script>
+<script type="module" src="/js/auth.js"></script>
 </body>
 </html>

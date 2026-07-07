@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Fotos de clientes: son datos personales, no material de marketing.
+    // Solo staff autenticado sube/lee/borra.
+    match /patients/{patientId}/{photoId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

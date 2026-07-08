@@ -29,10 +29,16 @@ exports.onBookingCreated = onDocumentCreated(
       logger.info('Emails enviados', { code: b.code });
     } catch (err) {
       logger.error('Fallo al enviar emails', err);
-      await snap.ref.update({ emailStatus: 'failed' });
-      await admin.firestore().collection('adminLog').add({
-        action: 'email_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
-      });
+      // Si estas escrituras también fallan (ej. IAM), no deben impedir el
+      // sync de patients de más abajo — fue lo que pasó en el incidente del 5-7 jul.
+      try {
+        await snap.ref.update({ emailStatus: 'failed' });
+        await admin.firestore().collection('adminLog').add({
+          action: 'email_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
+        });
+      } catch (err2) {
+        logger.error('Fallo al registrar emailStatus failed', err2);
+      }
       // No relanzar: la reserva ya está guardada.
     }
     try {

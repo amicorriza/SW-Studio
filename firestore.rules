@@ -2,14 +2,26 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Catálogo público: lectura libre, escritura solo staff autenticado
-    match /services/{id}   { allow read: if true; allow write: if request.auth != null; }
-    match /staff/{id}      { allow read: if true; allow write: if request.auth != null; }
-    match /businessInfo/{id}{ allow read: if true; allow write: if request.auth != null; }
+    // Solo el staff admin. Antes se usaba `request.auth != null`, pero el
+    // registro público de Auth está habilitado: CUALQUIERA podía crear una
+    // cuenta con la API key pública y leer/escribir estos datos. Ahora se exige
+    // ser el admin — vía custom claim `admin:true` (preferido, permite sumar
+    // staff sin tocar reglas) o el UID del admin actual como respaldo inmediato.
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.uid == 'VUm858rENuNVzB4MAMtzLnGb1A63'
+      );
+    }
 
-    // Reservas: el público puede CREAR (validado), solo staff lee/edita/borra
+    // Catálogo público: lectura libre, escritura solo admin
+    match /services/{id}   { allow read: if true; allow write: if isAdmin(); }
+    match /staff/{id}      { allow read: if true; allow write: if isAdmin(); }
+    match /businessInfo/{id}{ allow read: if true; allow write: if isAdmin(); }
+
+    // Reservas: el público puede CREAR (validado), solo admin lee/edita/borra
     match /bookings/{id} {
-      allow read, update, delete: if request.auth != null;
+      allow read, update, delete: if isAdmin();
       allow create: if isValidBooking();
     }
     function isValidBooking() {
@@ -24,12 +36,12 @@ service cloud.firestore {
         && d.club is string  && (d.club == 'member' || d.club == 'guest');
     }
 
-    // Clientes (v19): nombre, contacto, historial de visitas y fotos.
+    // Clientes (v19): nombre, contacto, historial de visitas y fotos (PII).
     // Nunca hay escritura pública directa — el único creador/actualizador es
     // la Cloud Function onBookingCreated (Admin SDK, no sujeta a estas reglas).
-    match /patients/{id} { allow read, write: if request.auth != null; }
+    match /patients/{id} { allow read, write: if isAdmin(); }
 
-    // Log de actividad: solo staff
-    match /adminLog/{id} { allow read, write: if request.auth != null; }
+    // Log de actividad: solo admin
+    match /adminLog/{id} { allow read, write: if isAdmin(); }
   }
 }

@@ -3377,6 +3377,7 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
 .a-tl-hour:last-child{border-bottom:none}
 .a-tl-col{position:relative;background:#fff}
 .a-tl-slot{
+  position:relative;
   height:60px;border-bottom:1px solid var(--a-g1);
   cursor:pointer;transition:background .14s
 }
@@ -3384,6 +3385,17 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
 .a-tl-slot:last-child{border-bottom:none}
 .a-tl-half{height:30px;border-bottom:1px dashed transparent}
 .a-tl-half:nth-child(odd){border-bottom-color:rgba(200,210,220,.4)}
+.a-tl-half.a-tl-busy{background:rgba(154,170,187,.10)}
+.a-tl-lbl{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  font-family:'Barlow Condensed',sans-serif;font-size:9.5px;font-weight:700;
+  letter-spacing:.18em;text-transform:uppercase;
+  color:var(--a-meta);border:1px dashed var(--a-g3);
+  padding:2px 9px;border-radius:20px;
+  opacity:0;transition:opacity .15s;
+  pointer-events:none;white-space:nowrap
+}
+.a-tl-slot:hover .a-tl-lbl{opacity:1}
 .a-bk-card{
   position:absolute;left:5px;right:5px;
   background:linear-gradient(180deg,#fff 0%,#FAFBFC 100%);
@@ -3902,16 +3914,14 @@ function renderCalendar(){
   for(var h = minH; h < maxH; h++){
     hoursHtml += '<div class="a-tl-hour">'+pad2(h)+':00</div>';
   }
-  var slotsHtml = '';
-  for(var h = minH; h < maxH; h++){
-    slotsHtml += '<div class="a-tl-slot" data-h="'+h+'"></div>';
-  }
-  // Render cards positioned absolutely
+  // Render cards positioned absolutely (and collect busy minute-ranges for the timeline halves below)
+  var busyRanges = [];
   var cardsHtml = todays.map(function(b){
     var t = (b.time || '10:00').split(':');
     var bh = parseInt(t[0]), bm = parseInt(t[1]);
     var startMin = (bh - minH)*60 + bm;
     var dur = b.dur || 30;
+    busyRanges.push([startMin, startMin + dur]);
     var top = startMin; // 1 min = 1px (60px per hour)
     var height = Math.max(28, dur);
     var barber = D.staff.find(function(s){return s.id===b.barberId});
@@ -3926,6 +3936,20 @@ function renderCalendar(){
       '</div>'+
     '</div>';
   }).join('');
+
+  // Build hour slots, marking each half-hour busy/free from busyRanges
+  var slotsHtml = '';
+  for(var h = minH; h < maxH; h++){
+    var hStart = (h - minH)*60;
+    var half0Busy = busyRanges.some(function(r){ return r[0] < hStart+30 && r[1] > hStart; });
+    var half1Busy = busyRanges.some(function(r){ return r[0] < hStart+60 && r[1] > hStart+30; });
+    var isFree = !half0Busy && !half1Busy;
+    slotsHtml += '<div class="a-tl-slot'+(isFree?' a-tl-free':'')+'" data-h="'+h+'">'+
+      '<div class="a-tl-half'+(half0Busy?' a-tl-busy':'')+'"></div>'+
+      '<div class="a-tl-half'+(half1Busy?' a-tl-busy':'')+'"></div>'+
+      (isFree ? '<span class="a-tl-lbl">Libre</span>' : '')+
+    '</div>';
+  }
 
   tl.innerHTML = '<div class="a-tl-grid"><div class="a-tl-hours">'+hoursHtml+'</div><div class="a-tl-col">'+slotsHtml+cardsHtml+'</div></div>';
 

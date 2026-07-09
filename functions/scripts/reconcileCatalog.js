@@ -18,8 +18,8 @@
 //   3. Imprime un diff campo por campo. Documentos solo-en-producción se
 //      marcan para revisión manual y NUNCA se borran ni se tocan.
 //   4. Por defecto SOLO REPORTA. Escribir requiere el flag --apply MÁS una
-//      confirmación escrita interactiva (Y/YES) — es el único paso de todo
-//      el plan que toca datos de producción directamente.
+//      confirmación escrita interactiva exacta (YES) — es el único paso de
+//      todo el plan que toca datos de producción directamente.
 //   5. Al aplicar, escribe con `.set(ref, doc, { merge:true })` únicamente
 //      sobre los documentos que difieren o que faltan en producción.
 //
@@ -163,7 +163,13 @@ function printReport(result) {
     for (const { id, changes } of toWrite) {
       console.log(`   - ${id}`);
       for (const c of changes) {
-        console.log(`       ${c.field}: ${formatValue(c.from)}  ->  ${formatValue(c.to)}`);
+        if (c.to === undefined) {
+          // merge:true nunca borra campos ausentes del doc escrito -- este
+          // campo es "extra" en producción y --apply lo deja intacto.
+          console.log(`       ${c.field}: ${formatValue(c.from)}  (campo extra en producción, no se tocará con merge:true)`);
+        } else {
+          console.log(`       ${c.field}: ${formatValue(c.from)}  ->  ${formatValue(c.to)}`);
+        }
       }
     }
   }
@@ -244,6 +250,13 @@ async function main() {
     return;
   }
 
+  // Nota: no se vuelve a leer Firestore antes de escribir -- si alguien edita
+  // uno de estos mismos documentos desde el panel admin en vivo mientras el
+  // operador está leyendo el reporte y escribiendo YES, ese --apply pisaría
+  // esa edición concurrente con el snapshot leído al principio de esta
+  // corrida. Riesgo aceptado: este es un script de un solo uso, corrido a
+  // mano por un operador, no un job recurrente -- si hay dudas, volver a
+  // correr en modo solo-reporte antes de confirmar.
   const confirmed = await confirmApply(pending.length, args.project);
   if (!confirmed) {
     console.log('Cancelado: no se escribió nada.');
@@ -270,7 +283,7 @@ module.exports = {
 
 if (require.main === module) {
   main().catch((err) => {
-    console.error('Error:', err.message);
+    console.error('Error:', err.stack || err.message);
     process.exit(1);
   });
 }

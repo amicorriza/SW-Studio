@@ -3,6 +3,10 @@
     { "collectionGroup": "bookings", "queryScope": "COLLECTION", "fields": [
       { "fieldPath": "email", "order": "ASCENDING" },
       { "fieldPath": "club", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "bookings", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "date", "order": "ASCENDING" },
+      { "fieldPath": "barberId", "order": "ASCENDING" }
     ]}
   ],
   "fieldOverrides": []

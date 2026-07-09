@@ -7,6 +7,7 @@ const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
 const { sendBookingEmails } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
+const { computeAvailability } = require('./availability.js');
 
 admin.initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -67,5 +68,32 @@ exports.getClubStatus = onCall(
     const snap = await db.collection('bookings').where('email', '==', email).where('club', '==', 'member').get();
     const bookings = snap.docs.map(d => d.data());
     return countClubVisits(bookings, email);
+  }
+);
+
+// getAvailability: el público no puede leer `bookings` directo (ver
+// firestore.rules), así que el widget de reservas consulta disponibilidad
+// real vía esta función server-side (Admin SDK, no sujeta a reglas). Solo
+// devuelve datos derivados (barberId + rangos start/end) — nunca
+// name/email/phone ni ningún otro dato de otras reservas/clientes.
+exports.getAvailability = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const date = (request.data && request.data.date || '').trim();
+    if (!date) throw new HttpsError('invalid-argument', 'date es requerido');
+    const barberId = ((request.data && request.data.barberId) || '').trim();
+
+    const db = admin.firestore();
+    let bookingsQuery = db.collection('bookings').where('date', '==', date);
+    if (barberId && barberId !== 'any') {
+      bookingsQuery = bookingsQuery.where('barberId', '==', barberId);
+    }
+    const [bookingsSnap, staffSnap] = await Promise.all([
+      bookingsQuery.get(),
+      db.collection('staff').where('status', '==', 'active').get(),
+    ]);
+    const bookings = bookingsSnap.docs.map(d => d.data());
+    const staff = staffSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    return computeAvailability({ bookings, staff, barberId });
   }
 );

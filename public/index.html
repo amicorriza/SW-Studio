@@ -3944,7 +3944,7 @@ function renderCalendar(){
     var half0Busy = busyRanges.some(function(r){ return r[0] < hStart+30 && r[1] > hStart; });
     var half1Busy = busyRanges.some(function(r){ return r[0] < hStart+60 && r[1] > hStart+30; });
     var isFree = !half0Busy && !half1Busy;
-    slotsHtml += '<div class="a-tl-slot'+(isFree?' a-tl-free':'')+'" data-h="'+h+'">'+
+    slotsHtml += '<div class="a-tl-slot" data-h="'+h+'">'+
       '<div class="a-tl-half'+(half0Busy?' a-tl-busy':'')+'"></div>'+
       '<div class="a-tl-half'+(half1Busy?' a-tl-busy':'')+'"></div>'+
       (isFree ? '<span class="a-tl-lbl">Libre</span>' : '')+

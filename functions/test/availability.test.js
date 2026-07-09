@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { toMinutes, addMinutesToTime, bookingsOverlap, computeAvailability } = require('../availability.js');
+const { toMinutes, addMinutesToTime, computeAvailability } = require('../availability.js');
 
 test('toMinutes convierte HH:MM a minutos desde medianoche', () => {
   assert.strictEqual(toMinutes('09:00'), 540);
@@ -11,30 +11,6 @@ test('toMinutes convierte HH:MM a minutos desde medianoche', () => {
 test('addMinutesToTime suma la duración y devuelve HH:MM', () => {
   assert.strictEqual(addMinutesToTime('10:00', 50), '10:50');
   assert.strictEqual(addMinutesToTime('10:40', 30), '11:10');
-});
-
-test('bookingsOverlap detecta solape para el mismo barbero en horarios que se cruzan', () => {
-  const a = { barberId: 'felipe', date: '2026-07-10', time: '10:00', dur: 50 }; // 10:00-10:50
-  const b = { barberId: 'felipe', date: '2026-07-10', time: '10:30', dur: 30 }; // 10:30-11:00
-  assert.strictEqual(bookingsOverlap(a, b), true);
-});
-
-test('bookingsOverlap no marca conflicto para barberos distintos en el mismo horario', () => {
-  const a = { barberId: 'felipe', date: '2026-07-10', time: '10:00', dur: 50 };
-  const b = { barberId: 'victoria', date: '2026-07-10', time: '10:00', dur: 50 };
-  assert.strictEqual(bookingsOverlap(a, b), false);
-});
-
-test('bookingsOverlap no marca conflicto entre reservas espalda-con-espalda', () => {
-  const a = { barberId: 'felipe', date: '2026-07-10', time: '10:00', dur: 50 }; // termina 10:50
-  const b = { barberId: 'felipe', date: '2026-07-10', time: '10:50', dur: 30 }; // empieza 10:50
-  assert.strictEqual(bookingsOverlap(a, b), false);
-});
-
-test('bookingsOverlap no marca conflicto si las reservas son de fechas distintas', () => {
-  const a = { barberId: 'felipe', date: '2026-07-10', time: '10:00', dur: 50 };
-  const b = { barberId: 'felipe', date: '2026-07-11', time: '10:00', dur: 50 };
-  assert.strictEqual(bookingsOverlap(a, b), false);
 });
 
 test('computeAvailability filtra por barberId cuando se especifica uno concreto', () => {
@@ -103,4 +79,31 @@ test('computeAvailability solo incluye barberos activos en activeBarberIds', () 
   const result = computeAvailability({ bookings: [], staff, barberId: 'any' });
   assert.deepStrictEqual(result.activeBarberIds, ['felipe']);
   assert.deepStrictEqual(result.barberBusy, {});
+});
+
+test('computeAvailability con staff vacío/todos inactivos devuelve activeBarberIds vacío', () => {
+  const result = computeAvailability({ bookings: [], staff: [], barberId: 'any' });
+  assert.deepStrictEqual(result.activeBarberIds, []);
+  const result2 = computeAvailability({
+    bookings: [],
+    staff: [{ id: 'esteban', status: 'inactive' }, { id: 'ariel', status: 'inactive' }],
+    barberId: 'any',
+  });
+  assert.deepStrictEqual(result2.activeBarberIds, []);
+});
+
+test('computeAvailability no incluye barberBusy[id] cuando el barbero pedido no tiene reservas ese día', () => {
+  // Contrato: ausencia de la clave, no un array vacío -- quien llama debe
+  // leer con `barberBusy[id] || []`.
+  const staff = [{ id: 'felipe', status: 'active' }];
+  const result = computeAvailability({ bookings: [], staff, barberId: 'felipe' });
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(result.barberBusy, 'felipe'), false);
+  assert.deepStrictEqual(result.barberBusy.felipe || [], []);
+});
+
+test('computeAvailability con dur ausente/cero produce un rango de duración cero, no un crash', () => {
+  const bookings = [{ barberId: 'felipe', date: '2026-07-10', time: '10:00' }]; // sin dur
+  const staff = [{ id: 'felipe', status: 'active' }];
+  const result = computeAvailability({ bookings, staff, barberId: 'felipe' });
+  assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:00' }]);
 });

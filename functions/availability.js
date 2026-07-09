@@ -29,23 +29,6 @@ function addMinutesToTime(hhmm, durMin) {
   return toHHMM(toMinutes(hhmm) + (durMin || 0));
 }
 
-// ¿Se solapan dos reservas? Mismo cálculo que checkConflict/parseDt en
-// public/index.html: newStart < bEnd && newEnd > bStart. Reservas
-// espalda-con-espalda (una termina justo cuando la otra empieza) NO cuentan
-// como solape — mismo comportamiento ya probado en el admin.
-// Reservas de barberos distintos, o de fechas distintas (cuando se informa
-// `date` en ambas), tampoco se consideran en conflicto.
-function bookingsOverlap(a, b) {
-  if (!a || !b) return false;
-  if ((a.barberId || '') !== (b.barberId || '')) return false;
-  if (a.date && b.date && a.date !== b.date) return false;
-  const aStart = toMinutes(a.time);
-  const aEnd = aStart + (a.dur || 0);
-  const bStart = toMinutes(b.time);
-  const bEnd = bStart + (b.dur || 0);
-  return aStart < bEnd && aEnd > bStart;
-}
-
 // Agrupa las reservas de un día por barbero, devolviendo solo {start, end}
 // derivados de `time`+`dur` — NUNCA name/email/phone/otro dato personal.
 //
@@ -53,6 +36,15 @@ function bookingsOverlap(a, b) {
 // las reservas recibidas por su propio barberId. El llamador (index.js) es
 // quien decide si filtra la query de Firestore por barberId o no; esta
 // función solo agrupa lo que le llega.
+//
+// Esta función NO decide si un horario candidato está disponible — devuelve
+// los rangos ocupados en bruto. Es responsabilidad de quien consuma esta
+// respuesta (el widget público, en public/index.html) comparar un slot
+// candidato [start, start+durCandidata) contra estos rangos con el mismo
+// solape que ya usa checkConflict/parseDt: candStart < end && candEnd > start.
+// Un `barberId` que no aparece en `activeBarberIds` es un barbero
+// inactivo/inexistente — quien llama debe tratarlo como "no disponible",
+// esta función no lo valida ni lo rechaza.
 function computeAvailability({ bookings, staff, barberId }) {
   const wantsAny = !barberId || barberId === 'any';
   const relevant = wantsAny
@@ -74,4 +66,4 @@ function computeAvailability({ bookings, staff, barberId }) {
   return { barberBusy, activeBarberIds };
 }
 
-module.exports = { toMinutes, toHHMM, addMinutesToTime, bookingsOverlap, computeAvailability };
+module.exports = { toMinutes, toHHMM, addMinutesToTime, computeAvailability };

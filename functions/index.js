@@ -79,6 +79,14 @@ exports.getClubStatus = onCall(
 exports.getAvailability = onCall(
   { region: 'southamerica-east1' },
   async (request) => {
+    // Solo se valida que `date`/`barberId` no vengan vacíos, no su formato:
+    // el widget siempre los arma desde su propio date-picker/selector de
+    // barbero, nunca desde texto libre. Un `date` con formato inesperado o
+    // un `barberId` que ya no corresponde a ningún staff activo NO tira
+    // error acá -- simplemente no calzan con ninguna reserva/activeBarberIds
+    // y la respuesta "parece" plena disponibilidad. Es responsabilidad de
+    // quien llama (el cliente) tratar un barberId ausente de
+    // `activeBarberIds` como no disponible, no de esta función.
     const date = (request.data && request.data.date || '').trim();
     if (!date) throw new HttpsError('invalid-argument', 'date es requerido');
     const barberId = ((request.data && request.data.barberId) || '').trim();

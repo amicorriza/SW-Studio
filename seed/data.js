@@ -27,9 +27,9 @@ const services = [
 const staff = [
   { id:'victoria', name:'Victoria', role:'Barbera Senior · Visagismo', days:'Mar — Sáb', bio:'4 años de experiencia, especializada en asesoría con visagismo.', status:'active', photo:'',
     schedule:[null,{open:false},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'17:00'}] },
-  { id:'esteban', name:'Esteban', role:'Barbero', days:'Lun — Vie', bio:'', status:'active', photo:'',
+  { id:'esteban', name:'Esteban', role:'Barbero', days:'Lun — Vie', bio:'', status:'inactive', photo:'',
     schedule:[null,{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:false}] },
-  { id:'ariel', name:'Ariel', role:'Barbero', days:'Lun — Vie', bio:'', status:'active', photo:'',
+  { id:'ariel', name:'Ariel', role:'Barbero', days:'Lun — Vie', bio:'', status:'inactive', photo:'',
     schedule:[null,{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:false}] },
 ];
 

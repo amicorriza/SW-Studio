@@ -2324,37 +2324,37 @@ let CATS = [
      desc:'Corte + lavado con masaje craneal + cortesía a elección.'},
     {id:'nino', name:'Corte Niño (2-10 años)', dur:45, price:16000,
      desc:'Corte especializado para los más pequeños.'},
-    {id:'lavado-p', name:'Corte + Lavado Premium', dur:50, price:21000,
+    {id:'lp', name:'Corte + Lavado Premium', dur:50, price:21000,
      desc:'Corte + lavado Reuzel: shampoo, exfoliación y acondicionador.'},
-    {id:'fade-m', name:'Mantención Fade + Lavado', dur:30, price:12000,
+    {id:'fm', name:'Mantención Fade + Lavado', dur:30, price:12000,
      desc:'Solo lados. Máx. 2 semanas desde último corte.'},
-    {id:'mullet', name:'Mullet y derivados', dur:60, price:23000,
+    {id:'mu', name:'Mullet y derivados', dur:60, price:23000,
      desc:'Estilo que combina largos y cortos con precisión.'},
-    {id:'mullet-b', name:'Mullet y derivados + Barba', dur:70, price:33000,
+    {id:'mub', name:'Mullet y derivados + Barba', dur:70, price:33000,
      desc:'Mullet completo más perfilado de barba.'},
-    {id:'tijeras', name:'Corte con tijeras (media/larga)', dur:75, price:25000,
+    {id:'tj', name:'Corte con tijeras (media/larga)', dur:75, price:25000,
      desc:'Corte trabajado con tijeras para cabellos medios y largos.'},
     {id:'cb', name:'Corte + Barba simple', dur:60, price:23000,
      desc:'Combo clásico: corte completo + perfilado de barba.'},
-    {id:'cb-tc', name:'Corte + Barba con toallas calientes', dur:75, price:30000,
+    {id:'cbtc', name:'Corte + Barba con toallas calientes', dur:75, price:30000,
      desc:'Corte + perfilado de barba premium con toallas calientes.'},
-    {id:'tj-bt', name:'Tijeras + Barba toalla caliente', dur:90, price:40000,
+    {id:'tjbt', name:'Tijeras + Barba toalla caliente', dur:90, price:40000,
      desc:'Corte de tijeras + perfilado premium de barba.'},
-    {id:'tj-b', name:'Corte tijeras + Barba simple', dur:70, price:35000,
+    {id:'tjb', name:'Corte tijeras + Barba simple', dur:70, price:35000,
      desc:'Corte de tijeras + perfilado de barba simple.'},
-    {id:'uc-m', name:'Undercut mujer', dur:35, price:8000,
+    {id:'ucm', name:'Undercut mujer', dur:35, price:8000,
      desc:'Degradado de nuca y rapados con diseño. Acabado moderno.'},
     {id:'ras', name:'Rasurado completo', dur:30, price:14000,
      desc:'Rasurado relajante con toallas calientes.'}
   ]},
   {id:'b', name:'Barba', items:[
-    {id:'b-s', name:'Perfilado de barba simple', dur:30, price:13000,
+    {id:'bs', name:'Perfilado de barba simple', dur:30, price:13000,
      desc:'Recorte y definición con trimmer y shaver.'},
-    {id:'b-tc', name:'Perfilado de barba con toallas calientes', dur:40, price:23000,
+    {id:'btc', name:'Perfilado de barba con toallas calientes', dur:40, price:23000,
      desc:'Abre los poros para un afeitado más profundo y cómodo.'},
-    {id:'rb-s', name:'Rasurado + barba simple', dur:45, price:15000,
+    {id:'rbs', name:'Rasurado + barba simple', dur:45, price:15000,
      desc:'Rasurado completo + perfilado de barba.'},
-    {id:'rb-tc', name:'Rasurado + barba toalla caliente', dur:60, price:20000,
+    {id:'rbtc', name:'Rasurado + barba toalla caliente', dur:60, price:20000,
      desc:'Experiencia completa: rasurado con toallas + perfilado.'}
   ]}
 ];
@@ -3765,8 +3765,8 @@ var DS=[
 
 var DT=[
   {id:'victoria',name:'Victoria',role:'Barbera Senior · Visagismo',days:'Mar — Sáb',bio:'4 años de experiencia, especializada en asesoría con visagismo.',status:'active',photo:'',schedule:[null,{open:false},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'17:00'}]},
-  {id:'esteban',name:'Esteban',role:'Barbero',days:'Lun — Vie',bio:'',status:'active',photo:'',schedule:[null,{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:false}]},
-  {id:'ariel',name:'Ariel',role:'Barbero',days:'Lun — Vie',bio:'',status:'active',photo:'',schedule:[null,{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:false}]}
+  {id:'esteban',name:'Esteban',role:'Barbero',days:'Lun — Vie',bio:'',status:'inactive',photo:'',schedule:[null,{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:false}]},
+  {id:'ariel',name:'Ariel',role:'Barbero',days:'Lun — Vie',bio:'',status:'inactive',photo:'',schedule:[null,{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:false}]}
 ];
 // note: schedule indexed by JS getDay(): 0=Sunday, 1=Mon...6=Sat
 // position 0 is null = closed Sundays for all

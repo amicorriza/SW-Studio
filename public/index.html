@@ -475,18 +475,35 @@
     .svc .s-ey{color:var(--steel-light)}
     .svc .s-ti{color:#fff}
     .svc .s-rule{background:var(--steel-mid)}
-    .svc .s-body{color:rgba(255,255,255,.65)}
+    .svc .s-body{color:rgba(255,255,255,.82)}
     .svc-hdr{
       display:grid;grid-template-columns:1fr 1fr;
       gap:80px;align-items:end;max-width:1200px;margin:0 auto 76px
     }
+    .svc-cat{max-width:1200px;margin:0 auto 48px}
+    .svc-cat:last-child{margin-bottom:0}
+    .svc-cat-hdr{
+      display:flex;align-items:baseline;gap:12px;
+      margin-bottom:16px;padding-bottom:10px;
+      border-bottom:1px solid rgba(255,255,255,.12)
+    }
+    .svc-cat-name{
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:13px;font-weight:700;letter-spacing:.35em;
+      text-transform:uppercase;color:var(--steel-light)
+    }
+    .svc-cat-count{
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:11px;font-weight:500;letter-spacing:.2em;
+      text-transform:uppercase;color:var(--steel-mid)
+    }
     .svc-grid{
-      display:grid;grid-template-columns:repeat(3,1fr);
-      gap:1px;background:rgba(255,255,255,.07);
-      max-width:1200px;margin:0 auto
+      display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))
     }
     .svc-card{
-      background:var(--ink);padding:44px 36px;
+      background:var(--ink);padding:26px 22px;
+      border-right:1px solid rgba(255,255,255,.07);
+      border-bottom:1px solid rgba(255,255,255,.07);
       position:relative;overflow:hidden;cursor:pointer;transition:background .3s
     }
     .svc-card::before{
@@ -495,54 +512,27 @@
     }
     .svc-card:hover{background:#161616}
     .svc-card:hover::before{transform:scaleX(1)}
-    .svc-n{
-      font-family:'Orbitron',sans-serif;
-      font-size:44px;font-weight:500;line-height:1;
-      letter-spacing:.02em;
-      margin-bottom:20px;
-      /* Multi-stop metal gradient with bright highlight band */
-      background:linear-gradient(115deg,
-        #4A5566 0%,
-        #6A7888 12%,
-        #9AAABB 24%,
-        #C8D0DA 35%,
-        #FFFFFF 45%,
-        #F4F7FA 50%,
-        #E6EAEF 55%,
-        #B8C2CE 65%,
-        #8A95A4 78%,
-        #5C6878 92%,
-        #3A4452 100%);
-      background-clip:text;
-      -webkit-background-clip:text;
-      -webkit-text-fill-color:transparent;
-      background-size:280% 100%;
-      background-position:0% 50%;
-      transition:transform .4s ease;
-      filter:drop-shadow(0 1px 3px rgba(200,210,220,.12))
-    }
-    .svc-card:hover .svc-n{transform:translateX(2px)}
-    .svc-card:hover .svc-n{
-      background-position:100% 100%;
-      transform:translateX(2px)
-    }
-    /* scroll-driven shimmer on numbers */
-    .svc-n.shimmer{
-      animation:numShimmer 2.5s ease forwards
-    }
-    @keyframes numShimmer{
-      0%{background-position:0% 0%}
-      50%{background-position:100% 50%; filter:drop-shadow(0 0 8px rgba(230,234,239,.25))}
-      100%{background-position:0% 100%; filter:drop-shadow(0 1px 2px rgba(200,210,220,.08))}
-    }
+    .svc-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
     .svc-name{
       font-family:'Barlow Condensed',sans-serif;
-      font-size:17px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
-      color:#fff;margin-bottom:10px
+      font-size:16px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+      color:#fff;line-height:1.25
     }
-    .svc-desc{font-size:13px;font-weight:300;line-height:1.7;color:rgba(255,255,255,.58)}
+    .svc-price{
+      font-family:'Orbitron',sans-serif;font-size:12.5px;font-weight:600;line-height:1.5;
+      color:var(--ink);background:var(--steel-shine);
+      padding:3px 9px;border-radius:2px;white-space:nowrap;flex-shrink:0
+    }
+    .svc-desc{font-size:13px;font-weight:300;line-height:1.6;color:rgba(255,255,255,.75)}
+    .svc-meta{
+      display:inline-flex;align-items:center;gap:6px;margin-top:12px;
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;
+      color:var(--steel-light)
+    }
+    .svc-meta svg{flex-shrink:0}
     .svc-tag{
-      display:inline-block;margin-top:22px;cursor:pointer;
+      display:inline-block;margin-top:16px;cursor:pointer;
       font-family:'Barlow Condensed',sans-serif;
       font-size:10px;font-weight:700;letter-spacing:.25em;text-transform:uppercase;
       color:var(--ink);background:var(--steel-shine);padding:5px 13px
@@ -935,7 +925,6 @@
       .ab-grid{grid-template-columns:1fr;gap:44px}
       .ab-imgs{height:400px}
       .svc-hdr{grid-template-columns:1fr;gap:20px}
-      .svc-grid{grid-template-columns:1fr 1fr}
       .gal-grid{grid-template-columns:1fr 1fr;grid-template-rows:280px 280px 280px}
       .gal-item.sr2{grid-row:span 1;grid-column:span 2}
       .partner-inner{grid-template-columns:1fr;gap:44px}
@@ -955,7 +944,6 @@
       .hero-ct{bottom:48px;left:22px;right:22px}
       .h-scroll{right:14px}
       .sb{display:none}
-      .svc-grid{grid-template-columns:1fr}
       .svc-card{padding:30px 22px}
       .gal-grid{grid-template-columns:1fr;grid-template-rows:repeat(5,245px)}
       .gal-item.sr2{grid-column:span 1}
@@ -1195,7 +1183,7 @@
         Reserva tu cita
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M7 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </a>
-      <a href="#galeria" class="btn-s">Ver galería</a>
+      <a href="#servicios" class="btn-s">Nuestros servicios</a>
     </div>
   </div>
   <div class="h-scroll"><span>Scroll</span><div class="sc-line"></div></div>
@@ -1269,13 +1257,140 @@
       <p class="s-body">Ejecutamos cada servicio con herramientas de última generación y una visión estética que va más allá del corte.</p>
     </div>
   </div>
-  <div class="svc-grid rev">
-    <div class="svc-card"><div class="svc-n">01</div><div class="svc-name">Corte Clásico</div><div class="svc-desc">Precisión con tijera y máquina. Acabado impecable adaptado a tu morfología y estilo personal.</div><span class="svc-tag">Reservar</span></div>
-    <div class="svc-card"><div class="svc-n">02</div><div class="svc-name">Fade & Degradé</div><div class="svc-desc">Skin fade, mid fade, high fade. Degradados de alta definición ejecutados con maestría.</div><span class="svc-tag">Reservar</span></div>
-    <div class="svc-card"><div class="svc-n">03</div><div class="svc-name">Diseño de Barba</div><div class="svc-desc">Perfilado, recorte y definición de contornos para un look cuidado y profesional.</div><span class="svc-tag">Reservar</span></div>
-    <div class="svc-card"><div class="svc-n">04</div><div class="svc-name">Corte + Barba</div><div class="svc-desc">La experiencia Scissor White completa. Para el hombre que cuida cada detalle de su imagen.</div><span class="svc-tag">Reservar</span></div>
-    <div class="svc-card"><div class="svc-n">05</div><div class="svc-name">Styling & Asesoría</div><div class="svc-desc">Consultoría de imagen personalizada. Te guiamos para encontrar el look que mejor define tu identidad.</div><span class="svc-tag">Reservar</span></div>
-    <div class="svc-card"><div class="svc-n">06</div><div class="svc-name">Ondulación & Color</div><div class="svc-desc">Permanentes, matices y tratamientos capilares con productos premium para transformar tu imagen.</div><span class="svc-tag">Reservar</span></div>
+  <!-- ══ CATÁLOGO DE SERVICIOS — copia estática (4ª ubicación) ══
+       Esta grilla repite a mano los 19 servicios de seed/data.js (fuente de
+       verdad). Las otras copias son CATS (~:2200, fallback del widget de
+       reservas) y DS (~:3617, defaults del panel admin). No hay
+       sincronización automática entre las 4: si agregas, editas o eliminas
+       un servicio en cualquiera de ellas, actualiza también estas tarjetas. -->
+  <div class="svc-cat rev">
+    <div class="svc-cat-hdr"><span class="svc-cat-name">Asesorías</span><span class="svc-cat-count">2 servicios</span></div>
+    <div class="svc-grid">
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Asesoría con Visagismo</div><span class="svc-price">$55.000</span></div>
+        <div class="svc-desc">Análisis facial + corte ideal. Incluye corte, masaje, lavado y cortesía.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>120 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Asesoría Visagismo + Barba</div><span class="svc-price">$65.000</span></div>
+        <div class="svc-desc">Asesoría completa en corte y barba según tu perfil facial.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>120 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+    </div>
+  </div>
+  <div class="svc-cat rev">
+    <div class="svc-cat-hdr"><span class="svc-cat-name">Cortes</span><span class="svc-cat-count">13 servicios</span></div>
+    <div class="svc-grid">
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Promo Mayo — Corte</div><span class="svc-price">$14.000</span></div>
+        <div class="svc-desc">Corte + lavado con masaje craneal + cortesía a elección.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>45 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Corte Niño (2-10 años)</div><span class="svc-price">$16.000</span></div>
+        <div class="svc-desc">Corte especializado para los más pequeños.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>45 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Corte + Lavado Premium</div><span class="svc-price">$21.000</span></div>
+        <div class="svc-desc">Corte + lavado Reuzel: shampoo, exfoliación y acondicionador.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>50 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Mantención Fade + Lavado</div><span class="svc-price">$12.000</span></div>
+        <div class="svc-desc">Solo lados. Máx. 2 semanas desde último corte.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>30 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Mullet y derivados</div><span class="svc-price">$23.000</span></div>
+        <div class="svc-desc">Estilo que combina largos y cortos con precisión.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>60 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Mullet + Barba</div><span class="svc-price">$33.000</span></div>
+        <div class="svc-desc">Mullet completo más perfilado de barba.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>70 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Corte con tijeras</div><span class="svc-price">$25.000</span></div>
+        <div class="svc-desc">Corte trabajado con tijeras para cabellos medios y largos.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>75 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Corte + Barba simple</div><span class="svc-price">$23.000</span></div>
+        <div class="svc-desc">Combo clásico: corte completo + perfilado de barba.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>60 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Corte + Barba toallas calientes</div><span class="svc-price">$30.000</span></div>
+        <div class="svc-desc">Corte + perfilado de barba premium con toallas calientes.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>75 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Tijeras + Barba toalla</div><span class="svc-price">$40.000</span></div>
+        <div class="svc-desc">Corte de tijeras + perfilado premium de barba.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>90 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Tijeras + Barba simple</div><span class="svc-price">$35.000</span></div>
+        <div class="svc-desc">Corte de tijeras + perfilado de barba simple.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>70 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Undercut mujer</div><span class="svc-price">$8.000</span></div>
+        <div class="svc-desc">Degradado de nuca y rapados con diseño. Acabado moderno.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>35 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Rasurado completo</div><span class="svc-price">$14.000</span></div>
+        <div class="svc-desc">Rasurado relajante con toallas calientes.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>30 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+    </div>
+  </div>
+  <div class="svc-cat rev">
+    <div class="svc-cat-hdr"><span class="svc-cat-name">Barba</span><span class="svc-cat-count">4 servicios</span></div>
+    <div class="svc-grid">
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Perfilado barba simple</div><span class="svc-price">$13.000</span></div>
+        <div class="svc-desc">Recorte y definición con trimmer y shaver.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>30 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Perfilado barba toallas</div><span class="svc-price">$23.000</span></div>
+        <div class="svc-desc">Abre los poros para un afeitado más profundo y cómodo.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>40 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Rasurado + barba simple</div><span class="svc-price">$15.000</span></div>
+        <div class="svc-desc">Rasurado completo + perfilado de barba.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>45 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+      <div class="svc-card">
+        <div class="svc-card-top"><div class="svc-name">Rasurado + barba toalla</div><span class="svc-price">$20.000</span></div>
+        <div class="svc-desc">Experiencia completa: rasurado con toallas + perfilado.</div>
+        <span class="svc-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>60 min</span>
+        <span class="svc-tag">Reservar</span>
+      </div>
+    </div>
   </div>
 </section>
 

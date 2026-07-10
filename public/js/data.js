@@ -131,13 +131,25 @@ async function getClubStatus(email) {
   return data; // { visitCount, benefitReached }
 }
 
+// Disponibilidad real de horarios (widget público de reservas) vía Cloud
+// Function: el cliente no tiene permiso de leer `bookings` directamente (ver
+// firestore.rules), así que esta consulta pasa por getAvailability, que
+// corre con el Admin SDK y solo devuelve datos derivados (barberId+rangos).
+// Contrato completo y responsabilidades del llamador documentadas en
+// functions/availability.js.
+async function getAvailability(date, barberId) {
+  const call = httpsCallable(functions, 'getAvailability');
+  const { data } = await call({ date, barberId });
+  return data; // { barberBusy, activeBarberIds }
+}
+
 window.SWData = {
   loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, createBooking,
   getPatients, savePatients, deletePatient,
-  uploadPatientPhoto, deletePatientPhoto, getClubStatus,
+  uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability,
 };
 export {
   loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, createBooking,
   getPatients, savePatients, deletePatient,
-  uploadPatientPhoto, deletePatientPhoto, getClubStatus,
+  uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability,
 };

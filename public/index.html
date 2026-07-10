@@ -2179,6 +2179,13 @@
 }
 .bk-slot:hover{border-color:var(--bk-ink);background:var(--bk-g100)}
 .bk-slot.bk-selslot{background:var(--bk-ink);color:#fff;border-color:var(--bk-ink)}
+/* Ocupado según disponibilidad real (getAvailability) -- mismo patrón que
+   .bk-day.bk-past/.bk-closed, más un fondo distinto porque acá el botón es
+   chico dentro de una grilla más densa que el calendario. */
+.bk-slot.bk-taken{
+  background:var(--bk-g100);color:var(--bk-g300);
+  cursor:not-allowed;pointer-events:none;text-decoration:line-through
+}
 .bk-slots-empty{
   padding:24px 12px;border:1px dashed var(--bk-g200);border-radius:10px;
   text-align:center;font-size:12.5px;color:var(--bk-meta);font-family:'Inter',sans-serif
@@ -2392,7 +2399,11 @@ async function refreshCatalog(){
       ...activeStaff.map(b=>({
         id:b.id, name:b.name,
         init:(b.name&&b.name[0]||'?').toUpperCase(),
-        role:b.role||'Barbero'
+        role:b.role||'Barbero',
+        // schedule[dow] (0=Dom..6=Sáb): {open,start,end}|null|undefined.
+        // Usado por hoursRangeFor() para que el calendario/horarios respeten
+        // el horario propio de este barbero en vez del HOURS genérico.
+        schedule: b.schedule||null
       }))
     ];
   }
@@ -2401,11 +2412,48 @@ async function refreshCatalog(){
 const HOURS = {1:[10,20],2:[10,20],3:[10,20],4:[10,20],5:[10,20],6:[10,17],0:null};
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
+// 'HH:MM' -> minutos desde medianoche. Mismo criterio que
+// functions/availability.js#toMinutes (no se puede importar acá: este
+// <script> es plano, sin bundler).
+function toMin(hhmm){
+  const parts=String(hhmm||'0:0').split(':');
+  return (parseInt(parts[0],10)||0)*60+(parseInt(parts[1],10)||0);
+}
+
+// Rango de minutos abiertos [inicio,fin) de un día (dow=Date.getDay(),
+// 0=Dom..6=Sáb), o null si está cerrado. Preferencia (según 4b del plan):
+// - Si hay un barbero específico elegido (no 'any') y trae `schedule`
+//   cargado (de refreshCatalog/Firestore), se usa schedule[dow] tal cual.
+// - Si no ('any', sin barbero elegido aún, o el barbero no trae schedule
+//   -p.ej. quedó en el arreglo de respaldo sin Firestore-), se usa el
+//   horario general HOURS como fallback.
+function hoursRangeFor(dow, barber){
+  if(barber && !barber.any && Array.isArray(barber.schedule)){
+    const day=barber.schedule[dow];
+    if(!day || !day.open) return null;
+    return [toMin(day.start), toMin(day.end)];
+  }
+  const h=HOURS[dow];
+  return h ? [h[0]*60, h[1]*60] : null;
+}
+
 // STATE
 let S = {step:1, svc:null, barber:null, date:null, time:null, club:'member'};
 let calCursor = new Date(); calCursor.setDate(1);
 const TODAY = new Date(); TODAY.setHours(0,0,0,0);
 const MAX_DATE = new Date(TODAY); MAX_DATE.setMonth(MAX_DATE.getMonth()+2);
+
+// Disponibilidad real (Cloud Function getAvailability). AVAIL es la última
+// respuesta buena cacheada en memoria (o el resultado "todo disponible" del
+// fail-open): {barberBusy:{<barberId>:[{start,end}]}, activeBarberIds:[...]}.
+// AVAIL_LOADING indica que hay una consulta en curso, para el estado de
+// carga breve de renderSlots(). availReqToken descarta respuestas fuera de
+// orden: si el usuario cambia de fecha/barbero rápido, solo la consulta más
+// reciente puede escribir en AVAIL (mismo espíritu simple que el resto del
+// archivo: un contador incremental en closure, sin AbortController).
+let AVAIL = {barberBusy:{}, activeBarberIds:[]};
+let AVAIL_LOADING = false;
+let availReqToken = 0;
 
 // ══ OPEN / CLOSE ══
 function openBK(){
@@ -2563,7 +2611,20 @@ function renderBarbers(){
       el.classList.add('bk-sel');
       S.barber=BARBERS.find(b=>b.id===el.dataset.bid);
       document.getElementById('bk-next2').disabled=false;
+      // Bug confirmado: cambiar de barbero antes no volvía a renderizar nada
+      // de la fecha/horarios (solo el click de un día lo hacía). El horario
+      // elegido puede dejar de ser válido para el nuevo barbero (cerrado ese
+      // día, u ocupado), así que se limpia antes de recalcular el resumen.
+      if(S.date){
+        S.time=null;
+        document.getElementById('bk-next3').disabled=true;
+      }
       updateSummary();
+      // El calendario también depende del barbero elegido (horario propio
+      // vía hoursRangeFor), así que se repinta siempre; los horarios (y su
+      // fetch a getAvailability) solo si ya hay una fecha elegida.
+      renderCal();
+      if(S.date) loadAvailability();
     });
   });
 }
@@ -2582,7 +2643,7 @@ function renderCal(){
     const date=new Date(y,m,d);
     const dow=date.getDay();
     const isPast=date<TODAY;
-    const isClosed=HOURS[dow]===null;
+    const isClosed=hoursRangeFor(dow,S.barber)===null;
     const isBeyond=date>MAX_DATE;
     const isToday=date.getTime()===TODAY.getTime();
     const isSel=S.date&&date.getTime()===S.date.getTime();
@@ -2601,7 +2662,7 @@ function renderCal(){
       el.classList.add('bk-selday');
       S.date=new Date(el.dataset.ts);
       S.time=null;
-      renderSlots();
+      loadAvailability();
       updateSummary();
       document.getElementById('bk-next3').disabled=!(S.date&&S.time);
     });
@@ -2618,37 +2679,110 @@ document.getElementById('bk-cnext').addEventListener('click',()=>{
   calCursor.setMonth(calCursor.getMonth()+1); renderCal();
 });
 
-// ══ SLOTS ══
-function hash(s){let h=0;for(let i=0;i<s.length;i++)h=(h<<5)-h+s.charCodeAt(i),h|=0;return Math.abs(h)}
-function isTaken(d,b,hh,mm){return (hash(`${d.toDateString()}-${b?.id||'any'}-${hh}-${mm}`)%100)<28}
+// ══ SLOTS — disponibilidad real ══
+// ¿Está libre `barberId` en [candStart,candEnd) (minutos desde medianoche),
+// según los rangos ocupados en bruto que devolvió getAvailability? Mismo
+// criterio de solape que checkConflict/parseDt en el panel admin:
+// candStart < end && candEnd > start. AVAIL.barberBusy[id] puede venir
+// ausente (sin reservas ese día) -- se lee con `|| []`.
+function isBarberFreeAt(barberId, candStart, candEnd){
+  const busy=(AVAIL.barberBusy||{})[barberId]||[];
+  return !busy.some(r=>candStart<toMin(r.end) && candEnd>toMin(r.start));
+}
+
+// ¿Está disponible un slot candidato [candStart,candEnd) para la selección
+// actual (S.barber)? Un barberId ausente de AVAIL.activeBarberIds es
+// inactivo/inexistente: no disponible (la Cloud Function no lo valida, es
+// responsabilidad del cliente -- ver functions/availability.js). Para
+// 'any'/sin barbero elegido: disponible si existe AL MENOS UN barbero activo
+// libre en ese horario; si no hay ningún barbero activo, no hay nada que
+// ofrecer.
+function isSlotAvailable(candStart, candEnd){
+  const activeIds=AVAIL.activeBarberIds||[];
+  if(S.barber && !S.barber.any){
+    if(activeIds.indexOf(S.barber.id)===-1) return false;
+    return isBarberFreeAt(S.barber.id, candStart, candEnd);
+  }
+  return activeIds.some(id=>isBarberFreeAt(id, candStart, candEnd));
+}
+
+// Consulta getAvailability para la fecha/barbero actuales y vuelve a pintar
+// los horarios. Token incremental (availReqToken) para descartar respuestas
+// fuera de orden si el usuario cambia de fecha/barbero rápido -- ver S/CATS/
+// BARBERS más arriba para el mismo estilo de estado a nivel de módulo; no
+// hace falta AbortController, refreshCatalog() tampoco lo usa para su propio
+// fetch async (ver openBK()).
+// FALLA ABIERTO: cualquier error (red, función no desplegada, offline) se
+// trata como "todo disponible" -- nunca debe bloquear ni romper la reserva.
+async function loadAvailability(){
+  if(!S.date) return;
+  const dow=S.date.getDay();
+  if(!hoursRangeFor(dow,S.barber)){
+    // Día cerrado para el barbero/horario vigente: no tiene sentido pedir
+    // disponibilidad real; renderSlots ya muestra "Cerrado este día". Se
+    // invalida igual cualquier consulta previa en vuelo (avanza el token)
+    // para que su resolución tardía no pise el estado con datos obsoletos.
+    ++availReqToken;
+    AVAIL_LOADING=false;
+    renderSlots();
+    return;
+  }
+  const myToken=++availReqToken;
+  AVAIL_LOADING=true;
+  renderSlots();
+  let result;
+  try{
+    result=await window.SWData.getAvailability(S.date.toISOString(), (S.barber&&S.barber.id)||'');
+  }catch(e){
+    console.error('No se pudo obtener disponibilidad real (fail-open: se muestra todo disponible)', e);
+    result={barberBusy:{}, activeBarberIds:BARBERS.filter(b=>!b.any).map(b=>b.id)};
+  }
+  if(myToken!==availReqToken) return; // respuesta obsoleta: ya hay una consulta más nueva en curso/resuelta
+  AVAIL = (result && typeof result==='object')
+    ? {barberBusy:result.barberBusy||{}, activeBarberIds:result.activeBarberIds||[]}
+    : {barberBusy:{}, activeBarberIds:[]};
+  AVAIL_LOADING=false;
+  renderSlots();
+}
 
 function renderSlots(){
   const lbl=document.getElementById('bk-slots-lbl');
   const cont=document.getElementById('bk-slots');
   if(!S.date){cont.innerHTML=`<div class="bk-slots-empty">Elige un día del calendario.</div>`;return}
   const dow=S.date.getDay();
-  const h=HOURS[dow];
-  if(!h){cont.innerHTML=`<div class="bk-slots-empty">Cerrado este día.</div>`;return}
-  const [start,end]=h;
+  const range=hoursRangeFor(dow,S.barber);
+  if(!range){cont.innerHTML=`<div class="bk-slots-empty">Cerrado este día.</div>`;return}
+  const [start,end]=range; // minutos desde medianoche
   const dur=S.svc?.dur||30;
-  const dateStr=S.date.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long'});
   lbl.textContent=`Horarios disponibles`;
-  let slots=[];
-  let cur=start*60;
-  while(cur+dur<=end*60){
-    const hh=Math.floor(cur/60), mm=cur%60;
-    if(!isTaken(S.date,S.barber,hh,mm)){
-      slots.push(`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`);
-    }
+  if(AVAIL_LOADING){
+    cont.innerHTML=`<div class="bk-slots-empty">Buscando horarios disponibles…</div>`;
+    return;
+  }
+  let cands=[];
+  let cur=start;
+  while(cur+dur<=end){
+    cands.push(cur);
     cur+=30;
   }
   if(S.date.toDateString()===new Date().toDateString()){
     const now=new Date();
-    slots=slots.filter(s=>{const[h,m]=s.split(':').map(Number);return h*60+m>now.getHours()*60+now.getMinutes()+30});
+    const minStart=now.getHours()*60+now.getMinutes()+30;
+    cands=cands.filter(m=>m>minStart);
   }
-  if(!slots.length){cont.innerHTML=`<div class="bk-slots-empty">Sin horarios disponibles. Prueba otra fecha.</div>`;return}
-  cont.innerHTML=slots.map(s=>`<button class="bk-slot" data-t="${s}">${s}</button>`).join('');
-  cont.querySelectorAll('.bk-slot').forEach(el=>{
+  if(!cands.length){cont.innerHTML=`<div class="bk-slots-empty">Sin horarios disponibles. Prueba otra fecha.</div>`;return}
+  // Siempre se renderizan TODOS los horarios candidatos (nunca se omite uno
+  // del DOM) -- los ocupados quedan tachados/atenuados con bk-taken en vez
+  // de desaparecer, a pedido explícito del usuario.
+  cont.innerHTML=cands.map(m=>{
+    const hh=Math.floor(m/60), mm=m%60;
+    const s=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+    const taken=!isSlotAvailable(m, m+dur);
+    return `<button class="bk-slot${taken?' bk-taken':''}" data-t="${s}"${taken?' disabled':''}>${s}</button>`;
+  }).join('');
+  // Los slots bk-taken no reciben listener de click -- ni siquiera llegan a
+  // depender de pointer-events:none del CSS para quedar inertes.
+  cont.querySelectorAll('.bk-slot:not(.bk-taken)').forEach(el=>{
     el.addEventListener('click',()=>{
       cont.querySelectorAll('.bk-slot').forEach(x=>x.classList.remove('bk-selslot'));
       el.classList.add('bk-selslot');

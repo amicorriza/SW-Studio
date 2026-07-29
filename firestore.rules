@@ -19,6 +19,11 @@ service cloud.firestore {
     match /staff/{id}      { allow read: if true; allow write: if isAdmin(); }
     match /businessInfo/{id}{ allow read: if true; allow write: if isAdmin(); }
 
+    // Imágenes del sitio (herramienta de reemplazo manual desde el admin):
+    // lectura libre porque el landing público las carga para TODOS los
+    // visitantes, no solo el staff logueado. Mismo patrón que services/staff.
+    match /siteImages/{slot} { allow read: if true; allow write: if isAdmin(); }
+
     // Reservas: el público puede CREAR (validado), solo admin lee/edita/borra
     match /bookings/{id} {
       allow read, update, delete: if isAdmin();

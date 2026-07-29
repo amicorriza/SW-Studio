@@ -4,7 +4,7 @@ const { buildPatientUpsert, countClubVisits } = require('../patients.js');
 
 const booking = {
   code:'SW-AB12345', name:'Juan Pérez', email:'Juan@Mail.com', phone:'+56912345678',
-  svcId:'lp', svcName:'Corte + Lavado Premium', price:21000, barberName:'Felipe',
+  svcId:'lavado-p', svcName:'Corte de cabello + lavado premium', price:21000, barberName:'Felipe',
   club:'member', createdAt:'2026-06-10T00:00:00.000Z',
 };
 

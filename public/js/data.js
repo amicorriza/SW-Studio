@@ -123,6 +123,43 @@ async function deletePatientPhoto(patientId, path) {
   await setDoc(patientRef, { photos }, { merge: true });
 }
 
+// ══ IMÁGENES DEL SITIO (herramienta de reemplazo manual, panel admin) ══
+// Un doc por slot en la colección `siteImages` (id = slot, ej. 'hero',
+// 'galeria-3'). El landing público lee esta colección al cargar y, si un
+// slot trae `url`, reemplaza el <img data-img-slot="..."> correspondiente
+// -- si no hay override, el <img> conserva su src por defecto en /assets/.
+
+// Carga todos los overrides activos: {slot: {url, path}}. `path` es el
+// nombre del objeto en Storage -- lo necesita el admin para poder borrarlo
+// al restaurar el original; el landing público solo usa `.url`.
+async function loadSiteImages() {
+  const rows = await readCol('siteImages');
+  const map = {};
+  rows.forEach((r) => { if (r.url) map[r.id] = { url: r.url, path: r.path || '' }; });
+  return map;
+}
+
+// Sube el reemplazo (blob ya comprimido por compressImage) a Storage y
+// guarda {url, path, updatedAt} en el doc del slot.
+async function saveSiteImage(slot, blob) {
+  const path = `siteImages/${slot}/${Date.now()}.jpg`;
+  const objRef = ref(storage, path);
+  await uploadBytes(objRef, blob, { contentType: 'image/jpeg' });
+  const url = await getDownloadURL(objRef);
+  await setDoc(doc(db, 'siteImages', slot), { url, path, updatedAt: new Date().toISOString() });
+  return { url, path };
+}
+
+// Quita el override: borra el archivo de Storage (si se pasa `path`) y el
+// doc del slot -- el <img> vuelve a mostrar su src por defecto en /assets/.
+async function deleteSiteImage(slot, path) {
+  if (path) {
+    try { await deleteObject(ref(storage, path)); }
+    catch (e) { /* el archivo puede ya no existir; no bloquea el borrado del doc */ }
+  }
+  await deleteDoc(doc(db, 'siteImages', slot));
+}
+
 // Cuenta las visitas Club SW de un email vía Cloud Function (el cliente
 // público no tiene permiso de leer `bookings` directamente).
 async function getClubStatus(email) {
@@ -147,9 +184,11 @@ window.SWData = {
   loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, createBooking,
   getPatients, savePatients, deletePatient,
   uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability,
+  loadSiteImages, saveSiteImage, deleteSiteImage,
 };
 export {
   loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, createBooking,
   getPatients, savePatients, deletePatient,
   uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability,
+  loadSiteImages, saveSiteImage, deleteSiteImage,
 };

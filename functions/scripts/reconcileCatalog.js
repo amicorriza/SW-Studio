@@ -214,7 +214,11 @@ async function main() {
   });
   const db = admin.firestore();
 
-  const { services: rawServices, staff: rawStaff } = require('../../seed/data.js');
+  const { services: rawActive, retiredServices: rawRetired, staff: rawStaff } = require('../../seed/data.js');
+  // El estado esperado incluye los servicios retirados/renombrados (inactive)
+  // para que --apply también los baje en producción, en vez de dejarlos como
+  // "solo en producción" para revisión manual.
+  const rawServices = rawActive.concat(rawRetired || []);
   const { services: intendedServices, staff: intendedStaff } = computeIntended(rawServices, rawStaff);
 
   const [liveServices, liveStaff] = await Promise.all([

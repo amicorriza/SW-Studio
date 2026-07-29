@@ -6,5 +6,17 @@ service firebase.storage {
     match /patients/{patientId}/{photoId} {
       allow read, write: if request.auth != null;
     }
+
+    // Imágenes del sitio (herramienta de reemplazo manual desde el admin):
+    // lectura pública porque el landing las sirve a cualquier visitante;
+    // solo el admin puede subir/reemplazar. Mismo criterio de admin que
+    // firestore.rules#isAdmin() (Storage no puede importar esa función).
+    match /siteImages/{slot}/{photoId} {
+      allow read: if true;
+      allow write: if request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.uid == 'VUm858rENuNVzB4MAMtzLnGb1A63'
+      );
+    }
   }
 }

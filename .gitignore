@@ -29,3 +29,6 @@ Thumbs.db
 
 # Worktrees de desarrollo aislado
 .worktrees/
+
+# Mockups de brainstorming (companion visual)
+.superpowers/

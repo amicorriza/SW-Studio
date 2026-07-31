@@ -4625,9 +4625,101 @@ g('a-bk-filter-barber').addEventListener('change', function(){ onBarberFilterCha
 g('a-bk-list-filter-barber').addEventListener('change', function(){ onBarberFilterChange(this.value); });
 
 function renderBookingList(){
-  // Implementación completa en la Tarea 3 — por ahora solo mantiene
-  // sincronizado el select de barbero de la vista Lista.
   renderBarberFilterOptions(g('a-bk-list-filter-barber'));
+
+  var now = new Date();
+  var q = bkListSearch.toLowerCase().trim();
+  var rows = getBookings()
+    .map(function(b){
+      var dt = parseDt(b.date ? b.date.substring(0,10) : '', b.time);
+      var dtDay = b.date ? parseYmd(b.date.substring(0,10)) : null;
+      return {bk:b, dt:dt, dtDay:dtDay};
+    })
+    .filter(function(e){
+      if(!e.dt || e.dt < now) return false;
+      if(bkFilter && e.bk.barberId !== bkFilter) return false;
+      if(q && (e.bk.name||'').toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+
+  var CMP = {
+    day: function(a,b){ return a.dtDay - b.dtDay; },
+    time: function(a,b){ return (a.bk.time||'').localeCompare(b.bk.time||''); },
+    name: function(a,b){ return (a.bk.name||'').localeCompare(b.bk.name||'', 'es'); },
+    svc: function(a,b){ return (a.bk.svcName||'').localeCompare(b.bk.svcName||'', 'es'); },
+    barber: function(a,b){ return (a.bk.barberName||'').localeCompare(b.bk.barberName||'', 'es'); },
+    price: function(a,b){ return (a.bk.price||0) - (b.bk.price||0); }
+  };
+  rows.sort(function(a,b){
+    var r = CMP[bkListSortKey](a,b);
+    if(bkListSortDir === 'desc') r = -r;
+    if(r !== 0) return r;
+    return a.dt - b.dt; // criterio secundario estable
+  });
+
+  // Indicador visual de la columna/dirección activa
+  document.querySelectorAll('#a-bk-list-view .a-sort-arrow').forEach(function(span){
+    span.classList.remove('a-sort-active');
+    span.textContent = '';
+  });
+  var activeArrow = document.querySelector('#a-bk-list-view .a-sort-arrow[data-arrow="'+bkListSortKey+'"]');
+  if(activeArrow){
+    activeArrow.classList.add('a-sort-active');
+    activeArrow.textContent = bkListSortDir === 'asc' ? '▲' : '▼';
+  }
+
+  var body = g('a-bk-list-body');
+  if(!rows.length){
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#888;padding:30px">' +
+      (q ? 'Sin resultados para tu búsqueda.' : 'Sin citas próximas.') +
+      '</td></tr>';
+    return;
+  }
+
+  body.innerHTML = rows.map(function(e){
+    var b = e.bk;
+    var dayStr = e.dtDay ? e.dtDay.toLocaleDateString('es-CL') : '—';
+    var overTag = b.over ? ' <span class="a-bk-card-over-tag">Sobrecupo</span>' : '';
+    return '<tr data-code="'+esc(b.code)+'">' +
+      '<td>'+esc(dayStr)+'</td>' +
+      '<td>'+esc(b.time||'')+'</td>' +
+      '<td><div class="a-tn">'+esc(b.name||'Cliente')+'</div>'+overTag+'</td>' +
+      '<td>'+esc(b.svcName||'')+'</td>' +
+      '<td>'+esc(b.barberName||'')+'</td>' +
+      '<td>'+fmtCLP(b.price)+'</td>' +
+      '<td><div class="a-tacts">' +
+        '<button class="a-btn a-btn-g" data-lst-edit="'+esc(b.code)+'" style="padding:5px 9px;font-size:9px">✎</button>' +
+        '<button class="a-btn a-btn-danger" data-lst-del="'+esc(b.code)+'" style="padding:5px 8px;font-size:9px">✕</button>' +
+      '</div></td>' +
+    '</tr>';
+  }).join('');
+
+  body.querySelectorAll('tr[data-code]').forEach(function(row){
+    row.addEventListener('click', function(e){
+      if(e.target.closest('.a-tacts')) return;
+      var bk = getBookings().find(function(x){return x.code===row.dataset.code});
+      if(bk) openBookingModal(bk);
+    });
+  });
+  body.querySelectorAll('[data-lst-edit]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var bk = getBookings().find(function(x){return x.code===btn.dataset.lstEdit});
+      if(bk) openBookingModal(bk);
+    });
+  });
+  body.querySelectorAll('[data-lst-del]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var code = btn.dataset.lstDel;
+      openDel('¿Eliminar esta cita? Esta acción no se puede deshacer.', function(){
+        var bookings = getBookings().filter(function(b){return b.code !== code});
+        saveBookings(bookings);
+        renderCalendar();
+        renderBookingList();
+        log('Eliminó cita', code);
+        showAlert('a-bk-alert','ok','Cita eliminada.');
+      });
+    });
+  });
 }
 
 function setBkView(view){
@@ -4932,6 +5024,7 @@ g('a-bkm-save').addEventListener('click', function(){
   closeModal('a-bkm');
   renderCalendar();
   renderDash();
+  renderBookingList();
   showAlert('a-bk-alert','ok','Cita guardada correctamente.');
 });
 
@@ -4942,7 +5035,7 @@ g('a-bkm-del').addEventListener('click', function(){
     var bookings = getBookings().filter(function(b){return b.code !== code});
     saveBookings(bookings);
     closeModal('a-bkm');
-    renderCalendar(); renderDash();
+    renderCalendar(); renderDash(); renderBookingList();
     log('Eliminó cita', code);
     showAlert('a-bk-alert','ok','Cita eliminada.');
   });

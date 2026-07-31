@@ -4731,6 +4731,24 @@ function renderBookingList(){
   });
 }
 
+document.querySelectorAll('#a-bk-list-view th[data-sort]').forEach(function(th){
+  th.addEventListener('click', function(){
+    var key = th.dataset.sort;
+    if(bkListSortKey === key){
+      bkListSortDir = bkListSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      bkListSortKey = key;
+      bkListSortDir = 'asc';
+    }
+    renderBookingList();
+  });
+});
+
+g('a-bk-list-search').addEventListener('input', function(e){
+  bkListSearch = e.target.value;
+  renderBookingList();
+});
+
 function setBkView(view){
   bkView = view;
   g('a-bk-view-day').classList.toggle('a-on', view==='day');

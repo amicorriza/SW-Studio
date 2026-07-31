@@ -4616,10 +4616,10 @@ g('a-bk-next').addEventListener('click', function(){ bkDate.setDate(bkDate.getDa
 g('a-bk-today').addEventListener('click', function(){ bkDate = new Date(); bkDate.setHours(0,0,0,0); renderCalendar(); });
 function onBarberFilterChange(val){
   bkFilter = val;
-  g('a-bk-filter-barber').value = val;
-  g('a-bk-list-filter-barber').value = val;
   renderCalendar();
   renderBookingList();
+  g('a-bk-filter-barber').value = val;
+  g('a-bk-list-filter-barber').value = val;
 }
 g('a-bk-filter-barber').addEventListener('change', function(){ onBarberFilterChange(this.value); });
 g('a-bk-list-filter-barber').addEventListener('change', function(){ onBarberFilterChange(this.value); });

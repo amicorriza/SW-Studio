@@ -4348,6 +4348,10 @@ var auth=false, sCat='all', delCb=null, svcPh='', stfPh='';
 var schTabBarber = null;  // currently selected barber in schedule
 var bkDate = new Date(); bkDate.setHours(0,0,0,0);
 var bkFilter = '';
+var bkView = 'day';
+var bkListSearch = '';
+var bkListSortKey = 'day';
+var bkListSortDir = 'asc';
 var rmSelectedBarber = null;
 var D = {services:[], staff:[], schedule:[], log:[], info:{}};
 var BK=[]; var PT=[];
@@ -4610,8 +4614,42 @@ function parseDt(dateStr, timeStr){
 g('a-bk-prev').addEventListener('click', function(){ bkDate.setDate(bkDate.getDate()-1); renderCalendar(); });
 g('a-bk-next').addEventListener('click', function(){ bkDate.setDate(bkDate.getDate()+1); renderCalendar(); });
 g('a-bk-today').addEventListener('click', function(){ bkDate = new Date(); bkDate.setHours(0,0,0,0); renderCalendar(); });
-g('a-bk-filter-barber').addEventListener('change', function(){ bkFilter = this.value; renderCalendar(); });
+function onBarberFilterChange(val){
+  bkFilter = val;
+  g('a-bk-filter-barber').value = val;
+  g('a-bk-list-filter-barber').value = val;
+  renderCalendar();
+  renderBookingList();
+}
+g('a-bk-filter-barber').addEventListener('change', function(){ onBarberFilterChange(this.value); });
+g('a-bk-list-filter-barber').addEventListener('change', function(){ onBarberFilterChange(this.value); });
+
+function renderBookingList(){
+  // Implementación completa en la Tarea 3 — por ahora solo mantiene
+  // sincronizado el select de barbero de la vista Lista.
+  renderBarberFilterOptions(g('a-bk-list-filter-barber'));
+}
+
+function setBkView(view){
+  bkView = view;
+  g('a-bk-view-day').classList.toggle('a-on', view==='day');
+  g('a-bk-view-list').classList.toggle('a-on', view==='list');
+  g('a-bk-day-view').style.display = view==='day' ? '' : 'none';
+  g('a-bk-list-view').style.display = view==='list' ? '' : 'none';
+  if(view==='list') renderBookingList();
+}
+g('a-bk-view-day').addEventListener('click', function(){ setBkView('day'); });
+g('a-bk-view-list').addEventListener('click', function(){ setBkView('list'); });
 g('a-bk-new').addEventListener('click', function(){ openBookingModal(null); });
+
+function renderBarberFilterOptions(sel){
+  var curVal = sel.value;
+  sel.innerHTML = '<option value="">Todos los barberos</option>' +
+    D.staff.filter(function(s){return s.status==='active'}).map(function(s){
+      return '<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>';
+    }).join('');
+  sel.value = curVal;
+}
 
 function renderCalendar(){
   // Update date label
@@ -4619,13 +4657,7 @@ function renderCalendar(){
   g('a-bk-date-lbl').textContent = lbl;
 
   // Update barber filter options
-  var sel = g('a-bk-filter-barber');
-  var curVal = sel.value;
-  sel.innerHTML = '<option value="">Todos los barberos</option>' +
-    D.staff.filter(function(s){return s.status==='active'}).map(function(s){
-      return '<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>';
-    }).join('');
-  sel.value = curVal;
+  renderBarberFilterOptions(g('a-bk-filter-barber'));
 
   // Get bookings for this date (matching filter)
   var dStr = ymd(bkDate);

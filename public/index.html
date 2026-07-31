@@ -3349,24 +3349,55 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
           <div id="a-bk-alert" class="a-alert"></div>
           <div class="a-sh">
             <div><div class="a-st">Agenda de Citas</div><div class="a-ss">Gestiona, mueve y reasigna reservas</div></div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <div class="a-vtoggle">
+                <button type="button" id="a-bk-view-day" class="a-on">📅 Día</button>
+                <button type="button" id="a-bk-view-list">☰ Lista</button>
+              </div>
               <button class="a-btn a-btn-p" id="a-bk-new">+ Nueva cita</button>
             </div>
           </div>
-          <!-- Date navigation -->
-          <div id="a-bk-nav">
-            <button class="a-cdn" id="a-bk-prev">◀</button>
-            <div id="a-bk-date-lbl"></div>
-            <button class="a-cdn" id="a-bk-next">▶</button>
-            <button class="a-cdn a-cdn-today" id="a-bk-today">Hoy</button>
-            <div class="a-bk-filter">
-              <select class="a-in" id="a-bk-filter-barber" style="max-width:200px">
+          <div id="a-bk-day-view">
+            <!-- Date navigation -->
+            <div id="a-bk-nav">
+              <button class="a-cdn" id="a-bk-prev">◀</button>
+              <div id="a-bk-date-lbl"></div>
+              <button class="a-cdn" id="a-bk-next">▶</button>
+              <button class="a-cdn a-cdn-today" id="a-bk-today">Hoy</button>
+              <div class="a-bk-filter">
+                <select class="a-in" id="a-bk-filter-barber" style="max-width:200px">
+                  <option value="">Todos los barberos</option>
+                </select>
+              </div>
+            </div>
+            <!-- Day timeline view -->
+            <div id="a-bk-timeline"></div>
+          </div>
+          <!-- List view -->
+          <div id="a-bk-list-view" style="display:none">
+            <div id="a-bk-list-controls">
+              <input class="a-in" id="a-bk-list-search" placeholder="🔍 Buscar por nombre de cliente...">
+              <select class="a-in" id="a-bk-list-filter-barber">
                 <option value="">Todos los barberos</option>
               </select>
             </div>
+            <div class="a-tw">
+              <table class="a-t">
+                <thead>
+                  <tr>
+                    <th class="a-sortable" data-sort="day">Día<span class="a-sort-arrow" data-arrow="day"></span></th>
+                    <th class="a-sortable" data-sort="time">Hora<span class="a-sort-arrow" data-arrow="time"></span></th>
+                    <th class="a-sortable" data-sort="name">Cliente<span class="a-sort-arrow" data-arrow="name"></span></th>
+                    <th class="a-sortable" data-sort="svc">Servicio<span class="a-sort-arrow" data-arrow="svc"></span></th>
+                    <th class="a-sortable" data-sort="barber">Barbero<span class="a-sort-arrow" data-arrow="barber"></span></th>
+                    <th class="a-sortable" data-sort="price">Precio<span class="a-sort-arrow" data-arrow="price"></span></th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="a-bk-list-body"></tbody>
+              </table>
+            </div>
           </div>
-          <!-- Day timeline view -->
-          <div id="a-bk-timeline"></div>
         </div>
 
         <!-- ─ STATS ─ -->
@@ -3955,6 +3986,20 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
 }
 .a-bk-filter{margin-left:auto}
 .a-bk-filter select{padding:7px 10px;font-size:12px}
+
+/* View toggle (Día / Lista) */
+.a-vtoggle{display:flex;background:var(--a-off);border:1.5px solid var(--a-g2);border-radius:8px;overflow:hidden;flex-shrink:0}
+.a-vtoggle button{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:8px 13px;border:none;background:transparent;color:var(--a-meta);cursor:pointer;transition:all .18s}
+.a-vtoggle button.a-on{background:var(--a-ink);color:#fff}
+
+/* List view */
+#a-bk-list-controls{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+#a-bk-list-controls input{flex:1;min-width:200px}
+#a-bk-list-controls select{max-width:200px}
+.a-sortable{cursor:pointer;user-select:none}
+.a-sortable:hover{color:var(--a-txt)}
+.a-sort-arrow{margin-left:4px;opacity:.5;display:inline-block;min-width:9px}
+.a-sort-arrow.a-sort-active{opacity:1}
 
 /* Timeline view */
 #a-bk-timeline{

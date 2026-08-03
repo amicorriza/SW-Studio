@@ -3576,7 +3576,7 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
       <div class="a-f"><label class="a-lbl">Fecha *</label><input class="a-in" id="a-blkm-date" type="date"><span class="a-fe">Selecciona fecha.</span></div>
       <div class="a-fr">
         <div class="a-f"><label class="a-lbl">Hora inicio *</label><input class="a-in" id="a-blkm-start" type="time"><span class="a-fe">Selecciona hora.</span></div>
-        <div class="a-f"><label class="a-lbl">Hora fin *</label><input class="a-in" id="a-blkm-end" type="time"><span class="a-fe">Selecciona hora.</span></div>
+        <div class="a-f"><label class="a-lbl">Hora fin *</label><input class="a-in" id="a-blkm-end" type="time"><span class="a-fe" id="a-blkm-end-err">Selecciona hora.</span></div>
       </div>
       <div class="a-f"><label class="a-lbl">Motivo</label><input class="a-in" id="a-blkm-reason" placeholder="Ej: Trámite personal"></div>
     </div>
@@ -5245,11 +5245,21 @@ g('a-blkm-save').addEventListener('click', function(){
   var en = g('a-blkm-end');
   var ok = true;
   [bSel,da,st,en].forEach(function(el){el.parentElement.classList.remove('a-err')});
+  // El hint de "Hora fin" es reutilizado por dos validaciones distintas
+  // (campo vacío vs. fin <= inicio), así que se resetea al texto por
+  // defecto en cada intento antes de decidir cuál corresponde -- si no, un
+  // intento previo dejaría el mensaje del otro caso pegado.
+  var enErr = g('a-blkm-end-err');
+  if(enErr) enErr.textContent = 'Selecciona hora.';
   if(!bSel.value){ bSel.parentElement.classList.add('a-err'); ok=false; }
   if(!da.value){ da.parentElement.classList.add('a-err'); ok=false; }
   if(!st.value){ st.parentElement.classList.add('a-err'); ok=false; }
   if(!en.value){ en.parentElement.classList.add('a-err'); ok=false; }
   if(st.value && en.value && en.value <= st.value){
+    // Sin este mensaje propio el campo solo se pintaba de rojo mostrando
+    // "Selecciona hora." -- confuso, porque la hora SÍ está seleccionada:
+    // lo que falla es que no es posterior al inicio.
+    if(enErr) enErr.textContent = 'La hora de fin debe ser posterior a la de inicio.';
     en.parentElement.classList.add('a-err');
     ok=false;
   }

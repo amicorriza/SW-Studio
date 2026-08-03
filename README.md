@@ -10,6 +10,7 @@ Concepción, Chile): landing, sistema de reservas online y panel de administraci
 - **Disponibilidad real por barbero**: horario semanal, colación recurrente y
   bloqueos puntuales (trámites, imprevistos) se reflejan al instante en el
   widget público de reservas.
+- El panel vive en una página aparte, **`/admin/`**, desindexada por `robots.txt`.
 
 ## Arquitectura
 
@@ -43,12 +44,44 @@ Concepción, Chile): landing, sistema de reservas online y panel de administraci
 > especificar nombres la ofrece para borrar. Deployar funciones siempre con
 > nombres explícitos (ver [Deploy](#deploy)).
 
+## Panel de administración (`/admin/`)
+
+Página independiente del sitio público; ambas comparten `public/js/`, así que
+no hay lógica duplicada fuera del HTML. Se entra por el hexágono ⬡ del footer.
+
+- **Agenda** — dos vistas sobre las mismas reservas:
+  - *Día*: línea de tiempo de una jornada, con navegación ◀ ▶ / Hoy y filtro
+    por barbero. Los bloqueos aparecen como tarjeta oscura; un clic los edita.
+  - *Lista*: tabla plana **no atada a un día**, ordenable por cualquier columna
+    y con buscador por cliente. El selector de alcance ofrece *Próximas*
+    (por defecto), *Todas (con historial)* o *Entre dos fechas* — este último
+    compara a nivel de día e incluye ambos extremos. Los bloqueos no aparecen
+    acá: la Lista es de reservas de clientes.
+- **Horarios** — horario semanal por barbero y **colación recurrente** (un
+  rango por día, se repite todas las semanas).
+- **Bloquear horario** (botón en Agenda) — bloqueo **puntual** para una fecha
+  concreta, con motivo. Se crea desde la Agenda, no desde Horarios, porque el
+  admin ya está mirando ese día cuando decide bloquearlo.
+
+Colación y bloqueos le quitan esas horas al widget público. Si el admin igual
+quiere agendar encima, recibe una advertencia con el motivo y puede forzarlo
+marcando **Sobrecupo** — nunca es un bloqueo duro.
+
+> Crear una reserva desde el panel exige `allow create: if isAdmin()` en
+> `firestore.rules`: el payload del admin no lleva los campos `status`/`club`
+> que arma el widget público, y en las reglas de Firestore **una clave ausente
+> lanza error de evaluación, no `false`**. Al tocar ese payload, recordar que
+> editar es `update` y crear es `create` — que una operación funcione no
+> implica que la otra también.
+
 ## Estructura
 
 ```
 scissor-white/
 ├── public/               # Firebase Hosting
-│   ├── index.html        # app completa (landing + reservas + panel admin)
+│   ├── index.html        # sitio público: landing + widget de reservas
+│   ├── admin/index.html  # panel de administración (ruta /admin/)
+│   ├── robots.txt        # Disallow: /admin/
 │   ├── js/               # firebase-init.js, data.js (Firestore), auth.js (login)
 │   └── assets/email/     # logo.png, salon.png — imágenes del email de confirmación
 ├── functions/            # Cloud Functions v2 (ver arriba)
@@ -60,7 +93,7 @@ scissor-white/
 ├── seed/                 # carga inicial a Firestore
 ├── tests/rules/          # tests de reglas con el emulador
 ├── firebase.json         # Hosting + Firestore + Functions + Emuladores
-└── firestore.rules       # público: crear reservas validadas; resto requiere auth
+└── firestore.rules       # público: crear reservas validadas; admin: todo lo demás
 ```
 
 ## Desarrollo
@@ -70,7 +103,7 @@ npm install
 cd functions && npm install && cd ..
 cd seed && npm install && cd ..
 
-firebase emulators:start    # http://localhost:5000 (sitio), :4000 (UI)
+firebase emulators:start    # :5000 sitio, :5000/admin/ panel, :4000 UI
 # en otra terminal, sembrar datos en el emulador:
 cd seed && FIRESTORE_EMULATOR_HOST=localhost:8080 GCLOUD_PROJECT=scissor-white npm run seed && cd ..
 ```
@@ -102,4 +135,7 @@ imágenes embebidas (data-URI).
 
 - Diseño: [`docs/superpowers/specs/2026-06-01-scissor-white-firebase-design.md`](docs/superpowers/specs/2026-06-01-scissor-white-firebase-design.md)
 - Plan de migración (ejecutado): [`docs/superpowers/plans/2026-06-02-scissor-white-firebase-migration.md`](docs/superpowers/plans/2026-06-02-scissor-white-firebase-migration.md)
+- Vista de Lista en la Agenda: [`docs/superpowers/specs/2026-07-30-agenda-lista-vista-design.md`](docs/superpowers/specs/2026-07-30-agenda-lista-vista-design.md)
+- Bloqueo de horarios (colación + puntuales), con su sección de trabajo futuro
+  —agenda multi-barbero en columnas—: [`docs/superpowers/specs/2026-07-31-bloqueo-horarios-design.md`](docs/superpowers/specs/2026-07-31-bloqueo-horarios-design.md)
 - Módulo WhatsApp/Kapso (planificado): ver `docs/superpowers/specs/`

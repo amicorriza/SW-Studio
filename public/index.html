@@ -4354,7 +4354,7 @@ var bkListSortKey = 'day';
 var bkListSortDir = 'asc';
 var rmSelectedBarber = null;
 var D = {services:[], staff:[], schedule:[], log:[], info:{}};
-var BK=[]; var PT=[];
+var BK=[]; var PT=[]; var SB=[];
 
 // ═══ DEFAULTS ═══
 var DS=[
@@ -4466,6 +4466,7 @@ async function loadFromCloud(){
     });
     BK = await window.SWData.getBookings();    // cache de reservas (ver Task 5.5)
     PT = await window.SWData.getPatients();    // cache de clientes (ver Task 5.6)
+    SB = await window.SWData.getScheduleBlocks(); // cache de bloqueos de horario
   } catch(e){ console.error('Error cargando datos', e); defaults(); }
 }
 
@@ -4581,6 +4582,35 @@ function getBookings(){
 function saveBookings(arr){
   setBk(arr);
   updateBadges();
+}
+
+// ═══ SCHEDULE BLOCKS HELPERS ═══
+// Lectura: devuelve la cache poblada en loadFromCloud(). A diferencia de
+// bookings, la escritura es por documento individual (crear/editar/
+// eliminar un bloqueo), no un array completo -- ver public/js/data.js.
+function getScheduleBlocks(){ return SB; }
+function getScheduleBlocksForDate(dateStr){
+  return SB.filter(function(b){ return b.date === dateStr; });
+}
+function createScheduleBlock(block){
+  var id = 'sb_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+  var full = {id:id, barberId:block.barberId, barberName:block.barberName||'', date:block.date, start:block.start, end:block.end, reason:block.reason||'', createdAt:new Date().toISOString()};
+  SB.push(full);
+  window.SWData.saveScheduleBlock(full).catch(function(e){ console.error('Error guardando bloqueo', e); });
+  return full;
+}
+function updateScheduleBlock(id, changes){
+  // `changes` nunca trae `createdAt` (se arma en la Tarea 6, en el handler
+  // de guardado del modal) -- Object.assign no lo toca, así que la fecha
+  // de creación original se preserva en cada edición.
+  var b = SB.find(function(x){ return x.id === id; });
+  if(!b) return;
+  Object.assign(b, changes);
+  window.SWData.saveScheduleBlock(b).catch(function(e){ console.error('Error guardando bloqueo', e); });
+}
+function deleteScheduleBlockLocal(id){
+  SB = SB.filter(function(b){ return b.id !== id; });
+  window.SWData.deleteScheduleBlock(id).catch(function(e){ console.error('Error eliminando bloqueo', e); });
 }
 // Check if a proposed booking conflicts with existing ones (same barber, overlapping time)
 function checkConflict(barberId, dateStr, timeStr, durMin, ignoreId){

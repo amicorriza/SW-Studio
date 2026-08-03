@@ -3354,6 +3354,7 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
                 <button type="button" id="a-bk-view-day" class="a-on">📅 Día</button>
                 <button type="button" id="a-bk-view-list">☰ Lista</button>
               </div>
+              <button class="a-btn a-btn-g" id="a-bk-block-new">+ Bloquear horario</button>
               <button class="a-btn a-btn-p" id="a-bk-new">+ Nueva cita</button>
             </div>
           </div>
@@ -3561,6 +3562,28 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
       <button class="a-btn a-btn-danger" id="a-bkm-del" style="margin-right:auto;display:none">Eliminar cita</button>
       <button class="a-btn a-btn-g" data-close="a-bkm">Cancelar</button>
       <button class="a-btn a-btn-p" id="a-bkm-save">Guardar cita</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─ MODAL: SCHEDULE BLOCK (bloqueo puntual de horario) ─ -->
+<div id="a-blkm" class="a-mb">
+  <div class="a-mo" style="max-width:480px">
+    <div class="a-mh"><div class="a-mt" id="a-blkm-t">Bloquear horario</div><button class="a-mc" data-close="a-blkm">✕</button></div>
+    <div class="a-mb2">
+      <input type="hidden" id="a-blkm-id">
+      <div class="a-f"><label class="a-lbl">Barbero *</label><select class="a-in" id="a-blkm-barber"></select><span class="a-fe">Selecciona barbero.</span></div>
+      <div class="a-f"><label class="a-lbl">Fecha *</label><input class="a-in" id="a-blkm-date" type="date"><span class="a-fe">Selecciona fecha.</span></div>
+      <div class="a-fr">
+        <div class="a-f"><label class="a-lbl">Hora inicio *</label><input class="a-in" id="a-blkm-start" type="time"><span class="a-fe">Selecciona hora.</span></div>
+        <div class="a-f"><label class="a-lbl">Hora fin *</label><input class="a-in" id="a-blkm-end" type="time"><span class="a-fe">Selecciona hora.</span></div>
+      </div>
+      <div class="a-f"><label class="a-lbl">Motivo</label><input class="a-in" id="a-blkm-reason" placeholder="Ej: Trámite personal"></div>
+    </div>
+    <div class="a-mf">
+      <button class="a-btn a-btn-danger" id="a-blkm-del" style="margin-right:auto;display:none">Eliminar bloqueo</button>
+      <button class="a-btn a-btn-g" data-close="a-blkm">Cancelar</button>
+      <button class="a-btn a-btn-p" id="a-blkm-save">Guardar bloqueo</button>
     </div>
   </div>
 </div>
@@ -4098,6 +4121,20 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
 .a-bk-card-time{font-family:'Orbitron',sans-serif;font-size:9.5px;font-weight:600;color:var(--a-sd);letter-spacing:.02em}
 .a-bk-card-barber{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--a-info);background:#E5F0FB;padding:1px 5px;border-radius:3px}
 .a-bk-card-over-tag{font-family:'Barlow Condensed',sans-serif;font-size:8px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#fff;background:var(--a-warn);padding:1px 5px;border-radius:3px}
+.a-blk-card{
+  position:absolute;left:4px;right:4px;
+  background:var(--a-ink);color:#fff;
+  border-radius:7px;padding:7px 9px;
+  box-shadow:0 1px 4px rgba(120,130,145,.18);
+  cursor:pointer;transition:all .18s;
+  overflow:hidden;z-index:2;
+  font-size:11px;font-weight:600;white-space:nowrap;text-overflow:ellipsis;
+  display:flex;align-items:center;gap:5px
+}
+.a-blk-card:hover{
+  box-shadow:0 4px 14px rgba(120,130,145,.32);
+  transform:translateY(-1px);z-index:3
+}
 
 /* Reassign list */
 #a-rm-list{display:flex;flex-direction:column;gap:6px;margin-top:6px}
@@ -4820,9 +4857,13 @@ function renderCalendar(){
     if(bkFilter && b.barberId !== bkFilter) return false;
     return true;
   });
+  var blocksToday = getScheduleBlocksForDate(dStr).filter(function(b){
+    if(bkFilter && b.barberId !== bkFilter) return false;
+    return true;
+  });
 
   var tl = g('a-bk-timeline');
-  if(!todays.length){
+  if(!todays.length && !blocksToday.length){
     tl.innerHTML = '<div class="a-tl-empty">Sin reservas para este día.<br><button class="a-btn a-btn-p" onclick="document.getElementById(\'a-bk-new\').click()" style="margin-top:14px">+ Crear primera cita</button></div>';
     return;
   }
@@ -4833,6 +4874,14 @@ function renderCalendar(){
     var t = b.time ? b.time.split(':') : ['10','00'];
     var h = parseInt(t[0]);
     var end = h + Math.ceil((b.dur||30)/60) + 1;
+    if(h < minH) minH = h;
+    if(end > maxH) maxH = end;
+  });
+  blocksToday.forEach(function(b){
+    var t = b.start ? b.start.split(':') : ['10','00'];
+    var h = parseInt(t[0]);
+    var te = b.end ? b.end.split(':') : ['11','00'];
+    var end = parseInt(te[0]) + 1;
     if(h < minH) minH = h;
     if(end > maxH) maxH = end;
   });
@@ -4876,7 +4925,12 @@ function renderCalendar(){
   flush();
 
   // Rangos ocupados (en minutos) para sombrear las medias horas, igual que antes
-  var busyRanges = evs.map(function(e){ return [e.start, e.end]; });
+  var busyRanges = evs.map(function(e){ return [e.start, e.end]; }).concat(
+    blocksToday.map(function(b){
+      var t = (b.start||'10:00').split(':'), te = (b.end||'11:00').split(':');
+      return [(parseInt(t[0])-minH)*60+parseInt(t[1]), (parseInt(te[0])-minH)*60+parseInt(te[1])];
+    })
+  );
 
   // ── Render ──
   var cardsHtml = evs.map(function(e){
@@ -4932,7 +4986,24 @@ function renderCalendar(){
     '</div>';
   }
 
-  tl.innerHTML = '<div class="a-tl-grid"><div class="a-tl-hours">'+hoursHtml+'</div><div class="a-tl-col">'+slotsHtml+cardsHtml+'</div></div>';
+  var blocksHtml = blocksToday.map(function(b){
+    var t = (b.start || '10:00').split(':');
+    var startMin = (parseInt(t[0]) - minH)*60 + parseInt(t[1]);
+    var te = (b.end || '11:00').split(':');
+    var endMin = (parseInt(te[0]) - minH)*60 + parseInt(te[1]);
+    var top = startMin * PXM;
+    var height = Math.max(26, (endMin - startMin) * PXM);
+    var barber = D.staff.find(function(s){return s.id===b.barberId});
+    var bn = barber ? barber.name : (b.barberName || '?');
+    var label = '⏱ '+esc(bn)+(b.reason?' · '+esc(b.reason):'')+' · '+esc(b.start||'')+'–'+esc(b.end||'');
+    return '<div class="a-blk-card" style="top:'+top.toFixed(1)+'px;height:'+height.toFixed(1)+'px" '+
+             'data-blk-id="'+esc(b.id)+'" '+
+             'title="'+esc((b.start||'')+' – '+(b.end||'')+' · '+bn+(b.reason?' · '+b.reason:''))+'">'+
+             label+
+           '</div>';
+  }).join('');
+
+  tl.innerHTML = '<div class="a-tl-grid"><div class="a-tl-hours">'+hoursHtml+'</div><div class="a-tl-col">'+slotsHtml+cardsHtml+blocksHtml+'</div></div>';
 
   // Hook card clicks (edit booking)
   tl.querySelectorAll('.a-bk-card').forEach(function(c){
@@ -4940,6 +5011,15 @@ function renderCalendar(){
       var code = c.dataset.code;
       var bk = getBookings().find(function(x){return x.code===code});
       if(bk) openBookingModal(bk);
+    });
+  });
+  // Hook block card clicks (edit block) -- deliberadamente NO abre
+  // openBookingModal: un bloqueo no es una cita.
+  tl.querySelectorAll('.a-blk-card').forEach(function(c){
+    c.addEventListener('click', function(){
+      var id = c.dataset.blkId;
+      var blk = getScheduleBlocks().find(function(x){return x.id===id});
+      if(blk) openBlockModal(blk);
     });
   });
   // Hook empty slot clicks to create new at that hour
@@ -5096,6 +5176,72 @@ g('a-bkm-del').addEventListener('click', function(){
     refreshBookingViews();
     log('Eliminó cita', code);
     showAlert('a-bk-alert','ok','Cita eliminada.');
+  });
+});
+
+// ═══ SCHEDULE BLOCK MODAL ═══
+function openBlockModal(blk){
+  g('a-blkm-t').textContent = blk ? 'Editar bloqueo' : 'Bloquear horario';
+  g('a-blkm-id').value = blk ? blk.id : '';
+  var bSel = g('a-blkm-barber');
+  bSel.innerHTML = '<option value="">— Selecciona —</option>' +
+    D.staff.filter(function(s){return s.status==='active'}).map(function(s){
+      return '<option value="'+esc(s.id)+'" data-name="'+esc(s.name)+'">'+esc(s.name)+'</option>';
+    }).join('');
+  bSel.value = blk ? blk.barberId : (bkFilter || '');
+  g('a-blkm-date').value = blk ? blk.date : ymd(bkDate);
+  g('a-blkm-start').value = blk ? blk.start : '13:00';
+  g('a-blkm-end').value = blk ? blk.end : '14:00';
+  g('a-blkm-reason').value = blk ? (blk.reason||'') : '';
+  g('a-blkm-del').style.display = blk ? 'inline-flex' : 'none';
+  document.querySelectorAll('#a-blkm .a-f').forEach(function(f){f.classList.remove('a-err')});
+  g('a-blkm').classList.add('a-open');
+}
+g('a-bk-block-new').addEventListener('click', function(){ openBlockModal(null); });
+
+g('a-blkm-save').addEventListener('click', function(){
+  var bSel = g('a-blkm-barber');
+  var da = g('a-blkm-date');
+  var st = g('a-blkm-start');
+  var en = g('a-blkm-end');
+  var ok = true;
+  [bSel,da,st,en].forEach(function(el){el.parentElement.classList.remove('a-err')});
+  if(!bSel.value){ bSel.parentElement.classList.add('a-err'); ok=false; }
+  if(!da.value){ da.parentElement.classList.add('a-err'); ok=false; }
+  if(!st.value){ st.parentElement.classList.add('a-err'); ok=false; }
+  if(!en.value){ en.parentElement.classList.add('a-err'); ok=false; }
+  if(!ok) return;
+  var bOpt = bSel.options[bSel.selectedIndex];
+  var editId = g('a-blkm-id').value;
+  var payload = {
+    barberId: bSel.value,
+    barberName: bOpt.dataset.name || bOpt.textContent,
+    date: da.value,
+    start: st.value,
+    end: en.value,
+    reason: g('a-blkm-reason').value.trim()
+  };
+  if(editId){
+    updateScheduleBlock(editId, payload);
+    log('Editó bloqueo de horario', payload.barberName + ' — ' + payload.date);
+  } else {
+    createScheduleBlock(payload);
+    log('Creó bloqueo de horario', payload.barberName + ' — ' + payload.date);
+  }
+  closeModal('a-blkm');
+  renderCalendar();
+  showAlert('a-bk-alert','ok','Bloqueo guardado.');
+});
+
+g('a-blkm-del').addEventListener('click', function(){
+  var id = g('a-blkm-id').value;
+  if(!id) return;
+  openDel('¿Eliminar este bloqueo de horario? Esta acción no se puede deshacer.', function(){
+    deleteScheduleBlockLocal(id);
+    closeModal('a-blkm');
+    renderCalendar();
+    log('Eliminó bloqueo de horario', id);
+    showAlert('a-bk-alert','ok','Bloqueo eliminado.');
   });
 });
 
@@ -5597,7 +5743,7 @@ function closeModal(id){ g(id).classList.remove('a-open'); }
 document.querySelectorAll('[data-close]').forEach(function(b){
   b.addEventListener('click', function(){ closeModal(b.dataset.close); });
 });
-['a-sm','a-stm','a-bkm','a-rm','a-dm'].forEach(function(id){
+['a-sm','a-stm','a-bkm','a-blkm','a-rm','a-dm'].forEach(function(id){
   g(id).addEventListener('click', function(e){ if(e.target === g(id)) closeModal(id); });
 });
 

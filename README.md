@@ -7,14 +7,17 @@ Concepción, Chile): landing, sistema de reservas online y panel de administraci
 - Los clientes agendan 24/7 y reciben **confirmación por email** (template SW Studio, vía Resend).
 - El staff administra reservas, servicios, barberos y clientes desde un panel protegido por **Firebase Auth**.
 - **Club SW**: programa de fidelización (servicio premium gratis a las 10 visitas, asesoría con visagismo a las 20).
+- **Disponibilidad real por barbero**: horario semanal, colación recurrente y
+  bloqueos puntuales (trámites, imprevistos) se reflejan al instante en el
+  widget público de reservas.
 
 ## Arquitectura
 
 | Pieza | Detalle |
 |---|---|
 | Hosting | Firebase Hosting (`public/`), proyecto `scissor-white` |
-| Datos | Firestore (`bookings`, `patients`, `services`, `staff`, `businessInfo`, `adminLog`) |
-| Funciones | Cloud Functions v2 Node 20, región `southamerica-east1` |
+| Datos | Firestore (`bookings`, `patients`, `services`, `staff`, `businessInfo`, `scheduleBlocks`, `availability`, `adminLog`) |
+| Funciones | Cloud Functions v2 Node 22, región `southamerica-east1` |
 | Emails | Resend (secretos `RESEND_API_KEY`, `FROM_EMAIL`, `SHOP_EMAIL`) |
 | Auth | Firebase Auth (email/contraseña) para el panel admin |
 
@@ -26,6 +29,19 @@ Concepción, Chile): landing, sistema de reservas online y panel de administraci
   sincroniza la colección `patients` (upsert por email).
 - **`getClubStatus`** (callable): cuenta visitas Club SW de un email — el cliente
   público no puede leer `bookings` directamente por reglas.
+- **`getAvailability`** (callable): disponibilidad real por fecha/barbero
+  (reservas + colación recurrente + bloqueos puntuales), sin exponer PII de
+  otras reservas.
+- **`onBookingWritten`** / **`onScheduleBlockWritten`** (triggers Firestore
+  `bookings/{id}` y `scheduleBlocks/{id}`): recalculan la vista materializada
+  `availability/{fecha}` (sin PII) que el widget público lee directo, en vez
+  de llamar a `getAvailability` en cada render.
+
+> ⚠️ El proyecto `scissor-white` también tiene desplegada una función `api`
+> (https, `us-central1`, Node 20) que **no pertenece a este codebase** — es de
+> la rama `feature/whatsapp-kapso`. Un `firebase deploy --only functions` sin
+> especificar nombres la ofrece para borrar. Deployar funciones siempre con
+> nombres explícitos (ver [Deploy](#deploy)).
 
 ## Estructura
 
@@ -35,9 +51,11 @@ scissor-white/
 │   ├── index.html        # app completa (landing + reservas + panel admin)
 │   ├── js/               # firebase-init.js, data.js (Firestore), auth.js (login)
 │   └── assets/email/     # logo.png, salon.png — imágenes del email de confirmación
-├── functions/            # onBookingCreated + getClubStatus
+├── functions/            # Cloud Functions v2 (ver arriba)
 │   ├── email.js          # render del template de email + envío vía Resend
 │   ├── patients.js       # upsert de clientes + conteo Club SW
+│   ├── availability.js   # cálculo de disponibilidad (reservas + colación + bloqueos)
+│   ├── scripts/          # reconcileCatalog, backfillAvailability, setAdminClaim
 │   └── test/             # node --test (sin emulador)
 ├── seed/                 # carga inicial a Firestore
 ├── tests/rules/          # tests de reglas con el emulador
@@ -66,8 +84,12 @@ cd functions && node --test
 ## Deploy
 
 ```bash
-# Hosting + las dos funciones del proyecto (evita tocar funciones ajenas al repo)
-firebase deploy --only "hosting,functions:onBookingCreated,functions:getClubStatus" --project scissor-white
+# Hosting + reglas/índices de Firestore + solo las funciones de este repo
+# (nombres explícitos: evita que el CLI ofrezca borrar `api`, ver nota arriba)
+firebase deploy --project scissor-white --only \
+  hosting,firestore:rules,firestore:indexes,\
+functions:onBookingCreated,functions:getClubStatus,functions:getAvailability,\
+functions:onBookingWritten,functions:onScheduleBlockWritten
 ```
 
 Los secretos de Resend se administran con `firebase functions:secrets:set` (ver

@@ -3399,6 +3399,16 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
               <select class="a-in" id="a-bk-list-filter-barber">
                 <option value="">Todos los barberos</option>
               </select>
+              <select class="a-in" id="a-bk-list-range" style="max-width:190px">
+                <option value="upcoming">Próximas citas</option>
+                <option value="all">Todas (con historial)</option>
+                <option value="custom">Entre dos fechas…</option>
+              </select>
+              <div id="a-bk-list-dates" style="display:none;gap:8px;align-items:center">
+                <input class="a-in" id="a-bk-list-from" type="date" title="Desde" style="max-width:160px">
+                <span style="opacity:.5">→</span>
+                <input class="a-in" id="a-bk-list-to" type="date" title="Hasta" style="max-width:160px">
+              </div>
             </div>
             <div class="a-tw">
               <table class="a-t">
@@ -4040,6 +4050,10 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
 #a-bk-list-controls{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
 #a-bk-list-controls input{flex:1;min-width:200px}
 #a-bk-list-controls select{max-width:200px}
+/* Los dos campos de fecha del rango no deben estirarse como el buscador:
+   la regla de arriba aplica a todo input del contenedor, así que se acota
+   con mayor especificidad. */
+#a-bk-list-controls #a-bk-list-dates input{flex:0 1 auto;min-width:140px}
 .a-sortable{cursor:pointer;user-select:none}
 .a-sortable:hover{color:var(--a-txt)}
 .a-sort-arrow{margin-left:4px;opacity:.5;display:inline-block;min-width:9px}
@@ -4410,6 +4424,12 @@ var bkView = 'day';
 var bkListSearch = '';
 var bkListSortKey = 'day';
 var bkListSortDir = 'asc';
+// Alcance temporal de la Lista: 'upcoming' (solo próximas, por defecto),
+// 'all' (historial completo) o 'custom' (entre dos fechas). Igual que el
+// resto del estado de la Lista, vive solo en memoria de la sesión.
+var bkListRange = 'upcoming';
+var bkListFrom = '';
+var bkListTo = '';
 var rmSelectedBarber = null;
 var D = {services:[], staff:[], schedule:[], log:[], info:{}};
 var BK=[]; var PT=[]; var SB=[];
@@ -4656,15 +4676,30 @@ function getBk(){ return BK; }
 // acá -- la suscripción en tiempo real es la única fuente de verdad para BK,
 // y su callback (renderBookingsViews) ya se encarga de eso cuando Firestore
 // confirma el cambio.
+// Devuelve la promesa en vez de tragarse el error: antes un guardado
+// rechazado (p.ej. por firestore.rules) solo dejaba un console.error y el
+// panel mostraba igual el mensaje de éxito, así que un fallo se veía
+// exactamente igual que un guardado correcto. Ver saveBookingsAnd().
 function setBk(arr){
-  window.SWData.saveBookings(arr || []).catch(function(e){ console.error('Error guardando reservas', e); });
+  return window.SWData.saveBookings(arr || []);
 }
 
 function getBookings(){
   return getBk();
 }
 function saveBookings(arr){
-  setBk(arr);
+  return setBk(arr);
+}
+
+// Guarda y avisa del resultado real. Todo el que mute reservas debe usar
+// esto en vez de saveBookings() + showAlert('ok') a ciegas.
+function saveBookingsAnd(arr, okMsg){
+  return saveBookings(arr).then(function(){
+    showAlert('a-bk-alert', 'ok', okMsg);
+  }).catch(function(e){
+    console.error('Error guardando reservas', e);
+    showAlert('a-bk-alert', 'err', 'No se pudo guardar: ' + ((e && e.code) || 'error desconocido') + '. La cita NO quedó registrada.');
+  });
 }
 
 // ═══ SCHEDULE BLOCKS HELPERS ═══
@@ -4675,25 +4710,27 @@ function getScheduleBlocks(){ return SB; }
 function getScheduleBlocksForDate(dateStr){
   return SB.filter(function(b){ return b.date === dateStr; });
 }
+// Estas tres devuelven la promesa del guardado (antes se tragaban el error en
+// un console.error y el modal mostraba "Bloqueo guardado." pasara lo que
+// pasara). Quien las llama debe reportar el resultado real.
 function createScheduleBlock(block){
   var id = 'sb_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
   var full = {id:id, barberId:block.barberId, barberName:block.barberName||'', date:block.date, start:block.start, end:block.end, reason:block.reason||'', createdAt:new Date().toISOString()};
   SB.push(full);
-  window.SWData.saveScheduleBlock(full).catch(function(e){ console.error('Error guardando bloqueo', e); });
-  return full;
+  return window.SWData.saveScheduleBlock(full);
 }
 function updateScheduleBlock(id, changes){
   // `changes` nunca trae `createdAt` (se arma en la Tarea 6, en el handler
   // de guardado del modal) -- Object.assign no lo toca, así que la fecha
   // de creación original se preserva en cada edición.
   var b = SB.find(function(x){ return x.id === id; });
-  if(!b) return;
+  if(!b) return Promise.resolve();
   Object.assign(b, changes);
-  window.SWData.saveScheduleBlock(b).catch(function(e){ console.error('Error guardando bloqueo', e); });
+  return window.SWData.saveScheduleBlock(b);
 }
 function deleteScheduleBlockLocal(id){
   SB = SB.filter(function(b){ return b.id !== id; });
-  window.SWData.deleteScheduleBlock(id).catch(function(e){ console.error('Error eliminando bloqueo', e); });
+  return window.SWData.deleteScheduleBlock(id);
 }
 // Check if a proposed booking conflicts with existing ones (same barber, overlapping time)
 function checkConflict(barberId, dateStr, timeStr, durMin, ignoreId){
@@ -4782,7 +4819,17 @@ function refreshBookingViews(){
 function renderBookingList(){
   renderBarberFilterOptions(g('a-bk-list-filter-barber'));
 
+  // Los controles de rango se sincronizan en cada render para que un
+  // repintado (p.ej. tras mutar una reserva, vía la suscripción en tiempo
+  // real) no pierda lo que el usuario había elegido.
+  if(g('a-bk-list-range')) g('a-bk-list-range').value = bkListRange;
+  if(g('a-bk-list-dates')) g('a-bk-list-dates').style.display = bkListRange === 'custom' ? 'flex' : 'none';
+  if(g('a-bk-list-from')) g('a-bk-list-from').value = bkListFrom;
+  if(g('a-bk-list-to')) g('a-bk-list-to').value = bkListTo;
+
   var now = new Date();
+  var desde = bkListFrom ? parseYmd(bkListFrom) : null;
+  var hasta = bkListTo ? parseYmd(bkListTo) : null;
   var q = bkListSearch.toLowerCase().trim();
   var rows = getBookings()
     .map(function(b){
@@ -4791,7 +4838,15 @@ function renderBookingList(){
       return {bk:b, dt:dt, dtDay:dtDay};
     })
     .filter(function(e){
-      if(!e.dt || e.dt < now) return false;
+      if(!e.dt) return false;
+      // Alcance temporal: 'all' no filtra por fecha; 'custom' compara a nivel
+      // de DÍA e incluye ambos extremos, para que poner la misma fecha en
+      // Desde y Hasta muestre ese día completo.
+      if(bkListRange === 'upcoming' && e.dt < now) return false;
+      if(bkListRange === 'custom'){
+        if(desde && e.dtDay && e.dtDay < desde) return false;
+        if(hasta && e.dtDay && e.dtDay > hasta) return false;
+      }
       if(bkFilter && e.bk.barberId !== bkFilter) return false;
       if(q && (e.bk.name||'').toLowerCase().indexOf(q) < 0) return false;
       return true;
@@ -4826,7 +4881,10 @@ function renderBookingList(){
   var body = g('a-bk-list-body');
   if(!rows.length){
     body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#888;padding:30px">' +
-      (q ? 'Sin resultados para tu búsqueda.' : 'Sin citas próximas.') +
+      (q ? 'Sin resultados para tu búsqueda.'
+         : bkListRange === 'custom' ? 'Sin citas en el rango elegido.'
+         : bkListRange === 'all' ? 'Sin citas registradas.'
+         : 'Sin citas próximas.') +
       '</td></tr>';
     return;
   }
@@ -4867,10 +4925,9 @@ function renderBookingList(){
       var code = btn.dataset.lstDel;
       openDel('¿Eliminar esta cita? Esta acción no se puede deshacer.', function(){
         var bookings = getBookings().filter(function(b){return b.code !== code});
-        saveBookings(bookings);
+        saveBookingsAnd(bookings, 'Cita eliminada.');
         refreshBookingViews();
         log('Eliminó cita', code);
-        showAlert('a-bk-alert','ok','Cita eliminada.');
       });
     });
   });
@@ -4891,6 +4948,27 @@ document.querySelectorAll('#a-bk-list-view th[data-sort]').forEach(function(th){
 
 g('a-bk-list-search').addEventListener('input', function(e){
   bkListSearch = e.target.value;
+  renderBookingList();
+});
+
+g('a-bk-list-range').addEventListener('change', function(e){
+  bkListRange = e.target.value;
+  // Al entrar por primera vez a "Entre dos fechas…" se propone un rango
+  // útil (el mes en curso) en vez de dos campos vacíos, que mostrarían todo
+  // el historial y harían parecer que el filtro no hace nada.
+  if(bkListRange === 'custom' && !bkListFrom && !bkListTo){
+    var hoy = new Date();
+    bkListFrom = ymd(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
+    bkListTo   = ymd(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0));
+  }
+  renderBookingList();
+});
+g('a-bk-list-from').addEventListener('change', function(e){
+  bkListFrom = e.target.value;
+  renderBookingList();
+});
+g('a-bk-list-to').addEventListener('change', function(e){
+  bkListTo = e.target.value;
   renderBookingList();
 });
 
@@ -5216,6 +5294,12 @@ g('a-bkm-save').addEventListener('click', function(){
 
   var editId = g('a-bkm-id').value;
   var bookings = getBookings();
+  // Al editar se conservan los campos que este modal no maneja pero que sí
+  // existen en la reserva (los arma el widget público al reservar). bkData
+  // reemplaza el objeto completo en el array, así que sin esto una edición
+  // desde el panel pisaría el estado real de la cita con los valores por
+  // defecto.
+  var prev = editId ? (bookings.find(function(b){return b.code===editId}) || {}) : {};
   var bkData = {
     code: editId || ('SW-' + Date.now().toString(36).toUpperCase().slice(-5) + Math.floor(Math.random()*900+100)),
     name: ne.value.trim(),
@@ -5231,7 +5315,13 @@ g('a-bkm-save').addEventListener('click', function(){
     time: ti.value,
     notes: g('a-bkm-notes').value.trim(),
     over: !!conflict || !!blocked || isOver,
-    createdAt: editId ? (bookings.find(function(b){return b.code===editId})||{}).createdAt || new Date().toISOString() : new Date().toISOString()
+    // `status` y `club` los exige isValidBooking() en firestore.rules. El
+    // payload del panel no los enviaba nunca, y como en las reglas una clave
+    // ausente lanza error de evaluación (no `false`), crear una cita desde el
+    // admin fallaba siempre con permission-denied.
+    status: prev.status || 'pending',
+    club: prev.club || 'guest',
+    createdAt: prev.createdAt || new Date().toISOString()
   };
 
   if(editId){
@@ -5245,9 +5335,8 @@ g('a-bkm-save').addEventListener('click', function(){
   // renderCalendar()/renderDash() no se llaman acá: la suscripción en
   // tiempo real a `bookings` (ver renderBookingsViews) los actualiza sola
   // en cuanto Firestore confirma el cambio.
-  saveBookings(bookings);
+  saveBookingsAnd(bookings, 'Cita guardada correctamente.');
   closeModal('a-bkm');
-  showAlert('a-bk-alert','ok','Cita guardada correctamente.');
 });
 
 g('a-bkm-del').addEventListener('click', function(){
@@ -5255,10 +5344,9 @@ g('a-bkm-del').addEventListener('click', function(){
   if(!code) return;
   openDel('¿Eliminar esta cita? Esta acción no se puede deshacer.', function(){
     var bookings = getBookings().filter(function(b){return b.code !== code});
-    saveBookings(bookings);
+    saveBookingsAnd(bookings, 'Cita eliminada.');
     closeModal('a-bkm');
     log('Eliminó cita', code);
-    showAlert('a-bk-alert','ok','Cita eliminada.');
   });
 });
 
@@ -5318,27 +5406,38 @@ g('a-blkm-save').addEventListener('click', function(){
     end: en.value,
     reason: g('a-blkm-reason').value.trim()
   };
+  var guardado;
   if(editId){
-    updateScheduleBlock(editId, payload);
+    guardado = updateScheduleBlock(editId, payload);
     log('Editó bloqueo de horario', payload.barberName + ' — ' + payload.date);
   } else {
-    createScheduleBlock(payload);
+    guardado = createScheduleBlock(payload);
     log('Creó bloqueo de horario', payload.barberName + ' — ' + payload.date);
   }
   closeModal('a-blkm');
   renderCalendar();
-  showAlert('a-bk-alert','ok','Bloqueo guardado.');
+  guardado.then(function(){
+    showAlert('a-bk-alert','ok','Bloqueo guardado.');
+  }).catch(function(e){
+    console.error('Error guardando bloqueo', e);
+    showAlert('a-bk-alert','err','No se pudo guardar el bloqueo: ' + ((e && e.code) || 'error desconocido') + '. NO quedó registrado.');
+  });
 });
 
 g('a-blkm-del').addEventListener('click', function(){
   var id = g('a-blkm-id').value;
   if(!id) return;
   openDel('¿Eliminar este bloqueo de horario? Esta acción no se puede deshacer.', function(){
-    deleteScheduleBlockLocal(id);
+    var borrado = deleteScheduleBlockLocal(id);
     closeModal('a-blkm');
     renderCalendar();
     log('Eliminó bloqueo de horario', id);
-    showAlert('a-bk-alert','ok','Bloqueo eliminado.');
+    borrado.then(function(){
+      showAlert('a-bk-alert','ok','Bloqueo eliminado.');
+    }).catch(function(e){
+      console.error('Error eliminando bloqueo', e);
+      showAlert('a-bk-alert','err','No se pudo eliminar el bloqueo: ' + ((e && e.code) || 'error desconocido') + '.');
+    });
   });
 });
 
@@ -5856,8 +5955,15 @@ g('a-dm-ok').addEventListener('click', function(){ if(delCb) delCb(); closeModal
 function showAlert(id, type, msg){
   var el = g(id); if(!el) return;
   el.className = 'a-alert a-' + (type==='ok' ? 'ok-t' : 'err-t') + ' a-show';
+  // El timeout de abajo deja un `display:none` inline, que por especificidad
+  // le gana a `.a-alert.a-show{display:flex}`. Sin limpiarlo acá, solo la
+  // PRIMERA alerta de la sesión era visible y todas las siguientes quedaban
+  // ocultas -- incluidos los avisos de error.
+  el.style.display = '';
   el.innerHTML = (type==='ok'?'✓ ':'⚠ ') + esc(msg);
-  setTimeout(function(){ el.classList.remove('a-show'); el.style.display='none'; }, 3000);
+  // Un timeout viejo no debe apagar una alerta nueva.
+  clearTimeout(el._alertTimer);
+  el._alertTimer = setTimeout(function(){ el.classList.remove('a-show'); el.style.display='none'; }, 3000);
 }
 
 
@@ -6373,8 +6479,12 @@ g('a-pat-export').addEventListener('click', async function(){
 // Hook into existing booking save to auto-update patients
 var __origSaveBookings = saveBookings;
 saveBookings = function(arr){
-  __origSaveBookings(arr);
+  // Hay que DEVOLVER la promesa del guardado original: saveBookingsAnd() la
+  // encadena para avisar si Firestore rechaza la escritura. Sin este return,
+  // este envoltorio anulaba el aviso de error de todo el panel.
+  var guardado = __origSaveBookings(arr);
   updatePatBadge();
+  return guardado;
 };
 
 // Initial sync on load

@@ -32,7 +32,11 @@ service cloud.firestore {
     // Reservas: el público puede CREAR (validado), solo admin lee/edita/borra
     match /bookings/{id} {
       allow read, update, delete: if isAdmin();
-      allow create: if isValidBooking();
+      // El admin necesita su propia vía de creación: el payload del panel no
+      // lleva los campos que arma el widget público (`status`, `club`), y en
+      // las reglas una clave ausente no da `false` sino error de evaluación.
+      // Sin esta rama, "+ Nueva cita" fallaba siempre con permission-denied.
+      allow create: if isAdmin() || isValidBooking();
     }
     function isValidBooking() {
       let d = request.resource.data;

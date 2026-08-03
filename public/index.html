@@ -4679,6 +4679,38 @@ function parseDt(dateStr, timeStr){
   d.setHours(parseInt(p[0]||0), parseInt(p[1]||0), 0, 0);
   return d;
 }
+// Igual que checkConflict, pero contra colación recurrente + bloqueos
+// puntuales en vez de otras reservas. Devuelve null (sin bloqueo) o
+// {type, label} para armar el mensaje de advertencia.
+function checkScheduleBlock(barberId, dateStr, timeStr, durMin){
+  var newStart = parseDt(dateStr, timeStr);
+  if(!newStart) return null;
+  var newEnd = new Date(newStart.getTime() + durMin*60000);
+
+  var barber = D.staff.find(function(s){return s.id===barberId});
+  if(barber && Array.isArray(barber.schedule)){
+    var dow = newStart.getDay();
+    var day = barber.schedule[dow];
+    if(day && day.break && day.break.start && day.break.end){
+      var brkStart = parseDt(dateStr, day.break.start);
+      var brkEnd = parseDt(dateStr, day.break.end);
+      if(brkStart && brkEnd && newStart < brkEnd && newEnd > brkStart){
+        return {type:'break', label:'la colación de '+(barber.name||'')};
+      }
+    }
+  }
+
+  var blocks = getScheduleBlocksForDate(dateStr).filter(function(b){ return b.barberId === barberId; });
+  for(var i=0; i<blocks.length; i++){
+    var b = blocks[i];
+    var bStart = parseDt(dateStr, b.start);
+    var bEnd = parseDt(dateStr, b.end);
+    if(bStart && bEnd && newStart < bEnd && newEnd > bStart){
+      return {type:'block', label: b.reason ? ('un bloqueo de horario ("'+b.reason+'")') : 'un bloqueo de horario'};
+    }
+  }
+  return null;
+}
 
 // ═══ CALENDAR / AGENDA PANEL ═══
 g('a-bk-prev').addEventListener('click', function(){ bkDate.setDate(bkDate.getDate()-1); renderCalendar(); });
@@ -5103,6 +5135,12 @@ function checkBookingConflict(){
     var barber = D.staff.find(function(s){return s.id===barberId});
     box.innerHTML = '⚠ <strong>Conflicto de horario:</strong> '+esc(barber?barber.name:'')+' ya tiene a "'+esc(conflict.name||'')+'" para el servicio "'+esc(conflict.svcName||'')+'" a las '+esc(conflict.time||'')+'. Marca "Sobrecupo" si deseas agendar de todas formas, o cambia la hora/barbero.';
     box.classList.add('show');
+    return;
+  }
+  var blocked = checkScheduleBlock(barberId, dateStr, timeStr, dur);
+  if(blocked){
+    box.innerHTML = '⚠ <strong>Horario bloqueado:</strong> ese horario cae dentro de '+esc(blocked.label)+'. Marca "Sobrecupo" si deseas agendar de todas formas, o cambia la hora/barbero.';
+    box.classList.add('show');
   } else {
     box.classList.remove('show');
   }
@@ -5126,9 +5164,10 @@ g('a-bkm-save').addEventListener('click', function(){
   var sOpt = sv.options[sv.selectedIndex];
   var bOpt = br.options[br.selectedIndex];
   var conflict = checkConflict(br.value, da.value, ti.value, parseInt(sOpt.dataset.dur), g('a-bkm-id').value||null);
+  var blocked = checkScheduleBlock(br.value, da.value, ti.value, parseInt(sOpt.dataset.dur));
   var isOver = g('a-bkm-over').checked;
-  if(conflict && !isOver){
-    showAlert('a-bk-alert','err','Hay un conflicto de horario. Marca "Sobrecupo" para forzar el agendamiento.');
+  if((conflict || blocked) && !isOver){
+    showAlert('a-bk-alert','err', conflict ? 'Hay un conflicto de horario. Marca "Sobrecupo" para forzar el agendamiento.' : 'Ese horario está bloqueado. Marca "Sobrecupo" para forzar el agendamiento.');
     return;
   }
 
@@ -5148,7 +5187,7 @@ g('a-bkm-save').addEventListener('click', function(){
     date: da.value + 'T' + ti.value + ':00.000Z',
     time: ti.value,
     notes: g('a-bkm-notes').value.trim(),
-    over: !!conflict || isOver,
+    over: !!conflict || !!blocked || isOver,
     createdAt: editId ? (bookings.find(function(b){return b.code===editId})||{}).createdAt || new Date().toISOString() : new Date().toISOString()
   };
 

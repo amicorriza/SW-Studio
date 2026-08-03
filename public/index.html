@@ -3873,8 +3873,11 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
 .a-scht.a-scht-on{background:var(--a-ink);color:#fff;border-color:var(--a-ink)}
 .a-sch-card{background:#fff;border-radius:12px;border:1.5px solid var(--a-g2);overflow:hidden;max-width:680px}
 .a-sch-card-hd{padding:14px 18px;background:var(--a-off);border-bottom:1px solid var(--a-g2);font-family:'Orbitron',sans-serif;font-size:13px;font-weight:600;color:var(--a-txt)}
-.a-sch-day{display:grid;grid-template-columns:90px 80px 1fr 1fr;gap:8px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--a-g1)}
+.a-sch-day{padding:10px 16px;border-bottom:1px solid var(--a-g1)}
 .a-sch-day:last-child{border-bottom:none}
+.a-sch-day-row{display:grid;grid-template-columns:90px 80px 1fr 1fr;gap:8px;align-items:center}
+.a-sch-break-row{display:grid;grid-template-columns:90px 80px 1fr 1fr;gap:8px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--a-g1)}
+.a-sch-break-lbl{font-size:11px;color:var(--a-meta)}
 .a-sch-dnm{font-weight:600;color:var(--a-txt);font-size:12.5px}
 .a-tog{display:inline-flex;align-items:center;gap:7px;cursor:pointer}
 .a-tt{width:34px;height:19px;border-radius:10px;background:var(--a-g2);position:relative;transition:background .2s;flex-shrink:0}
@@ -5390,14 +5393,29 @@ function renderSchedule(){
     '<div class="a-sch-card-hd">'+esc(barber.name)+' — horario de atención</div>'+
     dayNames.map(function(dn, di){
       var slot = barber.schedule[di] || {open:false};
+      var brk = slot.break || null;
+      var breakRow = slot.open ? (
+        '<div class="a-sch-break-row">'+
+          '<div class="a-sch-break-lbl">Colación</div>'+
+          '<label class="a-tog">'+
+            '<div class="a-tt '+(brk?'on':'')+'" data-brktog="'+di+'"><div class="a-tth"></div></div>'+
+            '<span class="a-tl">'+(brk?'Con colación':'Sin colación')+'</span>'+
+          '</label>'+
+          '<input type="time" class="a-sch-time" data-brkset="start" data-di="'+di+'" value="'+esc(brk?brk.start:'13:00')+'" '+(brk?'':'disabled')+'>'+
+          '<input type="time" class="a-sch-time" data-brkset="end" data-di="'+di+'" value="'+esc(brk?brk.end:'14:00')+'" '+(brk?'':'disabled')+'>'+
+        '</div>'
+      ) : '';
       return '<div class="a-sch-day">'+
-        '<div class="a-sch-dnm">'+dn+'</div>'+
-        '<label class="a-tog">'+
-          '<div class="a-tt '+(slot.open?'on':'')+'" data-tog="'+di+'"><div class="a-tth"></div></div>'+
-          '<span class="a-tl">'+(slot.open?'Abierto':'Cerrado')+'</span>'+
-        '</label>'+
-        '<input type="time" class="a-sch-time" data-set="start" data-di="'+di+'" value="'+esc(slot.start||'10:00')+'" '+(slot.open?'':'disabled')+'>'+
-        '<input type="time" class="a-sch-time" data-set="end" data-di="'+di+'" value="'+esc(slot.end||'20:00')+'" '+(slot.open?'':'disabled')+'>'+
+        '<div class="a-sch-day-row">'+
+          '<div class="a-sch-dnm">'+dn+'</div>'+
+          '<label class="a-tog">'+
+            '<div class="a-tt '+(slot.open?'on':'')+'" data-tog="'+di+'"><div class="a-tth"></div></div>'+
+            '<span class="a-tl">'+(slot.open?'Abierto':'Cerrado')+'</span>'+
+          '</label>'+
+          '<input type="time" class="a-sch-time" data-set="start" data-di="'+di+'" value="'+esc(slot.start||'10:00')+'" '+(slot.open?'':'disabled')+'>'+
+          '<input type="time" class="a-sch-time" data-set="end" data-di="'+di+'" value="'+esc(slot.end||'20:00')+'" '+(slot.open?'':'disabled')+'>'+
+        '</div>'+
+        breakRow+
       '</div>';
     }).join('')+
   '</div>';
@@ -5411,13 +5429,37 @@ function renderSchedule(){
       renderSchedule(); admSave();
     });
   });
-  body.querySelectorAll('.a-sch-time').forEach(function(el){
+  body.querySelectorAll('.a-sch-time[data-set]').forEach(function(el){
     el.addEventListener('change', function(){
       var di = parseInt(el.dataset.di);
       var k = el.dataset.set;
       var b = D.staff.find(function(s){return s.id===schTabBarber});
       if(!b.schedule[di]) b.schedule[di] = {open:true, start:'10:00', end:'20:00'};
       b.schedule[di][k] = el.value;
+      admSave();
+    });
+  });
+  body.querySelectorAll('[data-brktog]').forEach(function(el){
+    el.addEventListener('click', function(){
+      var di = parseInt(el.dataset.brktog);
+      var b = D.staff.find(function(s){return s.id===schTabBarber});
+      if(!b.schedule[di]) return;
+      if(b.schedule[di].break){
+        delete b.schedule[di].break;
+      } else {
+        b.schedule[di].break = {start:'13:00', end:'14:00'};
+      }
+      log('Editó colación', b.name + ' — ' + dayNames[di]);
+      renderSchedule(); admSave();
+    });
+  });
+  body.querySelectorAll('.a-sch-time[data-brkset]').forEach(function(el){
+    el.addEventListener('change', function(){
+      var di = parseInt(el.dataset.di);
+      var k = el.dataset.brkset;
+      var b = D.staff.find(function(s){return s.id===schTabBarber});
+      if(!b.schedule[di] || !b.schedule[di].break) return;
+      b.schedule[di].break[k] = el.value;
       admSave();
     });
   });

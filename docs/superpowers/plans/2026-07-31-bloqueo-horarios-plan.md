@@ -520,12 +520,14 @@ function getScheduleBlocksForDate(dateStr){
 }
 function createScheduleBlock(block){
   var id = 'sb_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-  var full = {id:id, barberId:block.barberId, barberName:block.barberName||'', date:block.date, start:block.start, end:block.end, reason:block.reason||''};
+  var full = {id:id, barberId:block.barberId, barberName:block.barberName||'', date:block.date, start:block.start, end:block.end, reason:block.reason||'', createdAt:new Date().toISOString()};
   SB.push(full);
   window.SWData.saveScheduleBlock(full).catch(function(e){ console.error('Error guardando bloqueo', e); });
   return full;
 }
 function updateScheduleBlock(id, changes){
+  // `changes` nunca trae `createdAt` (ver Task 6) -- Object.assign no lo
+  // toca, así que la fecha de creación original se preserva en cada edición.
   var b = SB.find(function(x){ return x.id === id; });
   if(!b) return;
   Object.assign(b, changes);

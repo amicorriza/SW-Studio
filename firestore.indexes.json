@@ -7,6 +7,10 @@
     { "collectionGroup": "bookings", "queryScope": "COLLECTION", "fields": [
       { "fieldPath": "date", "order": "ASCENDING" },
       { "fieldPath": "barberId", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "scheduleBlocks", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "date", "order": "ASCENDING" },
+      { "fieldPath": "barberId", "order": "ASCENDING" }
     ]}
   ],
   "fieldOverrides": []

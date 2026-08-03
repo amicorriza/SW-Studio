@@ -91,13 +91,15 @@ exports.getAvailability = onCall(
     if (!date) throw new HttpsError('invalid-argument', 'date es requerido');
     const barberId = ((request.data && request.data.barberId) || '').trim();
 
-    // `date` (el que ya usa la query de bookings, sin tocar) puede traer
-    // hora además del día -- ver el comentario largo en
-    // docs/superpowers/specs/2026-07-31-bloqueo-horarios-design.md sobre la
-    // inconsistencia preexistente de ese campo entre reservas públicas y de
-    // admin. `scheduleBlocks` es una colección nueva propia de este plan:
-    // se guarda y consulta siempre por el día puro 'YYYY-MM-DD', sin ese
-    // problema. `dow` se deriva con getUTCDay() (no getDay()) a propósito:
+    // `date` puede venir con formatos ligeramente distintos según si la
+    // reserva se creó desde el widget público o desde el admin (uno usa
+    // toISOString(), el otro concatena fecha+hora a mano) -- pero ambos
+    // formatos siempre dejan el día calendario correcto en los primeros 10
+    // caracteres, así que `date.substring(0,10)` es seguro sin importar
+    // cuál de los dos lo generó. `scheduleBlocks` es una colección nueva
+    // propia de este plan: se guarda y consulta siempre por el día puro
+    // 'YYYY-MM-DD', sin ese problema. `dow` se deriva con getUTCDay() (no
+    // getDay()) a propósito:
     // Date-only ISO parsea como medianoche UTC, y getUTCDay() lee el día de
     // semana en términos UTC sin importar en qué zona horaria corra el
     // proceso -- getDay() sí dependería de eso (verificado: da un día

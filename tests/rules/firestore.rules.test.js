@@ -71,3 +71,19 @@ test('staff autenticado SÍ puede leer y escribir patients', async () => {
   await assertSucceeds(setDoc(doc(db, 'patients/p1'), { name:'Juan', email:'juan@mail.com', club:'guest', visits:[], photos:[] }));
   await assertSucceeds(getDoc(doc(db, 'patients/p1')));
 });
+
+test('anónimo NO puede leer scheduleBlocks', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertFails(getDoc(doc(db, 'scheduleBlocks/sb1')));
+});
+
+test('anónimo NO puede crear scheduleBlocks', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertFails(setDoc(doc(db, 'scheduleBlocks/sb1'), { barberId: 'victoria', date: '2026-08-05', start: '13:00', end: '14:00', reason: 'Colación' }));
+});
+
+test('admin (custom claim) SÍ puede leer y escribir scheduleBlocks', async () => {
+  const db = env.authenticatedContext('admin1', { admin: true }).firestore();
+  await assertSucceeds(setDoc(doc(db, 'scheduleBlocks/sb1'), { barberId: 'victoria', date: '2026-08-05', start: '13:00', end: '14:00', reason: 'Colación' }));
+  await assertSucceeds(getDoc(doc(db, 'scheduleBlocks/sb1')));
+});

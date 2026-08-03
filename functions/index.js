@@ -91,17 +91,35 @@ exports.getAvailability = onCall(
     if (!date) throw new HttpsError('invalid-argument', 'date es requerido');
     const barberId = ((request.data && request.data.barberId) || '').trim();
 
+    // `date` (el que ya usa la query de bookings, sin tocar) puede traer
+    // hora además del día -- ver el comentario largo en
+    // docs/superpowers/specs/2026-07-31-bloqueo-horarios-design.md sobre la
+    // inconsistencia preexistente de ese campo entre reservas públicas y de
+    // admin. `scheduleBlocks` es una colección nueva propia de este plan:
+    // se guarda y consulta siempre por el día puro 'YYYY-MM-DD', sin ese
+    // problema. `dow` se deriva igual, parseando solo esos primeros 10
+    // caracteres (Date-only ISO parsea como medianoche UTC de ese día --
+    // getDay() da el día de semana correcto sin depender de zona horaria).
+    const dayStr = date.substring(0, 10);
+    const dow = new Date(dayStr).getDay();
+
     const db = admin.firestore();
     let bookingsQuery = db.collection('bookings').where('date', '==', date);
     if (barberId && barberId !== 'any') {
       bookingsQuery = bookingsQuery.where('barberId', '==', barberId);
     }
-    const [bookingsSnap, staffSnap] = await Promise.all([
+    let blocksQuery = db.collection('scheduleBlocks').where('date', '==', dayStr);
+    if (barberId && barberId !== 'any') {
+      blocksQuery = blocksQuery.where('barberId', '==', barberId);
+    }
+    const [bookingsSnap, staffSnap, blocksSnap] = await Promise.all([
       bookingsQuery.get(),
       db.collection('staff').where('status', '==', 'active').get(),
+      blocksQuery.get(),
     ]);
     const bookings = bookingsSnap.docs.map(d => d.data());
     const staff = staffSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    return computeAvailability({ bookings, staff, barberId });
+    const scheduleBlocks = blocksSnap.docs.map(d => d.data());
+    return computeAvailability({ bookings, staff, barberId, dow, scheduleBlocks });
   }
 );

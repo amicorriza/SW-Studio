@@ -6,6 +6,8 @@ const SITE_URL = 'https://scissorwhite.cl';
 const ASSETS_URL = SITE_URL + '/assets/email'; // logo.png / salon.png (Gmail bloquea data-URIs)
 const TZ = 'America/Santiago';
 const ADDRESS_LINE = 'Cochrane 635, Of. 303, Torre B, Concepción';
+// Copia fija del aviso interno de nueva reserva, además de SHOP_EMAIL.
+const SHOP_EMAIL_CC = ['amellado@micorriza.bio', 'scissorswhite111@gmail.com'];
 
 function esc(s) {
   return String(s == null ? '' : s)
@@ -13,10 +15,6 @@ function esc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-function fmtDate(iso) {
-  try { return new Date(iso).toLocaleDateString('es-CL', { weekday:'long', day:'numeric', month:'long', timeZone: TZ }); }
-  catch { return iso; }
-}
 // Piezas de fecha para el bloque calendario del template (VIERNES / 07 / JULIO 2025).
 function dateParts(iso) {
   try {
@@ -189,15 +187,100 @@ function renderClientEmail(b) {
   return { subject, html };
 }
 
+// Template del aviso interno de nueva reserva — mismo sistema visual que
+// renderClientEmail (hero oscuro + tarjeta de detalle + footer) para que
+// ambos correos se sientan de la misma familia de marca. Sin CTA ni banda de
+// marketing: es una alerta operativa, no el momento "delight" del cliente.
 function renderShopEmail(b) {
   const subject = `Nueva reserva — ${b.svcName} (${b.code})`;
-  const html = `
-    <div style="font-family:Inter,Arial,sans-serif">
-      <h3>Nueva reserva</h3>
-      <p><strong>${esc(b.name)}</strong> — ${esc(b.phone)} · ${esc(b.email)}</p>
-      <p>${esc(b.svcName)} con ${esc(b.barberName)}<br>${esc(fmtDate(b.date))} · ${esc(b.time)} hrs · ${esc(fmtCLP(b.price))}</p>
-      <p>Código: ${esc(b.code)}</p>
-    </div>`;
+  const d = dateParts(b.date);
+  const rows = [
+    detailRow('CLIENTE', esc(b.name)),
+    detailRow('TELÉFONO', `<a href="tel:${esc(b.phone)}" style="color:#161616;text-decoration:none;">${esc(b.phone)}</a>`),
+    detailRow('EMAIL', `<a href="mailto:${esc(b.email)}" style="color:#161616;text-decoration:none;">${esc(b.email)}</a>`),
+    detailRow('PROFESIONAL', esc(b.barberName)),
+    detailRow('SERVICIO', esc(b.svcName)),
+    b.dur ? detailRow('DURACIÓN', esc(b.dur) + ' minutos') : '',
+    detailRow('VALOR', esc(fmtCLP(b.price))),
+    detailRow('CÓDIGO', esc(b.code), true),
+  ].join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,500&family=Jost:wght@200;300;400;500;600&display=swap');
+  body { margin:0; padding:0; background:#cfccc7; -webkit-font-smoothing:antialiased; }
+  table { border-collapse:collapse; }
+  img { border:0; outline:none; text-decoration:none; }
+  a { color:inherit; text-decoration:none; }
+  @media only screen and (max-width:640px) {
+    .sw-wrap { width:100% !important; }
+    .sw-col { display:block !important; width:100% !important; }
+    .sw-title { font-size:26px !important; letter-spacing:7px !important; }
+    .sw-card { padding:26px 18px 22px !important; }
+    .sw-datecell { padding:0 0 22px 0 !important; }
+    .sw-datebox { width:100% !important; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#cfccc7;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#cfccc7;">
+<tr><td align="center" style="padding:32px 10px;">
+
+<table role="presentation" class="sw-wrap" width="640" cellpadding="0" cellspacing="0" style="width:640px;max-width:640px;background:#0e0e0e;border-radius:2px;overflow:hidden;">
+
+  <!-- HERO -->
+  <tr><td style="background:#0e0e0e;padding:38px 32px 40px;">
+    <img src="${ASSETS_URL}/logo.png" alt="SW Studio" width="64" height="64" style="display:block;border-radius:50%;margin-bottom:28px;">
+    <h1 class="sw-title" style="margin:0;font-family:${FONT_SANS};font-weight:300;font-size:33px;letter-spacing:10px;color:#ffffff;line-height:1.4;">NUEVA<br>RESERVA</h1>
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="width:44px;height:1px;background:rgba(255,255,255,.45);font-size:0;line-height:0;padding:0;margin:0;" height="1"></td></tr></table>
+    <p style="margin:20px 0 0;font-family:${FONT_SERIF};font-style:italic;font-weight:500;font-size:20px;color:#f2f2f2;line-height:1.3;">Se agendó una nueva hora desde el sitio.</p>
+  </td></tr>
+
+  <!-- DETAIL CARD -->
+  <tr><td class="sw-card" style="background:#f3f2f0;padding:34px 30px 30px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <!-- Bloque fecha -->
+        <td class="sw-col sw-datecell" width="150" valign="top" style="padding:0 22px 0 0;">
+          <table role="presentation" width="150" class="sw-datebox" cellpadding="0" cellspacing="0" style="background:#161616;border-radius:14px;">
+            <tr><td align="center" style="padding:26px 14px;">
+              <div style="font-family:${FONT_SANS};font-weight:400;font-size:12px;letter-spacing:4px;color:#e9e9e9;">${esc(d.weekday)}</div>
+              <div style="font-family:${FONT_SANS};font-weight:200;font-size:72px;letter-spacing:2px;line-height:1;color:#ffffff;margin:8px 0 6px;">${esc(d.day)}</div>
+              <div style="font-family:${FONT_SANS};font-weight:400;font-size:12px;letter-spacing:3px;color:#e9e9e9;">${esc(d.monthYear)}</div>
+              <table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:16px auto;"><tr><td style="width:26px;height:1px;background:rgba(255,255,255,.4);font-size:0;line-height:0;" height="1"></td></tr></table>
+              <div style="font-family:${FONT_SANS};font-weight:500;font-size:15px;letter-spacing:.5px;color:#ffffff;white-space:nowrap;">${esc(b.time)} HRS</div>
+            </td></tr>
+          </table>
+        </td>
+        <!-- Campos -->
+        <td class="sw-col" valign="middle">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}
+          </table>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+
+  <!-- FOOTER -->
+  <tr><td style="background:#f3f2f0;padding:20px 30px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td width="44" valign="middle"><img src="${ASSETS_URL}/logo.png" alt="SW Studio" width="44" height="44" style="display:block;border-radius:50%;"></td>
+        <td valign="middle" style="padding:0 0 0 18px;font-family:${FONT_SERIF};font-weight:400;font-size:16px;color:#4a4a4a;">Más que cortes, creamos identidad</td>
+      </tr>
+    </table>
+  </td></tr>
+
+</table>
+
+</td></tr>
+</table>
+</body>
+</html>`;
   return { subject, html };
 }
 
@@ -216,7 +299,7 @@ async function sendBookingEmails(b, { apiKey, fromEmail, shopEmail }) {
   const shop = renderShopEmail(b);
   const results = await Promise.all([
     resend.emails.send({ from: fromEmail, to: b.email, subject: client.subject, html: client.html }),
-    resend.emails.send({ from: fromEmail, to: parseRecipients(shopEmail), subject: shop.subject, html: shop.html }),
+    resend.emails.send({ from: fromEmail, to: parseRecipients(shopEmail), cc: SHOP_EMAIL_CC, subject: shop.subject, html: shop.html }),
   ]);
   assertResendOk(results);
 }

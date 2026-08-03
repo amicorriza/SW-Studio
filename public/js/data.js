@@ -2,7 +2,7 @@
 import { db, storage, functions } from './firebase-init.js';
 import {
   collection, getDocs, doc, setDoc, addDoc, deleteDoc,
-  writeBatch, serverTimestamp,
+  writeBatch, serverTimestamp, onSnapshot,
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import {
   ref, uploadBytes, getDownloadURL, deleteObject,
@@ -65,11 +65,34 @@ async function getBookings() {
 
 async function saveBookings(arr) {
   const batch = writeBatch(db);
+  const snap = await getDocs(collection(db, 'bookings'));
+  const keep = new Set((arr || []).map(b => b.id || b.code));
+  snap.docs.forEach(d => { if (!keep.has(d.id)) batch.delete(d.ref); });
   (arr || []).forEach(b => {
     const id = b.id || b.code;
     batch.set(doc(db, 'bookings', id), b, { merge: true });
   });
   await batch.commit();
+}
+
+// Suscripción en tiempo real a `bookings` para el panel admin (permitido por
+// firestore.rules: bookings es admin-read). `ready` resuelve tras el primer
+// snapshot para no dejar un flash de "0 reservas" en el dashboard tras login.
+function subscribeBookings(onChange) {
+  let first = true, resolveReady;
+  const ready = new Promise(res => { resolveReady = res; });
+  const unsubscribe = onSnapshot(
+    collection(db, 'bookings'),
+    snap => {
+      onChange(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      if (first) { first = false; resolveReady(); }
+    },
+    err => {
+      console.error('subscribeBookings: fallo la suscripción en tiempo real', err);
+      if (first) { first = false; resolveReady(); }
+    }
+  );
+  return { unsubscribe, ready };
 }
 
 // Crear UNA reserva (camino público). Dispara la Cloud Function de email.
@@ -180,15 +203,30 @@ async function getAvailability(date, barberId) {
   return data; // { barberBusy, activeBarberIds }
 }
 
+// Disponibilidad real en tiempo real, vía la vista materializada
+// `availability/{YYYY-MM-DD}` que mantiene la Cloud Function
+// onBookingWritten (nunca contiene PII, solo rangos ocupados derivados —
+// ver functions/availability.js). `dateKey` no exista todavía = sin
+// reservas ese día = plena disponibilidad, se resuelve igual que
+// `barberBusy` vacío.
+function subscribeAvailability(dateKey, onChange, onError) {
+  return onSnapshot(doc(db, 'availability', dateKey), snap => {
+    onChange(snap.exists() ? (snap.data().barberBusy || {}) : {});
+  }, err => {
+    console.error('subscribeAvailability: fallo la suscripción', err);
+    if (onError) onError(err);
+  });
+}
+
 window.SWData = {
-  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, createBooking,
+  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, subscribeBookings, createBooking,
   getPatients, savePatients, deletePatient,
-  uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability,
+  uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability, subscribeAvailability,
   loadSiteImages, saveSiteImage, deleteSiteImage,
 };
 export {
-  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, createBooking,
+  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, subscribeBookings, createBooking,
   getPatients, savePatients, deletePatient,
-  uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability,
+  uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability, subscribeAvailability,
   loadSiteImages, saveSiteImage, deleteSiteImage,
 };

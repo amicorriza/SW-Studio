@@ -42,7 +42,8 @@
 //   FIRESTORE_EMULATOR_HOST=localhost:8080 node scripts/reconcileCatalog.js --project scissor-white
 'use strict';
 
-const admin = require('firebase-admin');
+const { initializeApp, applicationDefault } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
 const readline = require('readline');
 
 const DEFAULT_PROJECT = 'scissor-white';
@@ -208,11 +209,11 @@ async function confirmApply(totalChanges, projectId) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
+  const app = initializeApp({
+    credential: applicationDefault(),
     projectId: args.project,
   });
-  const db = admin.firestore();
+  const db = getFirestore(app);
 
   const { services: rawActive, retiredServices: rawRetired, staff: rawStaff } = require('../../seed/data.js');
   // El estado esperado incluye los servicios retirados/renombrados (inactive)

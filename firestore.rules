@@ -24,6 +24,11 @@ service cloud.firestore {
     // visitantes, no solo el staff logueado. Mismo patrón que services/staff.
     match /siteImages/{slot} { allow read: if true; allow write: if isAdmin(); }
 
+    // Vista materializada de disponibilidad (sin PII), mantenida por la Cloud
+    // Function onBookingWritten (Admin SDK, no sujeta a estas reglas).
+    // Lectura pública para el widget de reservas; nunca escritura de cliente.
+    match /availability/{date} { allow read: if true; allow write: if false; }
+
     // Reservas: el público puede CREAR (validado), solo admin lee/edita/borra
     match /bookings/{id} {
       allow read, update, delete: if isAdmin();

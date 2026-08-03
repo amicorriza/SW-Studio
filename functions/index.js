@@ -1,15 +1,16 @@
 // functions/index.js — envía emails al crear una reserva.
 'use strict';
-const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
-const admin = require('firebase-admin');
+const { initializeApp } = require('firebase-admin/app');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { sendBookingEmails } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
-const { computeAvailability } = require('./availability.js');
+const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./availability.js');
 
-admin.initializeApp();
+const app = initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const FROM_EMAIL = defineSecret('FROM_EMAIL');
 const SHOP_EMAIL = defineSecret('SHOP_EMAIL');
@@ -34,7 +35,7 @@ exports.onBookingCreated = onDocumentCreated(
       // sync de patients de más abajo — fue lo que pasó en el incidente del 5-7 jul.
       try {
         await snap.ref.update({ emailStatus: 'failed' });
-        await admin.firestore().collection('adminLog').add({
+        await getFirestore(app).collection('adminLog').add({
           action: 'email_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
         });
       } catch (err2) {
@@ -43,7 +44,7 @@ exports.onBookingCreated = onDocumentCreated(
       // No relanzar: la reserva ya está guardada.
     }
     try {
-      const db = admin.firestore();
+      const db = getFirestore(app);
       const existingSnap = await db.collection('patients').where('email', '==', b.email).limit(1).get();
       const existingDoc = existingSnap.empty ? null : existingSnap.docs[0];
       const patient = buildPatientUpsert(existingDoc ? existingDoc.data() : null, b);
@@ -64,7 +65,7 @@ exports.getClubStatus = onCall(
   async (request) => {
     const email = (request.data && request.data.email || '').trim();
     if (!email) throw new HttpsError('invalid-argument', 'email es requerido');
-    const db = admin.firestore();
+    const db = getFirestore(app);
     const snap = await db.collection('bookings').where('email', '==', email).where('club', '==', 'member').get();
     const bookings = snap.docs.map(d => d.data());
     return countClubVisits(bookings, email);
@@ -91,7 +92,7 @@ exports.getAvailability = onCall(
     if (!date) throw new HttpsError('invalid-argument', 'date es requerido');
     const barberId = ((request.data && request.data.barberId) || '').trim();
 
-    const db = admin.firestore();
+    const db = getFirestore(app);
     let bookingsQuery = db.collection('bookings').where('date', '==', date);
     if (barberId && barberId !== 'any') {
       bookingsQuery = bookingsQuery.where('barberId', '==', barberId);
@@ -103,5 +104,42 @@ exports.getAvailability = onCall(
     const bookings = bookingsSnap.docs.map(d => d.data());
     const staff = staffSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     return computeAvailability({ bookings, staff, barberId });
+  }
+);
+
+// Recalcula la vista materializada `availability/{dateKey}` (sin PII, solo
+// rangos ocupados por barbero) para un día calendario, a partir de una
+// lectura fresca de `bookings` -- mismo espíritu de "recompute completo
+// desde el estado actual" que ya usan saveAdmin/saveBookings (public/js/data.js),
+// así que ejecuciones del trigger fuera de orden se autocorrigen: la última
+// en terminar simplemente sobreescribe con el estado correcto vigente.
+async function recomputeAvailabilityForDate(db, dateKey) {
+  const { start, end } = dayBoundsOf(dateKey);
+  const snap = await db.collection('bookings')
+    .where('date', '>=', start).where('date', '<', end).get();
+  const bookings = snap.docs.map(d => d.data());
+  const { barberBusy } = computeAvailability({ bookings, staff: [], barberId: 'any' });
+  const ref = db.collection('availability').doc(dateKey);
+  if (Object.keys(barberBusy).length === 0) await ref.delete();
+  else await ref.set({ barberBusy, updatedAt: FieldValue.serverTimestamp() });
+}
+
+// Mantiene `availability/{dateKey}` en tiempo real para el widget público
+// (que no puede leer `bookings` directo -- ver firestore.rules) ante
+// cualquier creación/edición/borrado de una reserva. Trigger independiente
+// de onBookingCreated -- mismo documento, otra responsabilidad.
+exports.onBookingWritten = onDocumentWritten(
+  { document: 'bookings/{id}', region: 'southamerica-east1' },
+  async (event) => {
+    const before = event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data.after.exists ? event.data.after.data() : null;
+    // Un update que cambia de día requiere recalcular AMBAS fechas -- la
+    // vieja (para liberar el horario que dejó de estar ocupado) y la nueva.
+    const dates = new Set();
+    if (before && before.date) dates.add(dateKeyOf(before.date));
+    if (after && after.date) dates.add(dateKeyOf(after.date));
+    if (!dates.size) return;
+    const db = getFirestore(app);
+    await Promise.all([...dates].map(dk => recomputeAvailabilityForDate(db, dk)));
   }
 );

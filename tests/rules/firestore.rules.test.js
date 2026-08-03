@@ -71,3 +71,18 @@ test('staff autenticado SÍ puede leer y escribir patients', async () => {
   await assertSucceeds(setDoc(doc(db, 'patients/p1'), { name:'Juan', email:'juan@mail.com', club:'guest', visits:[], photos:[] }));
   await assertSucceeds(getDoc(doc(db, 'patients/p1')));
 });
+
+test('cualquiera puede leer availability (vista de disponibilidad sin PII)', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertSucceeds(getDoc(doc(db, 'availability/2026-07-10')));
+});
+
+test('anónimo NO puede escribir availability', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertFails(setDoc(doc(db, 'availability/2026-07-10'), { barberBusy: {} }));
+});
+
+test('staff autenticado tampoco puede escribir availability (solo la Cloud Function via Admin SDK)', async () => {
+  const db = env.authenticatedContext('staff1').firestore();
+  await assertFails(setDoc(doc(db, 'availability/2026-07-10'), { barberBusy: {} }));
+});

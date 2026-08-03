@@ -47,7 +47,32 @@ test('email a la barbería incluye teléfono y email del cliente', () => {
   const { subject, html } = renderShopEmail(booking);
   assert.match(subject, /Nueva reserva/i);
   assert.match(html, /\+56912345678/);
-  assert.match(html, /juan@mail.com/);
+  assert.match(html, /mailto:juan@mail\.com/);
+});
+
+test('email a la barbería usa el mismo sistema visual que el del cliente (hero + tarjeta de fecha)', () => {
+  const { html } = renderShopEmail(booking);
+  assert.match(html, /NUEVA<br>RESERVA/);
+  assert.match(html, /MIÉRCOLES/);          // bloque calendario: día de semana
+  assert.match(html, />10</);               // día del mes
+  assert.match(html, /JUNIO 2026/);         // mes y año
+  assert.match(html, /11:00 HRS/);
+  assert.match(html, /45 minutos/);
+  assert.match(html, /\$21\.000/);
+  assert.match(html, /Felipe/);
+  assert.match(html, /Corte \+ Lavado Premium/);
+  assert.doesNotMatch(html, /VER MI RESERVA/);   // sin CTA orientada al cliente
+});
+
+test('email a la barbería omite la fila DURACIÓN si la reserva no trae dur', () => {
+  const { html } = renderShopEmail({ ...booking, dur: undefined });
+  assert.doesNotMatch(html, /DURACIÓN/);
+});
+
+test('los datos del cliente en el correo de la barbería se escapan para evitar inyección de HTML', () => {
+  const { html } = renderShopEmail({ ...booking, name: 'Juan <script>alert(1)</script>' });
+  assert.doesNotMatch(html, /<script>alert/);
+  assert.match(html, /Juan &lt;script&gt;/);
 });
 
 test('parseRecipients separa una lista de emails por coma y recorta espacios', () => {

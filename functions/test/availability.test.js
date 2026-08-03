@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { toMinutes, addMinutesToTime, computeAvailability } = require('../availability.js');
+const { toMinutes, addMinutesToTime, computeAvailability, dateKeyOf, dayBoundsOf } = require('../availability.js');
 
 test('toMinutes convierte HH:MM a minutos desde medianoche', () => {
   assert.strictEqual(toMinutes('09:00'), 540);
@@ -106,4 +106,36 @@ test('computeAvailability con dur ausente/cero produce un rango de duración cer
   const staff = [{ id: 'felipe', status: 'active' }];
   const result = computeAvailability({ bookings, staff, barberId: 'felipe' });
   assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:00' }]);
+});
+
+test('dateKeyOf normaliza ambos formatos de `date` de una reserva al mismo día calendario', () => {
+  // Widget público: medianoche local serializada a UTC.
+  assert.strictEqual(dateKeyOf('2026-07-10T04:00:00.000Z'), '2026-07-10');
+  // Admin: hora real de la cita.
+  assert.strictEqual(dateKeyOf('2026-07-10T14:30:00.000Z'), '2026-07-10');
+});
+
+test('dateKeyOf tolera valores vacíos/ausentes sin crashear', () => {
+  assert.strictEqual(dateKeyOf(''), '');
+  assert.strictEqual(dateKeyOf(undefined), '');
+  assert.strictEqual(dateKeyOf(null), '');
+});
+
+test('dayBoundsOf devuelve [start,end) que cubre exactamente un día calendario UTC', () => {
+  const { start, end } = dayBoundsOf('2026-07-10');
+  assert.strictEqual(start, '2026-07-10T00:00:00.000Z');
+  assert.strictEqual(end, '2026-07-11T00:00:00.000Z');
+  // Ambos formatos de `date` deben caer dentro de [start, end) por comparación
+  // lexicográfica de strings ISO.
+  assert.ok('2026-07-10T04:00:00.000Z' >= start && '2026-07-10T04:00:00.000Z' < end);
+  assert.ok('2026-07-10T14:30:00.000Z' >= start && '2026-07-10T14:30:00.000Z' < end);
+});
+
+test('dayBoundsOf hace rollover correcto de fin de mes y fin de año', () => {
+  assert.deepStrictEqual(dayBoundsOf('2026-01-31'), {
+    start: '2026-01-31T00:00:00.000Z', end: '2026-02-01T00:00:00.000Z',
+  });
+  assert.deepStrictEqual(dayBoundsOf('2026-12-31'), {
+    start: '2026-12-31T00:00:00.000Z', end: '2027-01-01T00:00:00.000Z',
+  });
 });

@@ -29,6 +29,25 @@ function addMinutesToTime(hhmm, durMin) {
   return toHHMM(toMinutes(hhmm) + (durMin || 0));
 }
 
+// YYYY-MM-DD a partir de cualquier `date` de reserva -- normaliza el mismo
+// desajuste de formato que ya tolera checkConflict (public/index.html): las
+// reservas del admin guardan la hora real de la cita en `date`
+// ('...T14:30:00.000Z'), las públicas guardan medianoche
+// ('...T00:00:00.000Z') -- ambas comparten el mismo prefijo de 10 caracteres.
+function dateKeyOf(dateStr) {
+  return String(dateStr || '').slice(0, 10);
+}
+
+// Límites [start, end) en formato ISO para una query de rango sobre `date`
+// que capture TODAS las reservas de un día calendario sin depender de la
+// hora-del-día exacta que traiga cada doc (ver dateKeyOf) -- comparación
+// lexicográfica de strings ISO preserva el orden cronológico.
+function dayBoundsOf(dateKey) {
+  const start = dateKey + 'T00:00:00.000Z';
+  const next = new Date(start); next.setUTCDate(next.getUTCDate() + 1);
+  return { start, end: next.toISOString() };
+}
+
 // Agrupa las reservas de un día por barbero, devolviendo solo {start, end}
 // derivados de `time`+`dur` — NUNCA name/email/phone/otro dato personal.
 //
@@ -66,4 +85,4 @@ function computeAvailability({ bookings, staff, barberId }) {
   return { barberBusy, activeBarberIds };
 }
 
-module.exports = { toMinutes, toHHMM, addMinutesToTime, computeAvailability };
+module.exports = { toMinutes, toHHMM, addMinutesToTime, computeAvailability, dateKeyOf, dayBoundsOf };

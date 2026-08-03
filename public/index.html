@@ -7,6 +7,11 @@
   <meta name="description" content="Barbería premium en Concepción. Asesoría con visagismo, corte de cabello, corte con tijeras (mullet, shaggy, mod cut), corte + barba, lavado premium Reuzel y undercut mujer. Cochrane 635, Torre B. Agenda online 24/7.">
   <meta name="keywords" content="barbería Concepción, barberia Concepcion, visagismo Concepción, asesoría de imagen Concepción, corte de cabello hombre Concepción, corte con tijeras Concepción, mullet Concepción, shaggy Concepción, mod cut, warrior cut, undercut mujer Concepción, corte y barba Concepción, toallas calientes barba, lavado premium Reuzel, corte niños Concepción, barbería premium Chile, Scissor White, SW Studio, scissor white concepcion, Slick Gorilla Chile, barbería Cochrane">
   <meta name="robots" content="index, follow">
+  <!-- favicon.gif: pulso/resplandor sutil en Chrome/Edge/Firefox; Safari muestra el primer frame fijo -->
+  <link rel="icon" href="/assets/favicon.gif" type="image/gif">
+  <link rel="icon" href="/assets/favicon-32x32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="/assets/favicon-16x16.png" type="image/png" sizes="16x16">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
   <meta property="og:title" content="Scissor White — SW Studio | Barbería Premium Concepción">
   <meta property="og:description" content="Más que cortes, creamos identidad. Asesoría con visagismo, cortes con tijera, corte + barba y undercut mujer. Cochrane 635, Of. 303 Torre B, Concepción.">
   <meta property="og:type" content="website">
@@ -866,6 +871,8 @@
       padding-top:26px;border-top:1px solid rgba(255,255,255,.06)
     }
     .ft-copy{font-size:12.5px;font-weight:400;line-height:1.6;color:rgba(255,255,255,.42);letter-spacing:.02em}
+    .ft-copy a{color:rgba(255,255,255,.65);text-decoration:underline;text-underline-offset:2px;transition:color .2s}
+    .ft-copy a:hover{color:#fff}
     .ft-bar{flex:1;height:1px;background:var(--steel-shine);margin:0 28px}
 
 
@@ -1748,7 +1755,7 @@ body.sw-intro-lock{overflow:hidden;height:100vh}
   <div class="ft-bot">
     <span class="ft-copy">© 2026 Scissor White — SW Studio. Todos los derechos reservados. <span id="admin-trigger" title="Admin" style="cursor:pointer;opacity:.22;user-select:none;transition:opacity .3s,color .3s;font-size:12px;margin-left:5px;letter-spacing:0;color:var(--steel-light,#C8D0DA)" onmouseenter="this.style.opacity='.65'" onmouseleave="this.style.opacity='.22'" onclick="openAdmin()">⬡</span></span>
     <div class="ft-bar"></div>
-    <span class="ft-copy">Concepción, Chile</span>
+    <span class="ft-copy">Concepción, Chile · Developed by <a href="https://micorriza.bio" target="_blank" rel="noopener">micorriza.bio</a></span>
   </div>
 </footer>
 
@@ -2415,9 +2422,9 @@ body.sw-intro-lock{overflow:hidden;height:100vh}
 }
 .bk-slot:hover{border-color:var(--bk-ink);background:var(--bk-g100)}
 .bk-slot.bk-selslot{background:var(--bk-ink);color:#fff;border-color:var(--bk-ink)}
-/* Ocupado según disponibilidad real (getAvailability) -- mismo patrón que
-   .bk-day.bk-past/.bk-closed, más un fondo distinto porque acá el botón es
-   chico dentro de una grilla más densa que el calendario. */
+/* Ocupado según disponibilidad real (subscribeAvailability) -- mismo patrón
+   que .bk-day.bk-past/.bk-closed, más un fondo distinto porque acá el botón
+   es chico dentro de una grilla más densa que el calendario. */
 .bk-slot.bk-taken{
   background:var(--bk-g100);color:var(--bk-g300);
   cursor:not-allowed;pointer-events:none;text-decoration:line-through
@@ -2708,17 +2715,21 @@ let calCursor = new Date(); calCursor.setDate(1);
 const TODAY = new Date(); TODAY.setHours(0,0,0,0);
 const MAX_DATE = new Date(TODAY); MAX_DATE.setMonth(MAX_DATE.getMonth()+2);
 
-// Disponibilidad real (Cloud Function getAvailability). AVAIL es la última
-// respuesta buena cacheada en memoria (o el resultado "todo disponible" del
-// fail-open): {barberBusy:{<barberId>:[{start,end}]}, activeBarberIds:[...]}.
-// AVAIL_LOADING indica que hay una consulta en curso, para el estado de
-// carga breve de renderSlots(). availReqToken descarta respuestas fuera de
-// orden: si el usuario cambia de fecha/barbero rápido, solo la consulta más
-// reciente puede escribir en AVAIL (mismo espíritu simple que el resto del
-// archivo: un contador incremental en closure, sin AbortController).
-let AVAIL = {barberBusy:{}, activeBarberIds:[]};
+// Disponibilidad real en tiempo real, vía subscribeAvailability (onSnapshot
+// sobre la vista materializada `availability/{fecha}` -- ver
+// functions/index.js:onBookingWritten). AVAIL es el último snapshot recibido
+// (o el resultado "todo disponible" del fail-open):
+// {barberBusy:{<barberId>:[{start,end}]}}. Los barberos activos ya NO viven
+// acá -- se derivan de BARBERS (ver activeBarberIds()), que el widget ya
+// mantiene en vivo vía refreshCatalog(). AVAIL_LOADING indica que la
+// suscripción inicial todavía no entrega su primer snapshot, para el estado
+// de carga breve de renderSlots(). availUnsub guarda el "unsubscribe" de la
+// suscripción vigente (se reemplaza cada vez que cambia fecha/barbero, y se
+// cierra al cerrar el widget -- ver loadAvailability/closeBK).
+let AVAIL = {barberBusy:{}};
 let AVAIL_LOADING = false;
-let availReqToken = 0;
+let availUnsub = null;
+function activeBarberIds(){ return BARBERS.filter(b=>!b.any).map(b=>b.id); }
 
 // ══ OPEN / CLOSE ══
 function openBK(){
@@ -2738,6 +2749,7 @@ function openBK(){
 function closeBK(){
   document.getElementById('booking-overlay').style.display='none';
   document.body.style.overflow='';
+  if(availUnsub){ availUnsub(); availUnsub=null; }
 }
 window.closeBK = closeBK;
 window.openBK = openBK;
@@ -2909,7 +2921,7 @@ function renderBarbers(){
       updateSummary();
       // El calendario también depende del barbero elegido (horario propio
       // vía hoursRangeFor), así que se repinta siempre; los horarios (y su
-      // fetch a getAvailability) solo si ya hay una fecha elegida.
+      // suscripción a disponibilidad real) solo si ya hay una fecha elegida.
       renderCal();
       if(S.date) loadAvailability();
     });
@@ -2982,8 +2994,8 @@ document.getElementById('bk-cnext').addEventListener('click',()=>{
 
 // ══ SLOTS — disponibilidad real ══
 // ¿Está libre `barberId` en [candStart,candEnd) (minutos desde medianoche),
-// según los rangos ocupados en bruto que devolvió getAvailability? Mismo
-// criterio de solape que checkConflict/parseDt en el panel admin:
+// según los rangos ocupados en bruto que llegaron por subscribeAvailability?
+// Mismo criterio de solape que checkConflict/parseDt en el panel admin:
 // candStart < end && candEnd > start. AVAIL.barberBusy[id] puede venir
 // ausente (sin reservas ese día) -- se lee con `|| []`.
 function isBarberFreeAt(barberId, candStart, candEnd){
@@ -2992,14 +3004,12 @@ function isBarberFreeAt(barberId, candStart, candEnd){
 }
 
 // ¿Está disponible un slot candidato [candStart,candEnd) para la selección
-// actual (S.barber)? Un barberId ausente de AVAIL.activeBarberIds es
-// inactivo/inexistente: no disponible (la Cloud Function no lo valida, es
-// responsabilidad del cliente -- ver functions/availability.js). Para
-// 'any'/sin barbero elegido: disponible si existe AL MENOS UN barbero activo
-// libre en ese horario; si no hay ningún barbero activo, no hay nada que
-// ofrecer.
+// actual (S.barber)? Un barberId ausente de activeBarberIds() es
+// inactivo/inexistente: no disponible. Para 'any'/sin barbero elegido:
+// disponible si existe AL MENOS UN barbero activo libre en ese horario; si no
+// hay ningún barbero activo, no hay nada que ofrecer.
 function isSlotAvailable(candStart, candEnd){
-  const activeIds=AVAIL.activeBarberIds||[];
+  const activeIds=activeBarberIds();
   if(S.barber && !S.barber.any){
     if(activeIds.indexOf(S.barber.id)===-1) return false;
     return isBarberFreeAt(S.barber.id, candStart, candEnd);
@@ -3007,43 +3017,39 @@ function isSlotAvailable(candStart, candEnd){
   return activeIds.some(id=>isBarberFreeAt(id, candStart, candEnd));
 }
 
-// Consulta getAvailability para la fecha/barbero actuales y vuelve a pintar
-// los horarios. Token incremental (availReqToken) para descartar respuestas
-// fuera de orden si el usuario cambia de fecha/barbero rápido -- ver S/CATS/
-// BARBERS más arriba para el mismo estilo de estado a nivel de módulo; no
-// hace falta AbortController, refreshCatalog() tampoco lo usa para su propio
-// fetch async (ver openBK()).
-// FALLA ABIERTO: cualquier error (red, función no desplegada, offline) se
-// trata como "todo disponible" -- nunca debe bloquear ni romper la reserva.
-async function loadAvailability(){
-  if(!S.date) return;
+// Se suscribe en tiempo real a la disponibilidad de la fecha actual
+// (subscribeAvailability -- ver public/js/data.js) y vuelve a pintar los
+// horarios cada vez que cambia, sin necesidad de recargar ni de que el
+// usuario vuelva a interactuar. Cierra siempre la suscripción anterior antes
+// de abrir una nueva (cambio de fecha/barbero, o cierre del widget en
+// closeBK) para no dejar listeners huérfanos.
+// FALLA ABIERTO: cualquier error de la suscripción se trata como "todo
+// disponible" -- nunca debe bloquear ni romper la reserva.
+function loadAvailability(){
+  if(availUnsub){ availUnsub(); availUnsub=null; }
+  if(!S.date){ AVAIL_LOADING=false; renderSlots(); return; }
   const dow=S.date.getDay();
   if(!hoursRangeFor(dow,S.barber)){
-    // Día cerrado para el barbero/horario vigente: no tiene sentido pedir
-    // disponibilidad real; renderSlots ya muestra "Cerrado este día". Se
-    // invalida igual cualquier consulta previa en vuelo (avanza el token)
-    // para que su resolución tardía no pise el estado con datos obsoletos.
-    ++availReqToken;
+    // Día cerrado para el barbero/horario vigente: no tiene sentido
+    // suscribirse a disponibilidad real; renderSlots ya muestra "Cerrado
+    // este día".
     AVAIL_LOADING=false;
     renderSlots();
     return;
   }
-  const myToken=++availReqToken;
   AVAIL_LOADING=true;
   renderSlots();
-  let result;
-  try{
-    result=await window.SWData.getAvailability(S.date.toISOString(), (S.barber&&S.barber.id)||'');
-  }catch(e){
-    console.error('No se pudo obtener disponibilidad real (fail-open: se muestra todo disponible)', e);
-    result={barberBusy:{}, activeBarberIds:BARBERS.filter(b=>!b.any).map(b=>b.id)};
-  }
-  if(myToken!==availReqToken) return; // respuesta obsoleta: ya hay una consulta más nueva en curso/resuelta
-  AVAIL = (result && typeof result==='object')
-    ? {barberBusy:result.barberBusy||{}, activeBarberIds:result.activeBarberIds||[]}
-    : {barberBusy:{}, activeBarberIds:[]};
-  AVAIL_LOADING=false;
-  renderSlots();
+  const dateKey=S.date.toISOString().slice(0,10);
+  availUnsub=window.SWData.subscribeAvailability(dateKey, function(barberBusy){
+    AVAIL={barberBusy:barberBusy||{}};
+    AVAIL_LOADING=false;
+    renderSlots();
+  }, function(e){
+    console.error('No se pudo suscribir a disponibilidad real (fail-open: se muestra todo disponible)', e);
+    AVAIL={barberBusy:{}};
+    AVAIL_LOADING=false;
+    renderSlots();
+  });
 }
 
 function renderSlots(){
@@ -4306,6 +4312,7 @@ var bkFilter = '';
 var rmSelectedBarber = null;
 var D = {services:[], staff:[], schedule:[], log:[], info:{}};
 var BK=[]; var PT=[];
+var bkUnsubscribe = null;
 
 // ═══ DEFAULTS ═══
 var DS=[
@@ -4415,7 +4422,16 @@ async function loadFromCloud(){
     D.staff.forEach(function(s){
       if(!s.schedule){ s.schedule = JSON.parse(JSON.stringify(DT[0].schedule)); }
     });
-    BK = await window.SWData.getBookings();    // cache de reservas (ver Task 5.5)
+    // Reservas en tiempo real: la suscripción es la única fuente de verdad
+    // para BK (ver setBk) -- se resuscribe la de la sesión anterior si la
+    // hubiera (ej. re-login sin recargar la página).
+    if (bkUnsubscribe) bkUnsubscribe();
+    var sub = window.SWData.subscribeBookings(function(arr){
+      BK = arr;
+      renderBookingsViews();
+    });
+    bkUnsubscribe = sub.unsubscribe;
+    await sub.ready;
     PT = await window.SWData.getPatients();    // cache de clientes (ver Task 5.6)
   } catch(e){ console.error('Error cargando datos', e); defaults(); }
 }
@@ -4439,6 +4455,10 @@ g('adm-login-btn').addEventListener('click', login);
 g('adm-pass').addEventListener('keydown', function(e){ if(e.key==='Enter') login(); });
 g('adm-lgout').addEventListener('click', async function(){
   await window.SWAuth.signOut();
+  // Sin esto, la suscripción a `bookings` (admin-read en firestore.rules)
+  // sigue viva con un cliente ya sin sesión y tira permission-denied en
+  // cuanto alguien más escriba una reserva.
+  if (bkUnsubscribe) { bkUnsubscribe(); bkUnsubscribe = null; }
   auth = false;
   g('adm-app').style.display = 'none';
   g('adm-login').style.display = 'flex';
@@ -4472,6 +4492,12 @@ function updateBadges(){
 function renderAll(){
   renderDash(); renderStats(); renderSvcs(); renderStaff();
   renderSchedule(); renderCalendar(); loadInfo(); updateBadges();
+}
+
+// Subconjunto de renderAll() que depende solo de BK -- callback de la
+// suscripción en tiempo real a `bookings` (ver loadFromCloud/subscribeBookings).
+function renderBookingsViews(){
+  renderDash(); renderStats(); renderCalendar(); updateBadges();
 }
 
 // ═══ NAVIGATION ═══
@@ -4517,13 +4543,16 @@ function renderDash(){
 }
 
 // ═══ BOOKINGS HELPERS ═══
-// Lectura: devuelve la cache poblada en loadFromCloud()
+// Lectura: devuelve la cache poblada por la suscripción en tiempo real
+// (ver loadFromCloud/subscribeBookings)
 function getBk(){ return BK; }
 
-// Escritura: actualiza cache y persiste en Firestore
+// Escritura: persiste en Firestore. NO reasigna BK ni llama updateBadges()
+// acá -- la suscripción en tiempo real es la única fuente de verdad para BK,
+// y su callback (renderBookingsViews) ya se encarga de eso cuando Firestore
+// confirma el cambio.
 function setBk(arr){
-  BK = arr || [];
-  window.SWData.saveBookings(BK).catch(function(e){ console.error('Error guardando reservas', e); });
+  window.SWData.saveBookings(arr || []).catch(function(e){ console.error('Error guardando reservas', e); });
 }
 
 function getBookings(){
@@ -4531,7 +4560,6 @@ function getBookings(){
 }
 function saveBookings(arr){
   setBk(arr);
-  updateBadges();
 }
 // Check if a proposed booking conflicts with existing ones (same barber, overlapping time)
 function checkConflict(barberId, dateStr, timeStr, durMin, ignoreId){
@@ -4851,10 +4879,11 @@ g('a-bkm-save').addEventListener('click', function(){
     bookings.push(bkData);
     log('Creó cita', bkData.name + ' · ' + bkData.svcName);
   }
+  // renderCalendar()/renderDash() no se llaman acá: la suscripción en
+  // tiempo real a `bookings` (ver renderBookingsViews) los actualiza sola
+  // en cuanto Firestore confirma el cambio.
   saveBookings(bookings);
   closeModal('a-bkm');
-  renderCalendar();
-  renderDash();
   showAlert('a-bk-alert','ok','Cita guardada correctamente.');
 });
 
@@ -4865,7 +4894,6 @@ g('a-bkm-del').addEventListener('click', function(){
     var bookings = getBookings().filter(function(b){return b.code !== code});
     saveBookings(bookings);
     closeModal('a-bkm');
-    renderCalendar(); renderDash();
     log('Eliminó cita', code);
     showAlert('a-bk-alert','ok','Cita eliminada.');
   });

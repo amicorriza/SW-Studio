@@ -4127,13 +4127,13 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
   border-radius:7px;padding:7px 9px;
   box-shadow:0 1px 4px rgba(120,130,145,.18);
   cursor:pointer;transition:all .18s;
-  overflow:hidden;z-index:2;
+  overflow:hidden;z-index:1;
   font-size:11px;font-weight:600;white-space:nowrap;text-overflow:ellipsis;
   display:flex;align-items:center;gap:5px
 }
 .a-blk-card:hover{
   box-shadow:0 4px 14px rgba(120,130,145,.32);
-  transform:translateY(-1px);z-index:3
+  transform:translateY(-1px);z-index:2
 }
 
 /* Reassign list */
@@ -5210,6 +5210,10 @@ g('a-blkm-save').addEventListener('click', function(){
   if(!da.value){ da.parentElement.classList.add('a-err'); ok=false; }
   if(!st.value){ st.parentElement.classList.add('a-err'); ok=false; }
   if(!en.value){ en.parentElement.classList.add('a-err'); ok=false; }
+  if(st.value && en.value && en.value <= st.value){
+    en.parentElement.classList.add('a-err');
+    ok=false;
+  }
   if(!ok) return;
   var bOpt = bSel.options[bSel.selectedIndex];
   var editId = g('a-blkm-id').value;

@@ -136,10 +136,34 @@ exports.getAvailability = onCall(
 // en terminar simplemente sobreescribe con el estado correcto vigente.
 async function recomputeAvailabilityForDate(db, dateKey) {
   const { start, end } = dayBoundsOf(dateKey);
-  const snap = await db.collection('bookings')
-    .where('date', '>=', start).where('date', '<', end).get();
-  const bookings = snap.docs.map(d => d.data());
-  const { barberBusy } = computeAvailability({ bookings, staff: [], barberId: 'any' });
+  // La vista incluye las dos fuentes de ocupación que son POR FECHA y que el
+  // público no puede leer directo: las reservas y los bloqueos puntuales
+  // (scheduleBlocks). Sin los bloqueos acá, el widget -- que lee esta vista y
+  // ya no llama a getAvailability -- volvería a ofrecer horas bloqueadas.
+  //
+  // La colación recurrente (staff.schedule[dow].break) NO entra acá a
+  // propósito: es semanal, no por fecha, y `staff` es lectura pública que el
+  // widget ya carga en refreshCatalog(), así que la aplica en cliente (ver
+  // isBarberFreeAt en public/index.html) junto al horario de apertura, que ya
+  // se resuelve ahí. Meterla también en la vista obligaría a recalcular todas
+  // las fechas futuras ante cada escritura de `staff` -- y saveAdmin reescribe
+  // todos los docs de staff en cada guardado del admin -- o dejaría la vista
+  // desactualizada al cambiar una colación. Una sola fuente por señal.
+  //
+  // `staff` sí se pasa (aunque no se use para la colación, al omitir `dow`):
+  // computeAvailability lo necesita para saber qué barberos están activos y
+  // así aceptar sus scheduleBlocks.
+  const [bookingsSnap, staffSnap, blocksSnap] = await Promise.all([
+    db.collection('bookings').where('date', '>=', start).where('date', '<', end).get(),
+    db.collection('staff').where('status', '==', 'active').get(),
+    db.collection('scheduleBlocks').where('date', '==', dateKey).get(),
+  ]);
+  const bookings = bookingsSnap.docs.map(d => d.data());
+  const staff = staffSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const scheduleBlocks = blocksSnap.docs.map(d => d.data());
+  const { barberBusy } = computeAvailability({
+    bookings, staff, barberId: 'any', scheduleBlocks,
+  });
   const ref = db.collection('availability').doc(dateKey);
   if (Object.keys(barberBusy).length === 0) await ref.delete();
   else await ref.set({ barberBusy, updatedAt: FieldValue.serverTimestamp() });
@@ -159,6 +183,28 @@ exports.onBookingWritten = onDocumentWritten(
     const dates = new Set();
     if (before && before.date) dates.add(dateKeyOf(before.date));
     if (after && after.date) dates.add(dateKeyOf(after.date));
+    if (!dates.size) return;
+    const db = getFirestore(app);
+    await Promise.all([...dates].map(dk => recomputeAvailabilityForDate(db, dk)));
+  }
+);
+
+// Mismo mantenimiento de `availability/{dateKey}` que onBookingWritten, pero
+// ante cambios de bloqueos puntuales de horario: sin esto, crear/editar/
+// borrar un bloqueo desde la Agenda no se reflejaría en el widget público
+// hasta que alguna reserva de esa misma fecha cambiara por casualidad.
+// `date` en scheduleBlocks ya es el día puro 'YYYY-MM-DD' (lo escribe así el
+// modal del admin), así que no necesita dateKeyOf.
+exports.onScheduleBlockWritten = onDocumentWritten(
+  { document: 'scheduleBlocks/{id}', region: 'southamerica-east1' },
+  async (event) => {
+    const before = event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data.after.exists ? event.data.after.data() : null;
+    // Igual que con las reservas: si el bloqueo se movió de fecha hay que
+    // recalcular la vieja (para liberarla) y la nueva.
+    const dates = new Set();
+    if (before && before.date) dates.add(before.date);
+    if (after && after.date) dates.add(after.date);
     if (!dates.size) return;
     const db = getFirestore(app);
     await Promise.all([...dates].map(dk => recomputeAvailabilityForDate(db, dk)));

@@ -3000,7 +3000,19 @@ document.getElementById('bk-cnext').addEventListener('click',()=>{
 // ausente (sin reservas ese día) -- se lee con `|| []`.
 function isBarberFreeAt(barberId, candStart, candEnd){
   const busy=(AVAIL.barberBusy||{})[barberId]||[];
-  return !busy.some(r=>candStart<toMin(r.end) && candEnd>toMin(r.start));
+  if(busy.some(r=>candStart<toMin(r.end) && candEnd>toMin(r.start))) return false;
+  // Colación recurrente: se resuelve en cliente, no vía la vista materializada
+  // `availability/{fecha}`. Es semanal (no por fecha) y viene en `staff`, que
+  // es lectura pública y refreshCatalog() ya mantiene al día en BARBERS[] --
+  // igual que el horario de apertura, que hoursRangeFor() también resuelve
+  // acá. Así siempre refleja el último cambio del admin, sin obligar a
+  // recalcular todas las fechas futuras de la vista ante cada guardado.
+  // Ver recomputeAvailabilityForDate() en functions/index.js.
+  const b=BARBERS.find(x=>x.id===barberId);
+  const day=(b && Array.isArray(b.schedule) && S.date) ? b.schedule[S.date.getDay()] : null;
+  const brk=day && day.break;
+  if(brk && brk.start && brk.end && candStart<toMin(brk.end) && candEnd>toMin(brk.start)) return false;
+  return true;
 }
 
 // ¿Está disponible un slot candidato [candStart,candEnd) para la selección

@@ -97,11 +97,14 @@ exports.getAvailability = onCall(
     // inconsistencia preexistente de ese campo entre reservas públicas y de
     // admin. `scheduleBlocks` es una colección nueva propia de este plan:
     // se guarda y consulta siempre por el día puro 'YYYY-MM-DD', sin ese
-    // problema. `dow` se deriva igual, parseando solo esos primeros 10
-    // caracteres (Date-only ISO parsea como medianoche UTC de ese día --
-    // getDay() da el día de semana correcto sin depender de zona horaria).
+    // problema. `dow` se deriva con getUTCDay() (no getDay()) a propósito:
+    // Date-only ISO parsea como medianoche UTC, y getUTCDay() lee el día de
+    // semana en términos UTC sin importar en qué zona horaria corra el
+    // proceso -- getDay() sí dependería de eso (verificado: da un día
+    // distinto bajo TZ=America/Santiago vs TZ=UTC), así que no es
+    // intercambiable acá.
     const dayStr = date.substring(0, 10);
-    const dow = new Date(dayStr).getDay();
+    const dow = new Date(dayStr).getUTCDay();
 
     const db = admin.firestore();
     let bookingsQuery = db.collection('bookings').where('date', '==', date);

@@ -92,18 +92,39 @@ exports.getAvailability = onCall(
     if (!date) throw new HttpsError('invalid-argument', 'date es requerido');
     const barberId = ((request.data && request.data.barberId) || '').trim();
 
+    // `date` puede venir con formatos ligeramente distintos según si la
+    // reserva se creó desde el widget público o desde el admin (uno usa
+    // toISOString(), el otro concatena fecha+hora a mano) -- pero ambos
+    // formatos siempre dejan el día calendario correcto en los primeros 10
+    // caracteres, así que dateKeyOf() es seguro sin importar cuál de los dos
+    // lo generó. `scheduleBlocks` es una colección nueva: se guarda y
+    // consulta siempre por el día puro 'YYYY-MM-DD', sin ese problema.
+    // `dow` se deriva con getUTCDay() (no getDay()) a propósito: Date-only
+    // ISO parsea como medianoche UTC, y getUTCDay() lee el día de semana en
+    // términos UTC sin importar en qué zona horaria corra el proceso --
+    // getDay() sí dependería de eso (verificado: da un día distinto bajo
+    // TZ=America/Santiago vs TZ=UTC), así que no es intercambiable acá.
+    const dayStr = dateKeyOf(date);
+    const dow = new Date(dayStr).getUTCDay();
+
     const db = getFirestore(app);
     let bookingsQuery = db.collection('bookings').where('date', '==', date);
     if (barberId && barberId !== 'any') {
       bookingsQuery = bookingsQuery.where('barberId', '==', barberId);
     }
-    const [bookingsSnap, staffSnap] = await Promise.all([
+    let blocksQuery = db.collection('scheduleBlocks').where('date', '==', dayStr);
+    if (barberId && barberId !== 'any') {
+      blocksQuery = blocksQuery.where('barberId', '==', barberId);
+    }
+    const [bookingsSnap, staffSnap, blocksSnap] = await Promise.all([
       bookingsQuery.get(),
       db.collection('staff').where('status', '==', 'active').get(),
+      blocksQuery.get(),
     ]);
     const bookings = bookingsSnap.docs.map(d => d.data());
     const staff = staffSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    return computeAvailability({ bookings, staff, barberId });
+    const scheduleBlocks = blocksSnap.docs.map(d => d.data());
+    return computeAvailability({ bookings, staff, barberId, dow, scheduleBlocks });
   }
 );
 

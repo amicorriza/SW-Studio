@@ -51,6 +51,12 @@ service cloud.firestore {
     // la Cloud Function onBookingCreated (Admin SDK, no sujeta a estas reglas).
     match /patients/{id} { allow read, write: if isAdmin(); }
 
+    // Bloqueos de horario (colación puntual, trámites, etc.): solo admin.
+    // El público nunca lee esta colección directo -- se refleja
+    // indirectamente como rangos ocupados (sin `reason`) a través de
+    // getAvailability, mismo patrón de privacidad que bookings.
+    match /scheduleBlocks/{id} { allow read, write: if isAdmin(); }
+
     // Log de actividad: solo admin
     match /adminLog/{id} { allow read, write: if isAdmin(); }
   }

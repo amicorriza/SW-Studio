@@ -119,6 +119,24 @@ async function deletePatient(id) {
   await deleteDoc(doc(db, 'patients', id));
 }
 
+// Bloqueos de horario (colación puntual, trámites, etc.). Un doc por
+// bloqueo -- a diferencia de bookings/patients no se usa el patrón "array
+// completo + diff de borrados", porque acá cada mutación (crear/editar/
+// eliminar un bloqueo) ya es una operación puntual sobre un solo doc.
+async function getScheduleBlocks() {
+  return await readCol('scheduleBlocks');
+}
+
+async function saveScheduleBlock(block) {
+  const id = block.id || ('sb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7));
+  await setDoc(doc(db, 'scheduleBlocks', id), stripId({ ...block, id }), { merge: true });
+  return id;
+}
+
+async function deleteScheduleBlock(id) {
+  await deleteDoc(doc(db, 'scheduleBlocks', id));
+}
+
 // Sube una foto (blob ya comprimido por compressImage) a Storage y devuelve
 // el objeto {url, path, date} que se agrega al array `photos` del paciente.
 async function uploadPatientPhoto(patientId, blob) {
@@ -223,10 +241,12 @@ window.SWData = {
   getPatients, savePatients, deletePatient,
   uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability, subscribeAvailability,
   loadSiteImages, saveSiteImage, deleteSiteImage,
+  getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
 };
 export {
   loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, subscribeBookings, createBooking,
   getPatients, savePatients, deletePatient,
   uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability, subscribeAvailability,
   loadSiteImages, saveSiteImage, deleteSiteImage,
+  getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
 };

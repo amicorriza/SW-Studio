@@ -3355,24 +3355,56 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
           <div id="a-bk-alert" class="a-alert"></div>
           <div class="a-sh">
             <div><div class="a-st">Agenda de Citas</div><div class="a-ss">Gestiona, mueve y reasigna reservas</div></div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <div class="a-vtoggle">
+                <button type="button" id="a-bk-view-day" class="a-on">📅 Día</button>
+                <button type="button" id="a-bk-view-list">☰ Lista</button>
+              </div>
+              <button class="a-btn a-btn-g" id="a-bk-block-new">+ Bloquear horario</button>
               <button class="a-btn a-btn-p" id="a-bk-new">+ Nueva cita</button>
             </div>
           </div>
-          <!-- Date navigation -->
-          <div id="a-bk-nav">
-            <button class="a-cdn" id="a-bk-prev">◀</button>
-            <div id="a-bk-date-lbl"></div>
-            <button class="a-cdn" id="a-bk-next">▶</button>
-            <button class="a-cdn a-cdn-today" id="a-bk-today">Hoy</button>
-            <div class="a-bk-filter">
-              <select class="a-in" id="a-bk-filter-barber" style="max-width:200px">
+          <div id="a-bk-day-view">
+            <!-- Date navigation -->
+            <div id="a-bk-nav">
+              <button class="a-cdn" id="a-bk-prev">◀</button>
+              <div id="a-bk-date-lbl"></div>
+              <button class="a-cdn" id="a-bk-next">▶</button>
+              <button class="a-cdn a-cdn-today" id="a-bk-today">Hoy</button>
+              <div class="a-bk-filter">
+                <select class="a-in" id="a-bk-filter-barber" style="max-width:200px">
+                  <option value="">Todos los barberos</option>
+                </select>
+              </div>
+            </div>
+            <!-- Day timeline view -->
+            <div id="a-bk-timeline"></div>
+          </div>
+          <!-- List view -->
+          <div id="a-bk-list-view" style="display:none">
+            <div id="a-bk-list-controls">
+              <input class="a-in" id="a-bk-list-search" placeholder="🔍 Buscar por nombre de cliente...">
+              <select class="a-in" id="a-bk-list-filter-barber">
                 <option value="">Todos los barberos</option>
               </select>
             </div>
+            <div class="a-tw">
+              <table class="a-t">
+                <thead>
+                  <tr>
+                    <th class="a-sortable" data-sort="day">Día<span class="a-sort-arrow" data-arrow="day"></span></th>
+                    <th class="a-sortable" data-sort="time">Hora<span class="a-sort-arrow" data-arrow="time"></span></th>
+                    <th class="a-sortable" data-sort="name">Cliente<span class="a-sort-arrow" data-arrow="name"></span></th>
+                    <th class="a-sortable" data-sort="svc">Servicio<span class="a-sort-arrow" data-arrow="svc"></span></th>
+                    <th class="a-sortable" data-sort="barber">Barbero<span class="a-sort-arrow" data-arrow="barber"></span></th>
+                    <th class="a-sortable" data-sort="price">Precio<span class="a-sort-arrow" data-arrow="price"></span></th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="a-bk-list-body"></tbody>
+              </table>
+            </div>
           </div>
-          <!-- Day timeline view -->
-          <div id="a-bk-timeline"></div>
         </div>
 
         <!-- ─ STATS ─ -->
@@ -3536,6 +3568,28 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
       <button class="a-btn a-btn-danger" id="a-bkm-del" style="margin-right:auto;display:none">Eliminar cita</button>
       <button class="a-btn a-btn-g" data-close="a-bkm">Cancelar</button>
       <button class="a-btn a-btn-p" id="a-bkm-save">Guardar cita</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─ MODAL: SCHEDULE BLOCK (bloqueo puntual de horario) ─ -->
+<div id="a-blkm" class="a-mb">
+  <div class="a-mo" style="max-width:480px">
+    <div class="a-mh"><div class="a-mt" id="a-blkm-t">Bloquear horario</div><button class="a-mc" data-close="a-blkm">✕</button></div>
+    <div class="a-mb2">
+      <input type="hidden" id="a-blkm-id">
+      <div class="a-f"><label class="a-lbl">Barbero *</label><select class="a-in" id="a-blkm-barber"></select><span class="a-fe">Selecciona barbero.</span></div>
+      <div class="a-f"><label class="a-lbl">Fecha *</label><input class="a-in" id="a-blkm-date" type="date"><span class="a-fe">Selecciona fecha.</span></div>
+      <div class="a-fr">
+        <div class="a-f"><label class="a-lbl">Hora inicio *</label><input class="a-in" id="a-blkm-start" type="time"><span class="a-fe">Selecciona hora.</span></div>
+        <div class="a-f"><label class="a-lbl">Hora fin *</label><input class="a-in" id="a-blkm-end" type="time"><span class="a-fe" id="a-blkm-end-err">Selecciona hora.</span></div>
+      </div>
+      <div class="a-f"><label class="a-lbl">Motivo</label><input class="a-in" id="a-blkm-reason" placeholder="Ej: Trámite personal"></div>
+    </div>
+    <div class="a-mf">
+      <button class="a-btn a-btn-danger" id="a-blkm-del" style="margin-right:auto;display:none">Eliminar bloqueo</button>
+      <button class="a-btn a-btn-g" data-close="a-blkm">Cancelar</button>
+      <button class="a-btn a-btn-p" id="a-blkm-save">Guardar bloqueo</button>
     </div>
   </div>
 </div>
@@ -3848,8 +3902,11 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
 .a-scht.a-scht-on{background:var(--a-ink);color:#fff;border-color:var(--a-ink)}
 .a-sch-card{background:#fff;border-radius:12px;border:1.5px solid var(--a-g2);overflow:hidden;max-width:680px}
 .a-sch-card-hd{padding:14px 18px;background:var(--a-off);border-bottom:1px solid var(--a-g2);font-family:'Orbitron',sans-serif;font-size:13px;font-weight:600;color:var(--a-txt)}
-.a-sch-day{display:grid;grid-template-columns:90px 80px 1fr 1fr;gap:8px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--a-g1)}
+.a-sch-day{padding:10px 16px;border-bottom:1px solid var(--a-g1)}
 .a-sch-day:last-child{border-bottom:none}
+.a-sch-day-row{display:grid;grid-template-columns:90px 80px 1fr 1fr;gap:8px;align-items:center}
+.a-sch-break-row{display:grid;grid-template-columns:90px 80px 1fr 1fr;gap:8px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--a-g1)}
+.a-sch-break-lbl{font-size:11px;color:var(--a-meta)}
 .a-sch-dnm{font-weight:600;color:var(--a-txt);font-size:12.5px}
 .a-tog{display:inline-flex;align-items:center;gap:7px;cursor:pointer}
 .a-tt{width:34px;height:19px;border-radius:10px;background:var(--a-g2);position:relative;transition:background .2s;flex-shrink:0}
@@ -3962,6 +4019,20 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
 .a-bk-filter{margin-left:auto}
 .a-bk-filter select{padding:7px 10px;font-size:12px}
 
+/* View toggle (Día / Lista) */
+.a-vtoggle{display:flex;background:var(--a-off);border:1.5px solid var(--a-g2);border-radius:8px;overflow:hidden;flex-shrink:0}
+.a-vtoggle button{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:8px 13px;border:none;background:transparent;color:var(--a-meta);cursor:pointer;transition:all .18s}
+.a-vtoggle button.a-on{background:var(--a-ink);color:#fff}
+
+/* List view */
+#a-bk-list-controls{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+#a-bk-list-controls input{flex:1;min-width:200px}
+#a-bk-list-controls select{max-width:200px}
+.a-sortable{cursor:pointer;user-select:none}
+.a-sortable:hover{color:var(--a-txt)}
+.a-sort-arrow{margin-left:4px;opacity:.5;display:inline-block;min-width:9px}
+.a-sort-arrow.a-sort-active{opacity:1}
+
 /* Timeline view */
 #a-bk-timeline{
   background:#fff;border-radius:12px;border:1.5px solid var(--a-g2);
@@ -4056,6 +4127,20 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
 .a-bk-card-time{font-family:'Orbitron',sans-serif;font-size:9.5px;font-weight:600;color:var(--a-sd);letter-spacing:.02em}
 .a-bk-card-barber{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--a-info);background:#E5F0FB;padding:1px 5px;border-radius:3px}
 .a-bk-card-over-tag{font-family:'Barlow Condensed',sans-serif;font-size:8px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#fff;background:var(--a-warn);padding:1px 5px;border-radius:3px}
+.a-blk-card{
+  position:absolute;left:4px;right:4px;
+  background:var(--a-ink);color:#fff;
+  border-radius:7px;padding:7px 9px;
+  box-shadow:0 1px 4px rgba(120,130,145,.18);
+  cursor:pointer;transition:all .18s;
+  overflow:hidden;z-index:1;
+  font-size:11px;font-weight:600;white-space:nowrap;text-overflow:ellipsis;
+  display:flex;align-items:center;gap:5px
+}
+.a-blk-card:hover{
+  box-shadow:0 4px 14px rgba(120,130,145,.32);
+  transform:translateY(-1px);z-index:2
+}
 
 /* Reassign list */
 #a-rm-list{display:flex;flex-direction:column;gap:6px;margin-top:6px}
@@ -4309,9 +4394,13 @@ var auth=false, sCat='all', delCb=null, svcPh='', stfPh='';
 var schTabBarber = null;  // currently selected barber in schedule
 var bkDate = new Date(); bkDate.setHours(0,0,0,0);
 var bkFilter = '';
+var bkView = 'day';
+var bkListSearch = '';
+var bkListSortKey = 'day';
+var bkListSortDir = 'asc';
 var rmSelectedBarber = null;
 var D = {services:[], staff:[], schedule:[], log:[], info:{}};
-var BK=[]; var PT=[];
+var BK=[]; var PT=[]; var SB=[];
 var bkUnsubscribe = null;
 
 // ═══ DEFAULTS ═══
@@ -4433,6 +4522,7 @@ async function loadFromCloud(){
     bkUnsubscribe = sub.unsubscribe;
     await sub.ready;
     PT = await window.SWData.getPatients();    // cache de clientes (ver Task 5.6)
+    SB = await window.SWData.getScheduleBlocks(); // cache de bloqueos de horario
   } catch(e){ console.error('Error cargando datos', e); defaults(); }
 }
 
@@ -4497,7 +4587,10 @@ function renderAll(){
 // Subconjunto de renderAll() que depende solo de BK -- callback de la
 // suscripción en tiempo real a `bookings` (ver loadFromCloud/subscribeBookings).
 function renderBookingsViews(){
-  renderDash(); renderStats(); renderCalendar(); updateBadges();
+  // renderBookingList() incluida acá a propósito: la vista Lista de la
+  // Agenda también depende de las reservas, así que la suscripción en
+  // tiempo real debe refrescarla junto al resto o queda desactualizada.
+  renderDash(); renderStats(); renderCalendar(); renderBookingList(); updateBadges();
 }
 
 // ═══ NAVIGATION ═══
@@ -4561,6 +4654,35 @@ function getBookings(){
 function saveBookings(arr){
   setBk(arr);
 }
+
+// ═══ SCHEDULE BLOCKS HELPERS ═══
+// Lectura: devuelve la cache poblada en loadFromCloud(). A diferencia de
+// bookings, la escritura es por documento individual (crear/editar/
+// eliminar un bloqueo), no un array completo -- ver public/js/data.js.
+function getScheduleBlocks(){ return SB; }
+function getScheduleBlocksForDate(dateStr){
+  return SB.filter(function(b){ return b.date === dateStr; });
+}
+function createScheduleBlock(block){
+  var id = 'sb_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+  var full = {id:id, barberId:block.barberId, barberName:block.barberName||'', date:block.date, start:block.start, end:block.end, reason:block.reason||'', createdAt:new Date().toISOString()};
+  SB.push(full);
+  window.SWData.saveScheduleBlock(full).catch(function(e){ console.error('Error guardando bloqueo', e); });
+  return full;
+}
+function updateScheduleBlock(id, changes){
+  // `changes` nunca trae `createdAt` (se arma en la Tarea 6, en el handler
+  // de guardado del modal) -- Object.assign no lo toca, así que la fecha
+  // de creación original se preserva en cada edición.
+  var b = SB.find(function(x){ return x.id === id; });
+  if(!b) return;
+  Object.assign(b, changes);
+  window.SWData.saveScheduleBlock(b).catch(function(e){ console.error('Error guardando bloqueo', e); });
+}
+function deleteScheduleBlockLocal(id){
+  SB = SB.filter(function(b){ return b.id !== id; });
+  window.SWData.deleteScheduleBlock(id).catch(function(e){ console.error('Error eliminando bloqueo', e); });
+}
 // Check if a proposed booking conflicts with existing ones (same barber, overlapping time)
 function checkConflict(barberId, dateStr, timeStr, durMin, ignoreId){
   var bookings = getBookings();
@@ -4588,13 +4710,198 @@ function parseDt(dateStr, timeStr){
   d.setHours(parseInt(p[0]||0), parseInt(p[1]||0), 0, 0);
   return d;
 }
+// Igual que checkConflict, pero contra colación recurrente + bloqueos
+// puntuales en vez de otras reservas. Devuelve null (sin bloqueo) o
+// {type, label} para armar el mensaje de advertencia.
+function checkScheduleBlock(barberId, dateStr, timeStr, durMin){
+  var newStart = parseDt(dateStr, timeStr);
+  if(!newStart) return null;
+  var newEnd = new Date(newStart.getTime() + durMin*60000);
+
+  var barber = D.staff.find(function(s){return s.id===barberId});
+  if(barber && Array.isArray(barber.schedule)){
+    var dow = newStart.getDay();
+    var day = barber.schedule[dow];
+    if(day && day.break && day.break.start && day.break.end){
+      var brkStart = parseDt(dateStr, day.break.start);
+      var brkEnd = parseDt(dateStr, day.break.end);
+      if(brkStart && brkEnd && newStart < brkEnd && newEnd > brkStart){
+        return {type:'break', label:'la colación de '+(barber.name||'')};
+      }
+    }
+  }
+
+  var blocks = getScheduleBlocksForDate(dateStr).filter(function(b){ return b.barberId === barberId; });
+  for(var i=0; i<blocks.length; i++){
+    var b = blocks[i];
+    var bStart = parseDt(dateStr, b.start);
+    var bEnd = parseDt(dateStr, b.end);
+    if(bStart && bEnd && newStart < bEnd && newEnd > bStart){
+      return {type:'block', label: b.reason ? ('un bloqueo de horario ("'+b.reason+'")') : 'un bloqueo de horario'};
+    }
+  }
+  return null;
+}
 
 // ═══ CALENDAR / AGENDA PANEL ═══
 g('a-bk-prev').addEventListener('click', function(){ bkDate.setDate(bkDate.getDate()-1); renderCalendar(); });
 g('a-bk-next').addEventListener('click', function(){ bkDate.setDate(bkDate.getDate()+1); renderCalendar(); });
 g('a-bk-today').addEventListener('click', function(){ bkDate = new Date(); bkDate.setHours(0,0,0,0); renderCalendar(); });
-g('a-bk-filter-barber').addEventListener('change', function(){ bkFilter = this.value; renderCalendar(); });
+function onBarberFilterChange(val){
+  bkFilter = val;
+  renderCalendar();
+  renderBookingList();
+  g('a-bk-filter-barber').value = val;
+  g('a-bk-list-filter-barber').value = val;
+}
+g('a-bk-filter-barber').addEventListener('change', function(){ onBarberFilterChange(this.value); });
+g('a-bk-list-filter-barber').addEventListener('change', function(){ onBarberFilterChange(this.value); });
+
+// Refresca todas las vistas afectadas por una mutación de reservas (crear/
+// editar/eliminar): agenda del día, dashboard y lista. Único punto de
+// llamada para los 3 sitios que mutan reservas, para que ninguno olvide
+// refrescar alguna de las tres.
+function refreshBookingViews(){
+  renderCalendar();
+  renderDash();
+  renderBookingList();
+}
+
+function renderBookingList(){
+  renderBarberFilterOptions(g('a-bk-list-filter-barber'));
+
+  var now = new Date();
+  var q = bkListSearch.toLowerCase().trim();
+  var rows = getBookings()
+    .map(function(b){
+      var dt = parseDt(b.date ? b.date.substring(0,10) : '', b.time);
+      var dtDay = b.date ? parseYmd(b.date.substring(0,10)) : null;
+      return {bk:b, dt:dt, dtDay:dtDay};
+    })
+    .filter(function(e){
+      if(!e.dt || e.dt < now) return false;
+      if(bkFilter && e.bk.barberId !== bkFilter) return false;
+      if(q && (e.bk.name||'').toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+
+  var CMP = {
+    day: function(a,b){ return a.dtDay - b.dtDay; },
+    time: function(a,b){ return (a.bk.time||'').localeCompare(b.bk.time||''); },
+    name: function(a,b){ return (a.bk.name||'').localeCompare(b.bk.name||'', 'es'); },
+    svc: function(a,b){ return (a.bk.svcName||'').localeCompare(b.bk.svcName||'', 'es'); },
+    barber: function(a,b){ return (a.bk.barberName||'').localeCompare(b.bk.barberName||'', 'es'); },
+    price: function(a,b){ return (a.bk.price||0) - (b.bk.price||0); }
+  };
+  rows.sort(function(a,b){
+    var r = CMP[bkListSortKey](a,b);
+    if(bkListSortDir === 'desc') r = -r;
+    if(r !== 0) return r;
+    return a.dt - b.dt; // criterio secundario estable
+  });
+
+  // Indicador visual de la columna/dirección activa
+  document.querySelectorAll('#a-bk-list-view .a-sort-arrow').forEach(function(span){
+    span.classList.remove('a-sort-active');
+    span.textContent = '';
+  });
+  var activeArrow = document.querySelector('#a-bk-list-view .a-sort-arrow[data-arrow="'+bkListSortKey+'"]');
+  if(activeArrow){
+    activeArrow.classList.add('a-sort-active');
+    activeArrow.textContent = bkListSortDir === 'asc' ? '▲' : '▼';
+  }
+
+  var body = g('a-bk-list-body');
+  if(!rows.length){
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#888;padding:30px">' +
+      (q ? 'Sin resultados para tu búsqueda.' : 'Sin citas próximas.') +
+      '</td></tr>';
+    return;
+  }
+
+  body.innerHTML = rows.map(function(e){
+    var b = e.bk;
+    var dayStr = e.dtDay ? e.dtDay.toLocaleDateString('es-CL') : '—';
+    var overTag = b.over ? ' <span class="a-bk-card-over-tag">Sobrecupo</span>' : '';
+    return '<tr data-code="'+esc(b.code)+'">' +
+      '<td>'+esc(dayStr)+'</td>' +
+      '<td>'+esc(b.time||'')+'</td>' +
+      '<td><div class="a-tn">'+esc(b.name||'Cliente')+'</div>'+overTag+'</td>' +
+      '<td>'+esc(b.svcName||'')+'</td>' +
+      '<td>'+esc(b.barberName||'')+'</td>' +
+      '<td>'+fmtCLP(b.price)+'</td>' +
+      '<td><div class="a-tacts">' +
+        '<button class="a-btn a-btn-g" data-lst-edit="'+esc(b.code)+'" style="padding:5px 9px;font-size:9px">✎</button>' +
+        '<button class="a-btn a-btn-danger" data-lst-del="'+esc(b.code)+'" style="padding:5px 8px;font-size:9px">✕</button>' +
+      '</div></td>' +
+    '</tr>';
+  }).join('');
+
+  body.querySelectorAll('tr[data-code]').forEach(function(row){
+    row.addEventListener('click', function(e){
+      if(e.target.closest('.a-tacts')) return;
+      var bk = getBookings().find(function(x){return x.code===row.dataset.code});
+      if(bk) openBookingModal(bk);
+    });
+  });
+  body.querySelectorAll('[data-lst-edit]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var bk = getBookings().find(function(x){return x.code===btn.dataset.lstEdit});
+      if(bk) openBookingModal(bk);
+    });
+  });
+  body.querySelectorAll('[data-lst-del]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var code = btn.dataset.lstDel;
+      openDel('¿Eliminar esta cita? Esta acción no se puede deshacer.', function(){
+        var bookings = getBookings().filter(function(b){return b.code !== code});
+        saveBookings(bookings);
+        refreshBookingViews();
+        log('Eliminó cita', code);
+        showAlert('a-bk-alert','ok','Cita eliminada.');
+      });
+    });
+  });
+}
+
+document.querySelectorAll('#a-bk-list-view th[data-sort]').forEach(function(th){
+  th.addEventListener('click', function(){
+    var key = th.dataset.sort;
+    if(bkListSortKey === key){
+      bkListSortDir = bkListSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      bkListSortKey = key;
+      bkListSortDir = 'asc';
+    }
+    renderBookingList();
+  });
+});
+
+g('a-bk-list-search').addEventListener('input', function(e){
+  bkListSearch = e.target.value;
+  renderBookingList();
+});
+
+function setBkView(view){
+  bkView = view;
+  g('a-bk-view-day').classList.toggle('a-on', view==='day');
+  g('a-bk-view-list').classList.toggle('a-on', view==='list');
+  g('a-bk-day-view').style.display = view==='day' ? '' : 'none';
+  g('a-bk-list-view').style.display = view==='list' ? '' : 'none';
+  if(view==='list') renderBookingList();
+}
+g('a-bk-view-day').addEventListener('click', function(){ setBkView('day'); });
+g('a-bk-view-list').addEventListener('click', function(){ setBkView('list'); });
 g('a-bk-new').addEventListener('click', function(){ openBookingModal(null); });
+
+function renderBarberFilterOptions(sel){
+  var curVal = sel.value;
+  sel.innerHTML = '<option value="">Todos los barberos</option>' +
+    D.staff.filter(function(s){return s.status==='active'}).map(function(s){
+      return '<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>';
+    }).join('');
+  sel.value = curVal;
+}
 
 function renderCalendar(){
   // Update date label
@@ -4602,13 +4909,7 @@ function renderCalendar(){
   g('a-bk-date-lbl').textContent = lbl;
 
   // Update barber filter options
-  var sel = g('a-bk-filter-barber');
-  var curVal = sel.value;
-  sel.innerHTML = '<option value="">Todos los barberos</option>' +
-    D.staff.filter(function(s){return s.status==='active'}).map(function(s){
-      return '<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>';
-    }).join('');
-  sel.value = curVal;
+  renderBarberFilterOptions(g('a-bk-filter-barber'));
 
   // Get bookings for this date (matching filter)
   var dStr = ymd(bkDate);
@@ -4619,9 +4920,13 @@ function renderCalendar(){
     if(bkFilter && b.barberId !== bkFilter) return false;
     return true;
   });
+  var blocksToday = getScheduleBlocksForDate(dStr).filter(function(b){
+    if(bkFilter && b.barberId !== bkFilter) return false;
+    return true;
+  });
 
   var tl = g('a-bk-timeline');
-  if(!todays.length){
+  if(!todays.length && !blocksToday.length){
     tl.innerHTML = '<div class="a-tl-empty">Sin reservas para este día.<br><button class="a-btn a-btn-p" onclick="document.getElementById(\'a-bk-new\').click()" style="margin-top:14px">+ Crear primera cita</button></div>';
     return;
   }
@@ -4632,6 +4937,14 @@ function renderCalendar(){
     var t = b.time ? b.time.split(':') : ['10','00'];
     var h = parseInt(t[0]);
     var end = h + Math.ceil((b.dur||30)/60) + 1;
+    if(h < minH) minH = h;
+    if(end > maxH) maxH = end;
+  });
+  blocksToday.forEach(function(b){
+    var t = b.start ? b.start.split(':') : ['10','00'];
+    var h = parseInt(t[0]);
+    var te = b.end ? b.end.split(':') : ['11','00'];
+    var end = parseInt(te[0]) + 1;
     if(h < minH) minH = h;
     if(end > maxH) maxH = end;
   });
@@ -4675,7 +4988,12 @@ function renderCalendar(){
   flush();
 
   // Rangos ocupados (en minutos) para sombrear las medias horas, igual que antes
-  var busyRanges = evs.map(function(e){ return [e.start, e.end]; });
+  var busyRanges = evs.map(function(e){ return [e.start, e.end]; }).concat(
+    blocksToday.map(function(b){
+      var t = (b.start||'10:00').split(':'), te = (b.end||'11:00').split(':');
+      return [(parseInt(t[0])-minH)*60+parseInt(t[1]), (parseInt(te[0])-minH)*60+parseInt(te[1])];
+    })
+  );
 
   // ── Render ──
   var cardsHtml = evs.map(function(e){
@@ -4731,7 +5049,24 @@ function renderCalendar(){
     '</div>';
   }
 
-  tl.innerHTML = '<div class="a-tl-grid"><div class="a-tl-hours">'+hoursHtml+'</div><div class="a-tl-col">'+slotsHtml+cardsHtml+'</div></div>';
+  var blocksHtml = blocksToday.map(function(b){
+    var t = (b.start || '10:00').split(':');
+    var startMin = (parseInt(t[0]) - minH)*60 + parseInt(t[1]);
+    var te = (b.end || '11:00').split(':');
+    var endMin = (parseInt(te[0]) - minH)*60 + parseInt(te[1]);
+    var top = startMin * PXM;
+    var height = Math.max(26, (endMin - startMin) * PXM);
+    var barber = D.staff.find(function(s){return s.id===b.barberId});
+    var bn = barber ? barber.name : (b.barberName || '?');
+    var label = '⏱ '+esc(bn)+(b.reason?' · '+esc(b.reason):'')+' · '+esc(b.start||'')+'–'+esc(b.end||'');
+    return '<div class="a-blk-card" style="top:'+top.toFixed(1)+'px;height:'+height.toFixed(1)+'px" '+
+             'data-blk-id="'+esc(b.id)+'" '+
+             'title="'+esc((b.start||'')+' – '+(b.end||'')+' · '+bn+(b.reason?' · '+b.reason:''))+'">'+
+             label+
+           '</div>';
+  }).join('');
+
+  tl.innerHTML = '<div class="a-tl-grid"><div class="a-tl-hours">'+hoursHtml+'</div><div class="a-tl-col">'+slotsHtml+cardsHtml+blocksHtml+'</div></div>';
 
   // Hook card clicks (edit booking)
   tl.querySelectorAll('.a-bk-card').forEach(function(c){
@@ -4739,6 +5074,15 @@ function renderCalendar(){
       var code = c.dataset.code;
       var bk = getBookings().find(function(x){return x.code===code});
       if(bk) openBookingModal(bk);
+    });
+  });
+  // Hook block card clicks (edit block) -- deliberadamente NO abre
+  // openBookingModal: un bloqueo no es una cita.
+  tl.querySelectorAll('.a-blk-card').forEach(function(c){
+    c.addEventListener('click', function(){
+      var id = c.dataset.blkId;
+      var blk = getScheduleBlocks().find(function(x){return x.id===id});
+      if(blk) openBlockModal(blk);
     });
   });
   // Hook empty slot clicks to create new at that hour
@@ -4822,6 +5166,12 @@ function checkBookingConflict(){
     var barber = D.staff.find(function(s){return s.id===barberId});
     box.innerHTML = '⚠ <strong>Conflicto de horario:</strong> '+esc(barber?barber.name:'')+' ya tiene a "'+esc(conflict.name||'')+'" para el servicio "'+esc(conflict.svcName||'')+'" a las '+esc(conflict.time||'')+'. Marca "Sobrecupo" si deseas agendar de todas formas, o cambia la hora/barbero.';
     box.classList.add('show');
+    return;
+  }
+  var blocked = checkScheduleBlock(barberId, dateStr, timeStr, dur);
+  if(blocked){
+    box.innerHTML = '⚠ <strong>Horario bloqueado:</strong> ese horario cae dentro de '+esc(blocked.label)+'. Marca "Sobrecupo" si deseas agendar de todas formas, o cambia la hora/barbero.';
+    box.classList.add('show');
   } else {
     box.classList.remove('show');
   }
@@ -4845,9 +5195,10 @@ g('a-bkm-save').addEventListener('click', function(){
   var sOpt = sv.options[sv.selectedIndex];
   var bOpt = br.options[br.selectedIndex];
   var conflict = checkConflict(br.value, da.value, ti.value, parseInt(sOpt.dataset.dur), g('a-bkm-id').value||null);
+  var blocked = checkScheduleBlock(br.value, da.value, ti.value, parseInt(sOpt.dataset.dur));
   var isOver = g('a-bkm-over').checked;
-  if(conflict && !isOver){
-    showAlert('a-bk-alert','err','Hay un conflicto de horario. Marca "Sobrecupo" para forzar el agendamiento.');
+  if((conflict || blocked) && !isOver){
+    showAlert('a-bk-alert','err', conflict ? 'Hay un conflicto de horario. Marca "Sobrecupo" para forzar el agendamiento.' : 'Ese horario está bloqueado. Marca "Sobrecupo" para forzar el agendamiento.');
     return;
   }
 
@@ -4867,7 +5218,7 @@ g('a-bkm-save').addEventListener('click', function(){
     date: da.value + 'T' + ti.value + ':00.000Z',
     time: ti.value,
     notes: g('a-bkm-notes').value.trim(),
-    over: !!conflict || isOver,
+    over: !!conflict || !!blocked || isOver,
     createdAt: editId ? (bookings.find(function(b){return b.code===editId})||{}).createdAt || new Date().toISOString() : new Date().toISOString()
   };
 
@@ -4896,6 +5247,86 @@ g('a-bkm-del').addEventListener('click', function(){
     closeModal('a-bkm');
     log('Eliminó cita', code);
     showAlert('a-bk-alert','ok','Cita eliminada.');
+  });
+});
+
+// ═══ SCHEDULE BLOCK MODAL ═══
+function openBlockModal(blk){
+  g('a-blkm-t').textContent = blk ? 'Editar bloqueo' : 'Bloquear horario';
+  g('a-blkm-id').value = blk ? blk.id : '';
+  var bSel = g('a-blkm-barber');
+  bSel.innerHTML = '<option value="">— Selecciona —</option>' +
+    D.staff.filter(function(s){return s.status==='active'}).map(function(s){
+      return '<option value="'+esc(s.id)+'" data-name="'+esc(s.name)+'">'+esc(s.name)+'</option>';
+    }).join('');
+  bSel.value = blk ? blk.barberId : (bkFilter || '');
+  g('a-blkm-date').value = blk ? blk.date : ymd(bkDate);
+  g('a-blkm-start').value = blk ? blk.start : '13:00';
+  g('a-blkm-end').value = blk ? blk.end : '14:00';
+  g('a-blkm-reason').value = blk ? (blk.reason||'') : '';
+  g('a-blkm-del').style.display = blk ? 'inline-flex' : 'none';
+  document.querySelectorAll('#a-blkm .a-f').forEach(function(f){f.classList.remove('a-err')});
+  g('a-blkm').classList.add('a-open');
+}
+g('a-bk-block-new').addEventListener('click', function(){ openBlockModal(null); });
+
+g('a-blkm-save').addEventListener('click', function(){
+  var bSel = g('a-blkm-barber');
+  var da = g('a-blkm-date');
+  var st = g('a-blkm-start');
+  var en = g('a-blkm-end');
+  var ok = true;
+  [bSel,da,st,en].forEach(function(el){el.parentElement.classList.remove('a-err')});
+  // El hint de "Hora fin" es reutilizado por dos validaciones distintas
+  // (campo vacío vs. fin <= inicio), así que se resetea al texto por
+  // defecto en cada intento antes de decidir cuál corresponde -- si no, un
+  // intento previo dejaría el mensaje del otro caso pegado.
+  var enErr = g('a-blkm-end-err');
+  if(enErr) enErr.textContent = 'Selecciona hora.';
+  if(!bSel.value){ bSel.parentElement.classList.add('a-err'); ok=false; }
+  if(!da.value){ da.parentElement.classList.add('a-err'); ok=false; }
+  if(!st.value){ st.parentElement.classList.add('a-err'); ok=false; }
+  if(!en.value){ en.parentElement.classList.add('a-err'); ok=false; }
+  if(st.value && en.value && en.value <= st.value){
+    // Sin este mensaje propio el campo solo se pintaba de rojo mostrando
+    // "Selecciona hora." -- confuso, porque la hora SÍ está seleccionada:
+    // lo que falla es que no es posterior al inicio.
+    if(enErr) enErr.textContent = 'La hora de fin debe ser posterior a la de inicio.';
+    en.parentElement.classList.add('a-err');
+    ok=false;
+  }
+  if(!ok) return;
+  var bOpt = bSel.options[bSel.selectedIndex];
+  var editId = g('a-blkm-id').value;
+  var payload = {
+    barberId: bSel.value,
+    barberName: bOpt.dataset.name || bOpt.textContent,
+    date: da.value,
+    start: st.value,
+    end: en.value,
+    reason: g('a-blkm-reason').value.trim()
+  };
+  if(editId){
+    updateScheduleBlock(editId, payload);
+    log('Editó bloqueo de horario', payload.barberName + ' — ' + payload.date);
+  } else {
+    createScheduleBlock(payload);
+    log('Creó bloqueo de horario', payload.barberName + ' — ' + payload.date);
+  }
+  closeModal('a-blkm');
+  renderCalendar();
+  showAlert('a-bk-alert','ok','Bloqueo guardado.');
+});
+
+g('a-blkm-del').addEventListener('click', function(){
+  var id = g('a-blkm-id').value;
+  if(!id) return;
+  openDel('¿Eliminar este bloqueo de horario? Esta acción no se puede deshacer.', function(){
+    deleteScheduleBlockLocal(id);
+    closeModal('a-blkm');
+    renderCalendar();
+    log('Eliminó bloqueo de horario', id);
+    showAlert('a-bk-alert','ok','Bloqueo eliminado.');
   });
 });
 
@@ -5193,14 +5624,29 @@ function renderSchedule(){
     '<div class="a-sch-card-hd">'+esc(barber.name)+' — horario de atención</div>'+
     dayNames.map(function(dn, di){
       var slot = barber.schedule[di] || {open:false};
+      var brk = slot.break || null;
+      var breakRow = slot.open ? (
+        '<div class="a-sch-break-row">'+
+          '<div class="a-sch-break-lbl">Colación</div>'+
+          '<label class="a-tog">'+
+            '<div class="a-tt '+(brk?'on':'')+'" data-brktog="'+di+'"><div class="a-tth"></div></div>'+
+            '<span class="a-tl">'+(brk?'Con colación':'Sin colación')+'</span>'+
+          '</label>'+
+          '<input type="time" class="a-sch-time" data-brkset="start" data-di="'+di+'" value="'+esc(brk?brk.start:'13:00')+'" '+(brk?'':'disabled')+'>'+
+          '<input type="time" class="a-sch-time" data-brkset="end" data-di="'+di+'" value="'+esc(brk?brk.end:'14:00')+'" '+(brk?'':'disabled')+'>'+
+        '</div>'
+      ) : '';
       return '<div class="a-sch-day">'+
-        '<div class="a-sch-dnm">'+dn+'</div>'+
-        '<label class="a-tog">'+
-          '<div class="a-tt '+(slot.open?'on':'')+'" data-tog="'+di+'"><div class="a-tth"></div></div>'+
-          '<span class="a-tl">'+(slot.open?'Abierto':'Cerrado')+'</span>'+
-        '</label>'+
-        '<input type="time" class="a-sch-time" data-set="start" data-di="'+di+'" value="'+esc(slot.start||'10:00')+'" '+(slot.open?'':'disabled')+'>'+
-        '<input type="time" class="a-sch-time" data-set="end" data-di="'+di+'" value="'+esc(slot.end||'20:00')+'" '+(slot.open?'':'disabled')+'>'+
+        '<div class="a-sch-day-row">'+
+          '<div class="a-sch-dnm">'+dn+'</div>'+
+          '<label class="a-tog">'+
+            '<div class="a-tt '+(slot.open?'on':'')+'" data-tog="'+di+'"><div class="a-tth"></div></div>'+
+            '<span class="a-tl">'+(slot.open?'Abierto':'Cerrado')+'</span>'+
+          '</label>'+
+          '<input type="time" class="a-sch-time" data-set="start" data-di="'+di+'" value="'+esc(slot.start||'10:00')+'" '+(slot.open?'':'disabled')+'>'+
+          '<input type="time" class="a-sch-time" data-set="end" data-di="'+di+'" value="'+esc(slot.end||'20:00')+'" '+(slot.open?'':'disabled')+'>'+
+        '</div>'+
+        breakRow+
       '</div>';
     }).join('')+
   '</div>';
@@ -5214,13 +5660,37 @@ function renderSchedule(){
       renderSchedule(); admSave();
     });
   });
-  body.querySelectorAll('.a-sch-time').forEach(function(el){
+  body.querySelectorAll('.a-sch-time[data-set]').forEach(function(el){
     el.addEventListener('change', function(){
       var di = parseInt(el.dataset.di);
       var k = el.dataset.set;
       var b = D.staff.find(function(s){return s.id===schTabBarber});
       if(!b.schedule[di]) b.schedule[di] = {open:true, start:'10:00', end:'20:00'};
       b.schedule[di][k] = el.value;
+      admSave();
+    });
+  });
+  body.querySelectorAll('[data-brktog]').forEach(function(el){
+    el.addEventListener('click', function(){
+      var di = parseInt(el.dataset.brktog);
+      var b = D.staff.find(function(s){return s.id===schTabBarber});
+      if(!b.schedule[di]) return;
+      if(b.schedule[di].break){
+        delete b.schedule[di].break;
+      } else {
+        b.schedule[di].break = {start:'13:00', end:'14:00'};
+      }
+      log('Editó colación', b.name + ' — ' + dayNames[di]);
+      renderSchedule(); admSave();
+    });
+  });
+  body.querySelectorAll('.a-sch-time[data-brkset]').forEach(function(el){
+    el.addEventListener('change', function(){
+      var di = parseInt(el.dataset.di);
+      var k = el.dataset.brkset;
+      var b = D.staff.find(function(s){return s.id===schTabBarber});
+      if(!b.schedule[di] || !b.schedule[di].break) return;
+      b.schedule[di].break[k] = el.value;
       admSave();
     });
   });
@@ -5358,7 +5828,7 @@ function closeModal(id){ g(id).classList.remove('a-open'); }
 document.querySelectorAll('[data-close]').forEach(function(b){
   b.addEventListener('click', function(){ closeModal(b.dataset.close); });
 });
-['a-sm','a-stm','a-bkm','a-rm','a-dm'].forEach(function(id){
+['a-sm','a-stm','a-bkm','a-blkm','a-rm','a-dm'].forEach(function(id){
   g(id).addEventListener('click', function(e){ if(e.target === g(id)) closeModal(id); });
 });
 

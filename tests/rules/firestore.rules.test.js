@@ -86,3 +86,19 @@ test('staff autenticado tampoco puede escribir availability (solo la Cloud Funct
   const db = env.authenticatedContext('staff1').firestore();
   await assertFails(setDoc(doc(db, 'availability/2026-07-10'), { barberBusy: {} }));
 });
+
+test('anónimo NO puede leer scheduleBlocks', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertFails(getDoc(doc(db, 'scheduleBlocks/sb1')));
+});
+
+test('anónimo NO puede crear scheduleBlocks', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertFails(setDoc(doc(db, 'scheduleBlocks/sb1'), { barberId: 'victoria', date: '2026-08-05', start: '13:00', end: '14:00', reason: 'Colación' }));
+});
+
+test('admin (custom claim) SÍ puede leer y escribir scheduleBlocks', async () => {
+  const db = env.authenticatedContext('admin1', { admin: true }).firestore();
+  await assertSucceeds(setDoc(doc(db, 'scheduleBlocks/sb1'), { barberId: 'victoria', date: '2026-08-05', start: '13:00', end: '14:00', reason: 'Colación' }));
+  await assertSucceeds(getDoc(doc(db, 'scheduleBlocks/sb1')));
+});

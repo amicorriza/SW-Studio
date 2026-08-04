@@ -42,6 +42,15 @@ test('countClubVisits cuenta solo reservas club:member del email (case-insensiti
   assert.strictEqual(benefitReached, '');
 });
 
+test('countClubVisits normaliza espacios además de mayúsculas', () => {
+  const bookings = [
+    { email:' juan@mail.com ', club:'member' },
+    { email:'juan@mail.com', club:'member' },
+  ];
+  const { visitCount } = countClubVisits(bookings, '  Juan@Mail.com');
+  assert.strictEqual(visitCount, 2);
+});
+
 test('countClubVisits marca el beneficio al llegar a 10 y 20', () => {
   const tenBookings = Array.from({ length: 10 }, () => ({ email:'ana@mail.com', club:'member' }));
   assert.strictEqual(countClubVisits(tenBookings, 'ana@mail.com').benefitReached, 'premium');

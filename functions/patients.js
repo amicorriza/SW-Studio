@@ -26,9 +26,9 @@ function buildPatientUpsert(existingPatient, booking) {
 }
 
 function countClubVisits(bookings, email) {
-  const key = (email || '').toLowerCase();
+  const key = (email || '').trim().toLowerCase();
   const visitCount = (bookings || []).filter(
-    b => (b.email || '').toLowerCase() === key && b.club === 'member'
+    b => (b.email || '').trim().toLowerCase() === key && b.club === 'member'
   ).length;
   let benefitReached = '';
   if (visitCount === 10) benefitReached = 'premium';

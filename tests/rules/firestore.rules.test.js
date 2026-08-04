@@ -45,8 +45,13 @@ test('anónimo NO puede leer reservas ajenas', async () => {
   await assertFails(getDoc(doc(db, 'bookings/b1')));
 });
 
-test('staff autenticado SÍ puede leer reservas', async () => {
+test('autenticado sin claim admin NO puede leer reservas', async () => {
   const db = env.authenticatedContext('staff1').firestore();
+  await assertFails(getDoc(doc(db, 'bookings/b1')));
+});
+
+test('admin (custom claim) SÍ puede leer reservas', async () => {
+  const db = env.authenticatedContext('admin1', { admin: true }).firestore();
   await assertSucceeds(getDoc(doc(db, 'bookings/b1')));
 });
 
@@ -66,8 +71,14 @@ test('anónimo NO puede crear patients', async () => {
   await assertFails(setDoc(doc(db, 'patients/p1'), { name:'Juan', email:'juan@mail.com', club:'guest', visits:[], photos:[] }));
 });
 
-test('staff autenticado SÍ puede leer y escribir patients', async () => {
+test('autenticado sin claim admin NO puede leer ni escribir patients', async () => {
   const db = env.authenticatedContext('staff1').firestore();
+  await assertFails(setDoc(doc(db, 'patients/p1'), { name:'Juan', email:'juan@mail.com', club:'guest', visits:[], photos:[] }));
+  await assertFails(getDoc(doc(db, 'patients/p1')));
+});
+
+test('admin (custom claim) SÍ puede leer y escribir patients', async () => {
+  const db = env.authenticatedContext('admin1', { admin: true }).firestore();
   await assertSucceeds(setDoc(doc(db, 'patients/p1'), { name:'Juan', email:'juan@mail.com', club:'guest', visits:[], photos:[] }));
   await assertSucceeds(getDoc(doc(db, 'patients/p1')));
 });

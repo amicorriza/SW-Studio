@@ -1,8 +1,8 @@
 // public/js/data.js — capa de datos sobre Firestore. Expone window.SWData.
 import { db, storage, functions } from './firebase-init.js';
 import {
-  collection, getDocs, doc, setDoc, addDoc, deleteDoc, deleteField,
-  writeBatch, serverTimestamp, onSnapshot,
+  collection, getDocs, doc, setDoc, deleteDoc, deleteField,
+  writeBatch, onSnapshot,
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import {
   ref, uploadBytes, getDownloadURL, deleteObject,
@@ -106,11 +106,18 @@ function subscribeBookings(onChange) {
   return { unsubscribe, ready };
 }
 
-// Crear UNA reserva (camino público). Dispara la Cloud Function de email.
+// Crear UNA reserva (camino público), vía el callable transaccional
+// createBooking (Fase A) -- reemplaza el addDoc directo de antes, que no
+// verificaba disponibilidad al escribir. El servidor resuelve dur/price
+// (desde services), el barbero real si se pidió 'any', arma status/
+// emailStatus/createdAt y dispara onBookingCreated igual que antes. Si el
+// horario ya no está libre, la Cloud Function rechaza con
+// HttpsError('already-exists'|'resource-exhausted'|...) -- ver el mapeo de
+// mensajes en public/index.html.
 async function createBooking(obj) {
-  const payload = { ...obj, status: 'pending', emailStatus: 'pending', createdAtTs: serverTimestamp() };
-  const ref = await addDoc(collection(db, 'bookings'), payload);
-  return ref.id;
+  const call = httpsCallable(functions, 'createBooking');
+  const { data } = await call(obj);
+  return data.id;
 }
 
 // Clientes (v19). El upsert automático por reserva lo hace la Cloud

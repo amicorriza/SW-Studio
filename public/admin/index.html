@@ -34,7 +34,9 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 /* SHELL — root layout of the page, fills the viewport */
 #adm-shell{
   position:relative;z-index:1;
-  width:100%;height:100vh;
+  width:100%;
+  height:100vh;          /* fallback navegadores sin dvh */
+  height:100dvh;         /* alto real: descuenta la barra de URL en iOS/Android */
   background:var(--a-off);
   display:flex;flex-direction:column;
   overflow:hidden
@@ -196,6 +198,10 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 .a-tdur{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--a-meta)}
 .a-tcat{display:inline-block;padding:2px 7px;border-radius:4px;background:var(--a-off);border:1px solid var(--a-g2);font-family:'Barlow Condensed',sans-serif;font-size:8px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--a-meta)}
 .a-tacts{display:flex;gap:5px;flex-wrap:nowrap}
+/* Antes iba inline en cada botón; como clase, el bloque móvil puede sobrescribirlo. */
+.a-tacts .a-btn{padding:5px 9px;font-size:9px}
+/* Etiqueta larga de los botones de icono: solo se muestra en la vista de tarjetas. */
+.a-bl{display:none}
 
 /* TAGS */
 .a-tag{display:inline-block;padding:2px 7px;border-radius:3px;font-family:'Barlow Condensed',sans-serif;font-size:8px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;white-space:nowrap}
@@ -279,11 +285,11 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 .a-alert.a-err-t{background:#FFF0F0;color:var(--a-err);border:1px solid #F0C0C0}
 
 /* MODALS */
-.a-mb{position:fixed;inset:0;z-index:10100;background:rgba(10,10,10,.6);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:14px}
+.a-mb{position:fixed;inset:0;z-index:10100;background:rgba(10,10,10,.6);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
 .a-mb.a-open{display:flex;animation:admFI .2s ease}
 .a-mo{
   background:#fff;border-radius:15px;width:100%;max-width:520px;
-  max-height:90vh;overflow-y:auto;
+  max-height:90vh;max-height:90dvh;overflow-y:auto;
   background-image:linear-gradient(#fff,#fff),var(--a-steel-b);
   background-origin:border-box;background-clip:padding-box,border-box;
   border:2px solid transparent;
@@ -350,7 +356,7 @@ html,body{height:100%;font-family:'Inter',sans-serif}
   color:var(--a-txt);text-transform:capitalize;flex:1;text-align:center;min-width:140px
 }
 .a-bk-filter{margin-left:auto}
-.a-bk-filter select{padding:7px 10px;font-size:12px}
+.a-bk-filter select{padding:7px 10px;font-size:12px;max-width:200px}
 
 /* View toggle (Día / Lista) */
 .a-vtoggle{display:flex;background:var(--a-off);border:1.5px solid var(--a-g2);border-radius:8px;overflow:hidden;flex-shrink:0}
@@ -364,7 +370,9 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 /* Los dos campos de fecha del rango no deben estirarse como el buscador:
    la regla de arriba aplica a todo input del contenedor, así que se acota
    con mayor especificidad. */
-#a-bk-list-controls #a-bk-list-dates input{flex:0 1 auto;min-width:140px}
+#a-bk-list-controls #a-bk-list-dates input{flex:0 1 auto;min-width:140px;max-width:160px}
+#a-bk-list-controls #a-bk-list-range{max-width:190px}
+#a-pat-search{max-width:420px}
 .a-sortable{cursor:pointer;user-select:none}
 .a-sortable:hover{color:var(--a-txt)}
 .a-sort-arrow{margin-left:4px;opacity:.5;display:inline-block;min-width:9px}
@@ -422,7 +430,9 @@ html,body{height:100%;font-family:'Inter',sans-serif}
   opacity:0;transition:opacity .15s;
   pointer-events:none;white-space:nowrap
 }
-.a-tl-slot:hover .a-tl-lbl{opacity:1}
+@media(hover:hover){.a-tl-slot:hover .a-tl-lbl{opacity:1}}
+/* Sin cursor no hay hover: la etiqueta "Libre" se muestra siempre, atenuada. */
+@media(hover:none){.a-tl-lbl{opacity:.5}}
 .a-bk-card{
   position:absolute;
   background:linear-gradient(180deg,#fff 0%,#FAFBFC 100%);
@@ -455,11 +465,14 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 .a-bk-card-line .a-bk-card-name{flex:1 1 auto}
 .a-bk-card-line .a-bk-card-time{flex:0 0 auto}
 
-/* Al pasar el cursor la tarjeta se despliega por completo sobre las vecinas */
-.a-tl-col:hover .a-bk-card:hover{
-  z-index:9;min-height:62px;
-  width:calc(100% - 8px)!important;left:4px!important;
-  box-shadow:0 6px 20px rgba(120,130,145,.4)
+/* Al pasar el cursor la tarjeta se despliega por completo sobre las vecinas.
+   Al tacto no aplica: ahí el detalle se abre tocando la tarjeta. */
+@media(hover:hover){
+  .a-tl-col:hover .a-bk-card:hover{
+    z-index:9;min-height:62px;
+    width:calc(100% - 8px)!important;left:4px!important;
+    box-shadow:0 6px 20px rgba(120,130,145,.4)
+  }
 }
 .a-bk-card-time{font-family:'Orbitron',sans-serif;font-size:9.5px;font-weight:600;color:var(--a-sd);letter-spacing:.02em}
 .a-bk-card-barber{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--a-info);background:#E5F0FB;padding:1px 5px;border-radius:3px}
@@ -594,7 +607,7 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 .a-pm-photo input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;font-size:0}
 .a-pm-photo-plus{
   font-family:'Orbitron',sans-serif;font-size:24px;font-weight:600;
-  color:var(--a-steel-dark,#6A7888);
+  color:var(--a-sd);
   line-height:1;pointer-events:none
 }
 .a-pm-photo-plus-lbl{
@@ -614,7 +627,11 @@ html,body{height:100%;font-family:'Inter',sans-serif}
   backdrop-filter:blur(4px);
   transition:all .18s
 }
-.a-pm-photo.a-pm-filled:hover .a-pm-photo-del{display:flex}
+@media(hover:hover){.a-pm-photo.a-pm-filled:hover .a-pm-photo-del{display:flex}}
+/* Al tacto no hay hover: sin esto, borrar una foto es imposible desde el teléfono. */
+@media(hover:none){
+  .a-pm-photo.a-pm-filled .a-pm-photo-del{display:flex;width:28px;height:28px;font-size:14px}
+}
 .a-pm-photo-del:hover{background:var(--a-err)}
 .a-pm-photo-overlay{
   position:absolute;left:0;right:0;bottom:0;
@@ -661,7 +678,17 @@ html,body{height:100%;font-family:'Inter',sans-serif}
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
   opacity:0;transition:opacity .18s;pointer-events:none
 }
-.a-img-thumb:hover .a-img-thumb-overlay{opacity:1}
+@media(hover:hover){.a-img-thumb:hover .a-img-thumb-overlay{opacity:1}}
+/* Al tacto el overlay nunca aparece, así que el CTA "Cambiar" se ancla visible. */
+@media(hover:none){
+  .a-img-thumb-overlay{
+    opacity:1;background:none;
+    inset:auto 8px 8px auto;flex-direction:row;gap:5px;
+    padding:6px 10px;border-radius:20px;
+    background:rgba(10,10,10,.72);backdrop-filter:blur(4px)
+  }
+  .a-img-thumb-overlay svg{width:14px;height:14px}
+}
 .a-img-thumb-overlay svg{width:20px;height:20px}
 .a-img-thumb-overlay span{
   font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;
@@ -710,6 +737,120 @@ html,body{height:100%;font-family:'Inter',sans-serif}
   backdrop-filter:blur(8px);transition:background .18s
 }
 .a-pm-lb-close:hover{background:rgba(255,255,255,.22)}
+
+/* ═══════════════════════════════════════════
+   SAFE AREA — el viewport declara viewport-fit=cover,
+   así que los insets del notch hay que descontarlos a mano.
+   ═══════════════════════════════════════════ */
+#adm-scroll{padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+@media(max-width:719.98px){
+  #adm-nav-links{padding-left:max(8px,env(safe-area-inset-left))}
+  #adm-lgout{padding-right:max(12px,env(safe-area-inset-right))}
+}
+
+/* ═══════════════════════════════════════════
+   MÓVIL (< 720px) — contenido de las vistas.
+   Complementa el @media(min-width:720px) de más arriba;
+   el .98 evita dejar un hueco entre ambos.
+   ═══════════════════════════════════════════ */
+@media(max-width:719.98px){
+
+  /* ── Campos a 16px ──
+     Por debajo de 16px Safari iOS hace zoom automático al enfocar, y como
+     #adm-shell es height:100dvh/overflow:hidden el layout queda descuadrado. */
+  .a-in,select.a-in,textarea.a-in,.a-sch-time,#adm-login input{font-size:16px}
+
+  /* ── TABLAS → TARJETAS ──
+     Cada <tr> pasa a ser una tarjeta y cada <td> una fila etiqueta/valor.
+     La etiqueta sale de data-label, que se emite desde el JS. */
+  .a-tw{background:transparent;border:none;border-radius:0;overflow-x:visible;margin-bottom:0}
+  .a-t{display:block;min-width:0}
+  .a-t thead{display:none}
+  .a-t tbody{display:block}
+  .a-t tr{
+    display:block;background:#fff;
+    border:1.5px solid var(--a-g2);border-radius:11px;
+    padding:10px 14px;margin-bottom:10px
+  }
+  .a-t tr:hover td{background:transparent}
+  /* Grid de 2 columnas: la etiqueta se fija en la 1, todo el contenido en la 2.
+     Así las celdas con varios hijos (nombre + badge) se apilan en vez de competir. */
+  .a-t td{
+    display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);
+    align-items:baseline;justify-items:end;column-gap:14px;row-gap:3px;
+    padding:7px 0;border-bottom:1px solid var(--a-g1);
+    text-align:right;font-size:13px;
+    overflow-wrap:anywhere   /* emails y teléfonos largos parten en vez de estirar la celda */
+  }
+  .a-t td::before{
+    content:attr(data-label);
+    grid-column:1;grid-row:1;text-align:left;white-space:nowrap;
+    font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;
+    letter-spacing:.28em;text-transform:uppercase;color:var(--a-sd)
+  }
+  .a-t td>*{grid-column:2}
+  /* La celda de acciones (la única sin data-label) ocupa el ancho completo */
+  .a-t td:last-child:not([data-label]){grid-template-columns:1fr;justify-items:stretch;padding:11px 0 2px;border-bottom:none}
+  .a-t td:last-child:not([data-label])>*{grid-column:1}
+  .a-t td:last-child[data-label]{border-bottom:none}
+  /* Reglas base que asumían tabla: se reponen fila a fila */
+  .a-t tr:last-child td{border-bottom:1px solid var(--a-g1)}
+  .a-t tr:last-child td:last-child{border-bottom:none}
+  /* Estados vacíos: un colspan que ocupa la tarjeta entera, sin etiqueta */
+  .a-t td[colspan]{display:block;text-align:center}
+  .a-t td[colspan]::before{content:none}
+
+  /* Acciones cómodas de tocar */
+  .a-tacts{width:100%;gap:8px}
+  .a-tacts .a-btn{flex:1;justify-content:center;min-height:40px;padding:9px 12px;font-size:11px}
+  .a-bl{display:inline}
+
+  /* ── Alertas ──
+     Eran inline al inicio del panel: con la vista scrolleada no se veían. */
+  .a-alert.a-show{
+    position:fixed;z-index:10300;
+    left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));
+    margin:0;box-shadow:0 8px 28px -6px rgba(0,0,0,.35)
+  }
+
+  /* ── Agenda: la fecha ocupa su propia línea sobre los controles ── */
+  #a-bk-date-lbl{flex:1 1 100%;order:-1;min-width:0;margin-bottom:2px}
+  .a-cdn{width:40px;height:40px}
+  .a-cdn-today{width:auto;padding:0 16px}
+  .a-bk-filter{margin-left:0;flex:1 1 100%}
+  .a-bk-filter select{width:100%;max-width:none}
+
+  /* ── Tamaños táctiles ── */
+  .a-btn{min-height:36px}
+  .a-cft,.a-scht{min-height:36px}
+  .a-tog{min-height:40px}
+  .a-mc{width:34px;height:34px;font-size:14px}
+  .a-stca button{width:32px;height:32px;font-size:13px}
+  .a-img-restore{padding:8px 0;min-height:36px}
+}
+
+/* Horarios: 90px 80px 1fr 1fr no cabe en un teléfono y .a-sch-card lo recortaba.
+   Con dos columnas queda: día | abierto  /  hora inicio | hora fin. */
+@media(max-width:560px){
+  .a-sch-day-row,.a-sch-break-row{grid-template-columns:1fr 1fr;gap:10px}
+  .a-sch-time{min-width:0}
+  /* Barras de estadísticas: con la etiqueta al 36% el track queda inservible */
+  .a-bar-row{flex-wrap:wrap;gap:4px 11px}
+  .a-bar-lbl{flex:1 1 100%;white-space:normal}
+}
+
+/* Pie de modal: los tres botones (Eliminar/Cancelar/Guardar) envolvían mal */
+@media(max-width:520px){
+  .a-mf .a-btn{flex:1 1 auto;justify-content:center;min-height:42px}
+}
+
+/* Controles de la vista Lista: buscador y rango de fechas desbordaban */
+@media(max-width:480px){
+  #a-bk-list-controls input{flex:1 1 100%;min-width:0}
+  #a-bk-list-controls select{max-width:none;flex:1 1 100%}
+  #a-bk-list-dates{flex:1 1 100%;flex-wrap:wrap}
+  #a-bk-list-controls #a-bk-list-dates input{flex:1 1 130px;min-width:0;max-width:none}
+}
   </style>
 </head>
 <body>
@@ -830,7 +971,7 @@ html,body{height:100%;font-family:'Inter',sans-serif}
               <button class="a-cdn" id="a-bk-next">▶</button>
               <button class="a-cdn a-cdn-today" id="a-bk-today">Hoy</button>
               <div class="a-bk-filter">
-                <select class="a-in" id="a-bk-filter-barber" style="max-width:200px">
+                <select class="a-in" id="a-bk-filter-barber">
                   <option value="">Todos los barberos</option>
                 </select>
               </div>
@@ -845,15 +986,15 @@ html,body{height:100%;font-family:'Inter',sans-serif}
               <select class="a-in" id="a-bk-list-filter-barber">
                 <option value="">Todos los barberos</option>
               </select>
-              <select class="a-in" id="a-bk-list-range" style="max-width:190px">
+              <select class="a-in" id="a-bk-list-range">
                 <option value="upcoming">Próximas citas</option>
                 <option value="all">Todas (con historial)</option>
                 <option value="custom">Entre dos fechas…</option>
               </select>
               <div id="a-bk-list-dates" style="display:none;gap:8px;align-items:center">
-                <input class="a-in" id="a-bk-list-from" type="date" title="Desde" style="max-width:160px">
+                <input class="a-in" id="a-bk-list-from" type="date" title="Desde">
                 <span style="opacity:.5">→</span>
-                <input class="a-in" id="a-bk-list-to" type="date" title="Hasta" style="max-width:160px">
+                <input class="a-in" id="a-bk-list-to" type="date" title="Hasta">
               </div>
             </div>
             <div class="a-tw">
@@ -890,14 +1031,14 @@ html,body{height:100%;font-family:'Inter',sans-serif}
           <div id="a-pat-alert" class="a-alert"></div>
           <div id="a-pat-stats"></div>
           <div class="a-sh">
-            <div><div class="a-st">Base de Clientes</div><div class="a-ss">Doble clic en una fila para ver ficha completa + galería de fotos</div></div>
+            <div><div class="a-st">Base de Clientes</div><div class="a-ss">Toca una fila (o doble clic con el mouse) para ver la ficha completa + galería de fotos</div></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="a-btn a-btn-g" id="a-pat-export">⬇ Exportar Excel</button>
               <button class="a-btn a-btn-p" id="a-pat-new">+ Nuevo cliente</button>
             </div>
           </div>
           <div id="a-pat-search-bar" style="margin-bottom:14px">
-            <input class="a-in" id="a-pat-search" placeholder="🔍 Buscar por nombre, email o teléfono..." style="max-width:420px">
+            <input class="a-in" id="a-pat-search" placeholder="🔍 Buscar por nombre, email o teléfono...">
           </div>
           <div class="a-tw">
             <table class="a-t">
@@ -1361,7 +1502,7 @@ function renderDash(){
     '<div class="a-sc"><div class="a-scl">Precio Promedio</div><div class="a-scv">'+(prices.length?fmtCLP(Math.round(prices.reduce(function(a,b){return a+b},0)/prices.length)):'—')+'</div></div>';
 
   g('a-log').innerHTML = D.log.length
-    ? D.log.map(function(l){return '<tr><td>'+esc(l.action)+'</td><td class="a-tn">'+esc(l.item)+'</td><td style="font-size:11px;color:#888">'+esc(l.date)+'</td></tr>'}).join('')
+    ? D.log.map(function(l){return '<tr><td data-label="Acción">'+esc(l.action)+'</td><td class="a-tn" data-label="Elemento">'+esc(l.item)+'</td><td data-label="Fecha" style="font-size:11px;color:#888">'+esc(l.date)+'</td></tr>'}).join('')
     : '<tr><td colspan="3" style="text-align:center;color:#888;padding:24px">Sin actividad aún.</td></tr>';
 }
 
@@ -1594,15 +1735,15 @@ function renderBookingList(){
     var dayStr = e.dtDay ? e.dtDay.toLocaleDateString('es-CL') : '—';
     var overTag = b.over ? ' <span class="a-bk-card-over-tag">Sobrecupo</span>' : '';
     return '<tr data-code="'+esc(b.code)+'">' +
-      '<td>'+esc(dayStr)+'</td>' +
-      '<td>'+esc(b.time||'')+'</td>' +
-      '<td><div class="a-tn">'+esc(b.name||'Cliente')+'</div>'+overTag+'</td>' +
-      '<td>'+esc(b.svcName||'')+'</td>' +
-      '<td>'+esc(b.barberName||'')+'</td>' +
-      '<td>'+fmtCLP(b.price)+'</td>' +
+      '<td data-label="Día">'+esc(dayStr)+'</td>' +
+      '<td data-label="Hora">'+esc(b.time||'')+'</td>' +
+      '<td data-label="Cliente"><div class="a-tn">'+esc(b.name||'Cliente')+'</div>'+overTag+'</td>' +
+      '<td data-label="Servicio">'+esc(b.svcName||'')+'</td>' +
+      '<td data-label="Barbero">'+esc(b.barberName||'')+'</td>' +
+      '<td data-label="Precio">'+fmtCLP(b.price)+'</td>' +
       '<td><div class="a-tacts">' +
-        '<button class="a-btn a-btn-g" data-lst-edit="'+esc(b.code)+'" style="padding:5px 9px;font-size:9px">✎</button>' +
-        '<button class="a-btn a-btn-danger" data-lst-del="'+esc(b.code)+'" style="padding:5px 8px;font-size:9px">✕</button>' +
+        '<button class="a-btn a-btn-g" data-lst-edit="'+esc(b.code)+'">✎<span class="a-bl">Editar</span></button>' +
+        '<button class="a-btn a-btn-danger" data-lst-del="'+esc(b.code)+'">✕<span class="a-bl">Eliminar</span></button>' +
       '</div></td>' +
     '</tr>';
   }).join('');
@@ -2224,14 +2365,14 @@ function renderSvcs(){
   }
   body.innerHTML = fl.map(function(s){
     return '<tr>'+
-      '<td><div class="a-tn">'+esc(s.name)+'</div>'+(s.tag?'<span class="a-tag a-t'+(s.ts==='s'?'premium':'promo')+'">'+esc(s.tag)+'</span>':'')+'</td>'+
-      '<td><span class="a-tcat">'+esc(CN[s.cat]||s.cat)+'</span></td>'+
-      '<td><span class="a-tdur">'+s.dur+'m</span></td>'+
-      '<td><span class="a-tp">'+fmtCLP(s.price)+'</span></td>'+
-      '<td><span class="a-tag a-t'+(s.status==='active'?'ok':'no')+'">'+(s.status==='active'?'Activo':'Inactivo')+'</span></td>'+
+      '<td data-label="Servicio"><div class="a-tn">'+esc(s.name)+'</div>'+(s.tag?'<span class="a-tag a-t'+(s.ts==='s'?'premium':'promo')+'">'+esc(s.tag)+'</span>':'')+'</td>'+
+      '<td data-label="Categoría"><span class="a-tcat">'+esc(CN[s.cat]||s.cat)+'</span></td>'+
+      '<td data-label="Duración"><span class="a-tdur">'+s.dur+'m</span></td>'+
+      '<td data-label="Precio"><span class="a-tp">'+fmtCLP(s.price)+'</span></td>'+
+      '<td data-label="Estado"><span class="a-tag a-t'+(s.status==='active'?'ok':'no')+'">'+(s.status==='active'?'Activo':'Inactivo')+'</span></td>'+
       '<td><div class="a-tacts">'+
-        '<button class="a-btn a-btn-g" data-edit-svc="'+esc(s.id)+'" style="padding:5px 9px;font-size:9px">Editar</button>'+
-        '<button class="a-btn a-btn-danger" data-del-svc="'+esc(s.id)+'" style="padding:5px 8px;font-size:9px">✕</button>'+
+        '<button class="a-btn a-btn-g" data-edit-svc="'+esc(s.id)+'">Editar</button>'+
+        '<button class="a-btn a-btn-danger" data-del-svc="'+esc(s.id)+'">✕<span class="a-bl">Eliminar</span></button>'+
       '</div></td>'+
     '</tr>';
   }).join('');
@@ -2756,15 +2897,15 @@ function renderPatients(){
       ? '<span class="a-tag" style="background:linear-gradient(135deg,#1A1A1A,#2A2A2A);color:#C8D0DA;border:1px solid #6A7888">⬡ CLUB · '+clubVis+'</span>'
       : '<span class="a-tag" style="background:var(--a-off);color:var(--a-meta);border:1px solid var(--a-g2)">Invitado</span>';
     return '<tr class="a-pat-row" data-pat-id="' + esc(p.id) + '">' +
-      '<td><div class="a-tn">' + esc(p.name) + '</div><div style="margin-top:3px">'+clubBadge+'</div></td>' +
-      '<td style="font-size:12px;color:var(--a-meta)">' + esc(p.email || '—') + '</td>' +
-      '<td style="font-size:12px;color:var(--a-meta)">' + esc(p.phone || '—') + '</td>' +
-      '<td><span class="a-tag a-tinfo">' + p.visits.length + (p.visits.length===1?' visita':' visitas') + '</span></td>' +
-      '<td><div style="font-size:12px">' + esc(lastSvc) + '</div>' + (lastDate?'<div style="font-size:10.5px;color:var(--a-meta);margin-top:2px">' + esc(lastDate) + '</div>':'') + '</td>' +
-      '<td><div style="font-size:12px;font-weight:600;color:var(--a-txt)">' + esc(lastBarber) + '</div>' + (topBarber && topBarberCount>=2 && topBarber!==lastBarber ? '<div style="font-size:10px;color:var(--a-meta);margin-top:2px">Recurrente con: '+esc(topBarber)+'</div>' : (topBarber && topBarberCount>=2 ? '<div style="font-size:10px;color:var(--a-meta);margin-top:2px">'+topBarberCount+' visitas con él/ella</div>' : '')) + '</td>' +
+      '<td data-label="Nombre"><div class="a-tn">' + esc(p.name) + '</div><div style="margin-top:3px">'+clubBadge+'</div></td>' +
+      '<td data-label="Email" style="font-size:12px;color:var(--a-meta)">' + esc(p.email || '—') + '</td>' +
+      '<td data-label="Teléfono" style="font-size:12px;color:var(--a-meta)">' + esc(p.phone || '—') + '</td>' +
+      '<td data-label="Visitas"><span class="a-tag a-tinfo">' + p.visits.length + (p.visits.length===1?' visita':' visitas') + '</span></td>' +
+      '<td data-label="Última prestación"><div style="font-size:12px">' + esc(lastSvc) + '</div>' + (lastDate?'<div style="font-size:10.5px;color:var(--a-meta);margin-top:2px">' + esc(lastDate) + '</div>':'') + '</td>' +
+      '<td data-label="Barbero"><div style="font-size:12px;font-weight:600;color:var(--a-txt)">' + esc(lastBarber) + '</div>' + (topBarber && topBarberCount>=2 && topBarber!==lastBarber ? '<div style="font-size:10px;color:var(--a-meta);margin-top:2px">Recurrente con: '+esc(topBarber)+'</div>' : (topBarber && topBarberCount>=2 ? '<div style="font-size:10px;color:var(--a-meta);margin-top:2px">'+topBarberCount+' visitas con él/ella</div>' : '')) + '</td>' +
       '<td><div class="a-tacts">' +
-        '<button class="a-btn a-btn-g" data-pat-edit="' + esc(p.id) + '" style="padding:5px 9px;font-size:9px">Ver</button>' +
-        '<button class="a-btn a-btn-danger" data-pat-del="' + esc(p.id) + '" style="padding:5px 8px;font-size:9px">✕</button>' +
+        '<button class="a-btn a-btn-g" data-pat-edit="' + esc(p.id) + '">Ver<span class="a-bl"> ficha</span></button>' +
+        '<button class="a-btn a-btn-danger" data-pat-del="' + esc(p.id) + '">✕<span class="a-bl">Eliminar</span></button>' +
       '</div></td>' +
     '</tr>';
   }).join('');
@@ -2777,11 +2918,18 @@ function renderPatients(){
   });
   // ── Double click on row opens the full client profile ──
   body.querySelectorAll('.a-pat-row').forEach(function(row){
-    row.addEventListener('dblclick', function(e){
-      // Ignore double clicks on action buttons
+    var open = function(e){
+      // Ignore clicks on action buttons
       if(e.target.closest('.a-tacts')) return;
       var p = getPatients().find(function(x){return x.id===row.dataset.patId});
       if(p) openPatModal(p);
+    };
+    row.addEventListener('dblclick', open);
+    // Al tacto no existe el doble clic: en pantallas táctiles basta con tocar
+    // la tarjeta, igual que ya hace la lista de citas.
+    row.addEventListener('click', function(e){
+      if(!window.matchMedia('(pointer:coarse)').matches) return;
+      open(e);
     });
   });
   body.querySelectorAll('[data-pat-del]').forEach(function(b){

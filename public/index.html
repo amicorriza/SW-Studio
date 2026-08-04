@@ -159,7 +159,8 @@
       position:fixed;top:0;left:0;right:0;z-index:100;
       height:var(--nav-h);
       display:flex;align-items:center;justify-content:space-between;
-      padding:0 48px;
+      /* max(): el viewport es viewport-fit=cover, hay que esquivar el notch en horizontal */
+      padding:0 max(48px,env(safe-area-inset-right)) 0 max(48px,env(safe-area-inset-left));
       background:rgba(250,250,250,0.93);
       backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
       border-bottom:1px solid rgba(170,180,195,0.28);
@@ -204,12 +205,22 @@
       padding:10px 22px;border:1.5px solid var(--ink);transition:all .2s
     }
     .nav-cta:hover{background:transparent;color:var(--ink)}
-    .nav-burger{display:none;flex-direction:column;gap:5px;cursor:pointer;background:none;border:none;padding:4px}
+    .nav-burger{
+      display:none;flex-direction:column;align-items:center;justify-content:center;
+      gap:5px;cursor:pointer;background:none;border:none;
+      width:44px;height:44px;padding:0;margin-right:-10px   /* 44px de área táctil sin desplazar el icono */
+    }
     .nav-burger span{display:block;width:24px;height:1.5px;background:var(--ink);transition:all .3s}
+    /* Estado abierto: las tres líneas se convierten en una X (5px de gap + 1.5px = 6.5px al centro) */
+    .nav-burger.open span:nth-child(1){transform:translateY(6.5px) rotate(45deg)}
+    .nav-burger.open span:nth-child(2){opacity:0}
+    .nav-burger.open span:nth-child(3){transform:translateY(-6.5px) rotate(-45deg)}
     .mob{
       display:none;position:fixed;top:var(--nav-h);left:0;right:0;
       background:var(--white);border-bottom:1px solid #E0E0E0;
-      padding:20px 28px 28px;z-index:99;flex-direction:column;gap:4px
+      padding:20px 28px calc(28px + env(safe-area-inset-bottom));
+      max-height:calc(100dvh - var(--nav-h));overflow-y:auto;
+      z-index:99;flex-direction:column;gap:4px
     }
     .mob.open{display:flex}
     .mob a{
@@ -691,8 +702,10 @@
     .partner-imgs{display:grid;grid-template-columns:1fr 1fr;gap:16px}
     .partner-img-main{grid-column:span 2}
     .p-img{width:100%;height:100%;object-fit:cover;display:block;border-radius:12px}
-    .p-wrap-main{height:280px}
-    .p-wrap-sec{height:200px}
+    /* aspect-ratio en vez de alto fijo: en móvil 280/200px deformaban las fotos.
+       Las proporciones son las que ya tenían en escritorio (560×280 y 272×200). */
+    .p-wrap-main{aspect-ratio:2/1}
+    .p-wrap-sec{aspect-ratio:34/25}
     .partner-quote{
       margin-top:24px;padding:20px 24px;
       border-left:3px solid var(--steel-mid);
@@ -1053,7 +1066,7 @@
 
     /* ══ RESPONSIVE ══ */
     @media(max-width:1024px){
-      nav{padding:0 28px}
+      nav{padding:0 max(28px,env(safe-area-inset-right)) 0 max(28px,env(safe-area-inset-left))}
       .nav-links{display:none}
       .nav-burger{display:flex}
       section{padding:80px 32px}
@@ -1090,8 +1103,8 @@
       .ft-tag{font-size:15px;max-width:100%}
     }
     @media(max-width:640px){
-      nav{padding:0 20px}
-      .mob{padding:18px 20px 24px}
+      nav{padding:0 max(20px,env(safe-area-inset-right)) 0 max(20px,env(safe-area-inset-left))}
+      .mob{padding:18px 20px calc(24px + env(safe-area-inset-bottom))}
       section{padding:60px 20px}
       .gal-hdr{padding:60px 20px 36px}
       .ig{padding:68px 20px}
@@ -1111,7 +1124,8 @@
       .ft-grid{grid-template-columns:1fr;gap:26px}
       .ft-bot{flex-direction:column;gap:12px;text-align:center}
       .ft-bar{display:none}
-      .bld-img{height:320px}
+      .ab-imgs{height:300px}
+      /* .bld-img ya define aspect-ratio:399/501; fijar un alto aquí lo deformaba */
       .ab-main, .ab-acc{border-radius:10px}
       .team-card{border-radius:12px}
       .gal-item{border-radius:8px}
@@ -1414,7 +1428,7 @@
 #sw-intro.done{
   opacity:0;transition:opacity .9s ease;pointer-events:none
 }
-body.sw-intro-lock{overflow:hidden;height:100vh}
+body.sw-intro-lock{overflow:hidden;height:100vh;height:100dvh}
 #navbar .nav-logo-img.sw-pop{
   animation:swNavPop .7s cubic-bezier(.22,.8,.3,1) both
 }
@@ -1456,7 +1470,7 @@ body.sw-intro-lock{overflow:hidden;height:100vh}
     <li><a href="#ubicacion">Ubicación</a></li>
   </ul>
   <a href="#reservar" target="_blank" rel="noopener" class="nav-cta">Agendar</a>
-  <button class="nav-burger" id="burger" aria-label="Abrir menú">
+  <button class="nav-burger" id="burger" aria-label="Abrir menú" aria-expanded="false" aria-controls="mob">
     <span></span><span></span><span></span>
   </button>
 </nav>
@@ -1761,9 +1775,19 @@ body.sw-intro-lock{overflow:hidden;height:100vh}
 
 <script>
   const burger=document.getElementById('burger'),mob=document.getElementById('mob');
-  burger.addEventListener('click',()=>mob.classList.toggle('open'));
-  function cm(){mob.classList.remove('open')}
-  document.addEventListener('click',e=>{if(!burger.contains(e.target)&&!mob.contains(e.target))mob.classList.remove('open')});
+  // Un solo punto de verdad para el menú: clase en el panel, clase en el botón,
+  // aria-expanded y bloqueo del scroll de fondo van siempre juntos.
+  function setMenu(open){
+    mob.classList.toggle('open',open);
+    burger.classList.toggle('open',open);
+    burger.setAttribute('aria-expanded',open?'true':'false');
+    burger.setAttribute('aria-label',open?'Cerrar menú':'Abrir menú');
+    document.body.style.overflow=open?'hidden':'';
+  }
+  burger.addEventListener('click',()=>setMenu(!mob.classList.contains('open')));
+  function cm(){setMenu(false)}
+  document.addEventListener('click',e=>{if(!burger.contains(e.target)&&!mob.contains(e.target))cm()});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&mob.classList.contains('open'))cm()});
 
   const obs=new IntersectionObserver(entries=>{
     entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('vis');obs.unobserve(e.target)}})
@@ -2151,7 +2175,7 @@ body.sw-intro-lock{overflow:hidden;height:100vh}
 #bk-panel{
   position:relative;z-index:1;
   width:100%;max-width:1060px;
-  height:94vh;max-height:860px;
+  height:94vh;height:94dvh;max-height:860px;   /* dvh: sin esto la barra de URL de iOS tapa los botones del wizard */
   background:var(--bk-white);
   border-radius:22px 22px 0 0;
   display:flex;flex-direction:column;
@@ -2160,7 +2184,7 @@ body.sw-intro-lock{overflow:hidden;height:100vh}
 }
 @media(min-width:900px){
   #booking-overlay{align-items:center}
-  #bk-panel{height:90vh;border-radius:22px;max-height:860px}
+  #bk-panel{height:90vh;height:90dvh;border-radius:22px;max-height:860px}
 }
 
 /* ── HEADER ── */
@@ -2598,6 +2622,42 @@ body.sw-intro-lock{overflow:hidden;height:100vh}
   border:2px solid rgba(255,255,255,.3);border-top-color:#fff;
   border-radius:50%;animation:bkSpin .7s linear infinite
 }
+
+/* ═══════════════════════════════════════════════════
+   MÓVIL — wizard de reservas
+   ═══════════════════════════════════════════════════ */
+@media(max-width:720px){
+  /* Bajo 16px Safari iOS hace zoom al enfocar y descuadra el drawer */
+  #booking-overlay input,#booking-overlay select,#booking-overlay textarea{font-size:16px}
+  /* El drawer ya scrollea: un scroll anidado de 260px atrapa el gesto */
+  #bk-slots{max-height:none;overflow-y:visible;padding-right:0}
+  /* Área táctil mínima cómoda */
+  .bk-slot{padding:12px 4px;min-height:44px}
+  .bk-cat{min-height:40px}
+  .bk-calnav{width:38px;height:38px}
+  /* Home indicator del iPhone */
+  .bk-foot{padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+}
+
+/* Los 28px de padding lateral se comían el 17% del ancho en un teléfono chico
+   y dejaban las celdas del calendario en ~33px, bajo el mínimo táctil. */
+@media(max-width:480px){
+  #bk-hd,#bk-stepper,.bk-screen-hd,.bk-foot,
+  #bk-svcs,#bk-barbers,#bk-cal-wrap,#bk-form-wrap{
+    padding-left:16px;padding-right:16px
+  }
+  #bk-cal{padding:10px}
+  .bk-day{font-size:13px}
+}
+
+/* En pantallas muy angostas el ancho de celda no da para 7 columnas cuadradas:
+   se suelta el aspect-ratio y se garantiza el alto táctil. */
+@media(max-width:380px){
+  #bk-cal-wrap{padding-left:12px;padding-right:12px}
+  #bk-cal{padding:8px}
+  #bk-cal-days{gap:2px}
+  .bk-day{aspect-ratio:auto;min-height:40px}
+}
 </style>
 
 <script>
@@ -2733,6 +2793,9 @@ function activeBarberIds(){ return BARBERS.filter(b=>!b.any).map(b=>b.id); }
 
 // ══ OPEN / CLOSE ══
 function openBK(){
+  // El CTA del menú móvil abre el wizard: hay que cerrar el menú antes, o queda
+  // abierto detrás del overlay y su cm() posterior desbloquearía el scroll.
+  if(typeof cm === 'function') cm();
   document.getElementById('booking-overlay').style.display='flex';
   document.body.style.overflow='hidden';
   // Reset state

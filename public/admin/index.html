@@ -1158,7 +1158,7 @@ html,body{height:100%;font-family:'Inter',sans-serif}
         <div class="a-f"><label class="a-lbl">Cliente *</label><input class="a-in" id="a-bkm-name" placeholder="Nombre del cliente"><span class="a-fe">Obligatorio.</span></div>
         <div class="a-f"><label class="a-lbl">Teléfono</label><input class="a-in" id="a-bkm-phone" placeholder="+56 9 ..."></div>
       </div>
-      <div class="a-f"><label class="a-lbl">Email</label><input class="a-in" id="a-bkm-email" type="email"></div>
+      <div class="a-f"><label class="a-lbl">Email</label><input class="a-in" id="a-bkm-email" type="email"><span class="a-fe">Formato de email inválido.</span><span id="a-bkm-email-hint" style="font-size:11px;color:var(--a-meta);display:none"></span></div>
       <div class="a-fr">
         <div class="a-f"><label class="a-lbl">Servicio *</label><select class="a-in" id="a-bkm-svc"></select><span class="a-fe">Selecciona servicio.</span></div>
         <div class="a-f"><label class="a-lbl">Barbero *</label><select class="a-in" id="a-bkm-barber"></select><span class="a-fe">Selecciona barbero.</span></div>
@@ -2051,6 +2051,8 @@ function openBookingModal(bk, presetHour){
   g('a-bkm-name').value = bk ? (bk.name||'') : '';
   g('a-bkm-phone').value = bk ? (bk.phone||'') : '';
   g('a-bkm-email').value = bk ? (bk.email||'') : '';
+  updateBkmEmailHint(bk);
+  g('a-bkm-email').addEventListener('input', function(){ updateBkmEmailHint(bk); });
   g('a-bkm-notes').value = bk ? (bk.notes||'') : '';
   g('a-bkm-over').checked = bk ? !!bk.over : false;
 
@@ -2097,6 +2099,25 @@ function openBookingModal(bk, presetHour){
   g('a-bkm').classList.add('a-open');
 }
 
+// Email opcional en el panel (un barbero puede agendar por teléfono sin
+// correo). Este hint avisa la consecuencia sin bloquear el guardado: vacío
+// significa que esa reserva no dispara el correo de confirmación
+// automático; un correo que ya falló al enviarse también queda marcado
+// mientras no se edite.
+function updateBkmEmailHint(bk){
+  var hint = g('a-bkm-email-hint');
+  if(!hint) return;
+  var val = g('a-bkm-email').value.trim();
+  if(!val){
+    hint.textContent = 'Sin email: no se enviará confirmación automática.';
+  } else if(bk && bk.emailStatus === 'failed' && val === (bk.email||'').trim()){
+    hint.textContent = 'El envío de confirmación a este correo falló.';
+  } else {
+    hint.textContent = '';
+  }
+  hint.style.display = hint.textContent ? 'block' : 'none';
+}
+
 function checkBookingConflict(){
   var svcSel = g('a-bkm-svc');
   var sOpt = svcSel.options[svcSel.selectedIndex];
@@ -2132,13 +2153,16 @@ g('a-bkm-save').addEventListener('click', function(){
   var br = g('a-bkm-barber');
   var da = g('a-bkm-date');
   var ti = g('a-bkm-time');
+  var em = g('a-bkm-email');
   var ok = true;
-  [ne,sv,br,da,ti].forEach(function(el){el.parentElement.classList.remove('a-err')});
+  [ne,sv,br,da,ti,em].forEach(function(el){el.parentElement.classList.remove('a-err')});
   if(!ne.value.trim()){ ne.parentElement.classList.add('a-err'); ok=false; }
   if(!sv.value){ sv.parentElement.classList.add('a-err'); ok=false; }
   if(!br.value){ br.parentElement.classList.add('a-err'); ok=false; }
   if(!da.value){ da.parentElement.classList.add('a-err'); ok=false; }
   if(!ti.value){ ti.parentElement.classList.add('a-err'); ok=false; }
+  // Email es opcional -- solo se valida el formato si trae contenido.
+  if(em.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em.value.trim())){ em.parentElement.classList.add('a-err'); ok=false; }
   if(!ok) return;
 
   var sOpt = sv.options[sv.selectedIndex];

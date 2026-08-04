@@ -1,0 +1,158 @@
+// functions/createBooking.js — lógica pura de resolución del callable
+// transaccional `createBooking` (Fase A). Sin dependencia de firebase-admin:
+// igual que availability.js/patients.js, se testea con node --test sin
+// emulador. index.js hace TODO el I/O (lecturas dentro de la transacción) y
+// le pasa a resolveCreateBooking() datos ya leídos; esta función solo decide.
+'use strict';
+const {
+  addMinutesToTime, computeAvailability, dateKeyOf, isRangeFree, isWithinOpenHours,
+} = require('./availability.js');
+
+// Mismo regex que isValidBooking() en firestore.rules.
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+// Réplica EXACTA (mismo criterio, campo a campo) de isValidBooking() en
+// firestore.rules -- no se puede compartir código entre CEL (reglas) y JS,
+// así que esto es deuda de sincronización manual desde el minuto uno.
+// tests/rules/createBooking.crosscheck.test.js prueba el mismo set de
+// payloads contra ambos caminos para detectar divergencia. A propósito NO
+// exige que svcId/barberId/date/time/code sean no-vacíos -- la regla
+// tampoco lo exige (`is string` acepta ''); ver el guard de svcId vacío en
+// index.js, que evita que eso llegue a un .doc('') de Firestore.
+function isValidBookingPayload(payload) {
+  const p = payload || {};
+  return typeof p.name === 'string' && p.name.length > 1
+    && typeof p.email === 'string' && EMAIL_RE.test(p.email)
+    && typeof p.phone === 'string' && p.phone.length >= 7
+    && typeof p.svcId === 'string'
+    && typeof p.barberId === 'string'
+    && typeof p.date === 'string'
+    && typeof p.time === 'string'
+    && typeof p.code === 'string'
+    && typeof p.club === 'string' && (p.club === 'member' || p.club === 'guest');
+}
+
+// Único punto de la política de asignación cuando el cliente pide 'any' (o
+// no manda barberId). Hoy: orden alfabético por id. Con un solo barbero
+// activo da igual, pero en cuanto haya dos, el primero por orden alfabético
+// se lleva toda la carga -- no hay ningún criterio de rotación/balanceo.
+// Cambiar la política de asignación es tocar SOLO esta función.
+function orderCandidateBarbers(activeBarberIds) {
+  return [...(activeBarberIds || [])].sort();
+}
+
+// Resuelve qué barbero toma la reserva y si hay hueco. NUNCA devuelve 'any'
+// -- si se pidió 'any', devuelve un barbero real y activo, o falla.
+// `barberBusy` ya viene calculado (una sola vez, para todos los barberos
+// activos) por el llamador -- ver resolveCreateBooking.
+function resolveBarber({ barberId, activeStaff, dow, time, endTime, barberBusy }) {
+  const wantsAny = !barberId || barberId === 'any';
+
+  function fitsAt(staffMember) {
+    if (!isWithinOpenHours(staffMember.schedule, dow, time, endTime)) return false;
+    return isRangeFree(barberBusy[staffMember.id] || [], time, endTime);
+  }
+
+  if (!wantsAny) {
+    const candidate = activeStaff.find(s => s.id === barberId);
+    if (!candidate) {
+      return { ok: false, code: 'not-found', message: 'El barbero seleccionado no existe o no está activo.' };
+    }
+    if (!isWithinOpenHours(candidate.schedule, dow, time, endTime)) {
+      return { ok: false, code: 'failed-precondition', message: 'Ese horario está fuera de la disponibilidad del barbero.' };
+    }
+    if (!isRangeFree(barberBusy[candidate.id] || [], time, endTime)) {
+      return { ok: false, code: 'already-exists', message: 'Ese horario acaba de ser tomado.' };
+    }
+    return { ok: true, barber: candidate };
+  }
+
+  const order = orderCandidateBarbers(activeStaff.map(s => s.id));
+  for (const id of order) {
+    const staffMember = activeStaff.find(s => s.id === id);
+    if (staffMember && fitsAt(staffMember)) return { ok: true, barber: staffMember };
+  }
+  return { ok: false, code: 'resource-exhausted', message: 'No hay barberos disponibles en ese horario.' };
+}
+
+// Arma el documento final. `dur`/`price`/`svcName`/`svcCat` SIEMPRE desde
+// `service` (leído de Firestore dentro de la transacción) -- nunca del
+// payload del cliente. `barber` ya es el barbero real resuelto por
+// resolveBarber(): nunca se persiste 'any'. `createdAt` es del servidor
+// (`now`), no del cliente, por la misma razón.
+function buildBookingDoc({ payload, service, barber, now }) {
+  return {
+    code: payload.code,
+    name: payload.name,
+    email: payload.email,
+    phone: payload.phone,
+    svcId: payload.svcId,
+    svcName: service.name || '',
+    svcCat: service.cat || '',
+    price: service.price || 0,
+    dur: service.dur || 0,
+    barberId: barber.id,
+    barberName: barber.name || '',
+    date: payload.date,
+    time: payload.time,
+    club: payload.club,
+    status: 'pending',
+    emailStatus: 'pending',
+    // Marca de origen: permite verificar en Firestore que el 100% de los
+    // creates nuevos pasan por este callable antes de cerrar la vía pública
+    // directa en firestore.rules (ver plan de despliegue de Fase A).
+    src: 'callable',
+    createdAt: now.toISOString(),
+  };
+}
+
+// Punto de entrada único. Todo I/O (lecturas de Firestore) ya ocurrió en
+// index.js, dentro de la transacción; acá solo se decide. Devuelve
+// {ok:true, doc} o {ok:false, code, message} -- `code` es un HttpsError code
+// válido, index.js solo hace `throw new HttpsError(code, message)`.
+function resolveCreateBooking({ payload, now, service, staff, bookingsForDay, scheduleBlocksForDay }) {
+  if (!isValidBookingPayload(payload)) {
+    return { ok: false, code: 'invalid-argument', message: 'Datos de reserva inválidos.' };
+  }
+  if (!service || service.status !== 'active') {
+    return { ok: false, code: 'not-found', message: 'El servicio seleccionado no existe o no está disponible.' };
+  }
+
+  const dayKey = dateKeyOf(payload.date);
+  const dowDate = new Date(dayKey);
+  if (!dayKey || Number.isNaN(dowDate.getTime())) {
+    return { ok: false, code: 'invalid-argument', message: 'Fecha inválida.' };
+  }
+  const dow = dowDate.getUTCDay();
+
+  const dur = service.dur || 0;
+  const endTime = addMinutesToTime(payload.time, dur);
+
+  // La hora candidata SIEMPRE sale de `time`, nunca del contenido horario de
+  // `date` -- ver la nota de consistencia de formato en availability.js
+  // (dateKeyOf) y en index.js (getAvailability). Coexisten 2 formatos de
+  // `date` en producción; `time` es la única fuente confiable de la hora.
+  const candidateInstant = new Date(`${dayKey}T${payload.time}:00.000Z`);
+  if (Number.isNaN(candidateInstant.getTime()) || candidateInstant.getTime() <= now.getTime()) {
+    return { ok: false, code: 'failed-precondition', message: 'La fecha y hora de la reserva deben ser futuras.' };
+  }
+
+  const activeStaff = (staff || []).filter(s => s.status === 'active');
+  // Una sola pasada de computeAvailability para TODOS los barberos activos
+  // (reservas + colación + bloqueos del día) -- tanto el camino de barbero
+  // concreto como el de 'any' consultan el mismo `barberBusy`.
+  const { barberBusy } = computeAvailability({
+    bookings: bookingsForDay, staff: activeStaff, barberId: 'any', dow, scheduleBlocks: scheduleBlocksForDay,
+  });
+
+  const resolved = resolveBarber({
+    barberId: payload.barberId, activeStaff, dow, time: payload.time, endTime, barberBusy,
+  });
+  if (!resolved.ok) return resolved;
+
+  return { ok: true, doc: buildBookingDoc({ payload, service, barber: resolved.barber, now }) };
+}
+
+module.exports = {
+  isValidBookingPayload, orderCandidateBarbers, resolveBarber, buildBookingDoc, resolveCreateBooking,
+};

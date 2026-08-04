@@ -1511,35 +1511,53 @@ function renderDash(){
 // (ver loadFromCloud/subscribeBookings)
 function getBk(){ return BK; }
 
-// Escritura: persiste en Firestore. NO reasigna BK ni llama updateBadges()
-// acá -- la suscripción en tiempo real es la única fuente de verdad para BK,
-// y su callback (renderBookingsViews) ya se encarga de eso cuando Firestore
-// confirma el cambio.
+// Escritura: persiste en Firestore. Puntual por documento -- ya no lee/reescribe
+// la colección completa (ver public/js/data.js#saveBooking/deleteBooking).
+// NO reasigna BK ni llama updateBadges() acá -- la suscripción en tiempo real
+// es la única fuente de verdad para BK, y su callback (renderBookingsViews)
+// ya se encarga de eso cuando Firestore confirma el cambio.
 // Devuelve la promesa en vez de tragarse el error: antes un guardado
 // rechazado (p.ej. por firestore.rules) solo dejaba un console.error y el
 // panel mostraba igual el mensaje de éxito, así que un fallo se veía
-// exactamente igual que un guardado correcto. Ver saveBookingsAnd().
-function setBk(arr){
-  return window.SWData.saveBookings(arr || []);
+// exactamente igual que un guardado correcto. Ver saveBookingAnd().
+function setBk(b){
+  return window.SWData.saveBooking(b);
+}
+function delBk(id){
+  return window.SWData.deleteBooking(id);
 }
 
 function getBookings(){
   return getBk();
 }
-function saveBookings(arr){
-  var guardado = setBk(arr);
+function saveBooking(b){
+  var guardado = setBk(b);
   updatePatBadge();
   return guardado;
 }
+function deleteBookingLocal(id){
+  var borrado = delBk(id);
+  updatePatBadge();
+  return borrado;
+}
 
-// Guarda y avisa del resultado real. Todo el que mute reservas debe usar
-// esto en vez de saveBookings() + showAlert('ok') a ciegas.
-function saveBookingsAnd(arr, okMsg){
-  return saveBookings(arr).then(function(){
+// Guarda y avisa del resultado real. Todo el que mute una reserva debe usar
+// esto o deleteBookingAnd() en vez de saveBooking()/deleteBookingLocal() +
+// showAlert('ok') a ciegas.
+function saveBookingAnd(b, okMsg){
+  return saveBooking(b).then(function(){
     showAlert('a-bk-alert', 'ok', okMsg);
   }).catch(function(e){
-    console.error('Error guardando reservas', e);
+    console.error('Error guardando reserva', e);
     showAlert('a-bk-alert', 'err', 'No se pudo guardar: ' + ((e && e.code) || 'error desconocido') + '. La cita NO quedó registrada.');
+  });
+}
+function deleteBookingAnd(id, okMsg){
+  return deleteBookingLocal(id).then(function(){
+    showAlert('a-bk-alert', 'ok', okMsg);
+  }).catch(function(e){
+    console.error('Error eliminando reserva', e);
+    showAlert('a-bk-alert', 'err', 'No se pudo eliminar: ' + ((e && e.code) || 'error desconocido') + '.');
   });
 }
 
@@ -1765,8 +1783,8 @@ function renderBookingList(){
     btn.addEventListener('click', function(){
       var code = btn.dataset.lstDel;
       openDel('¿Eliminar esta cita? Esta acción no se puede deshacer.', function(){
-        var bookings = getBookings().filter(function(b){return b.code !== code});
-        saveBookingsAnd(bookings, 'Cita eliminada.');
+        var bk = getBookings().find(function(b){return b.code === code});
+        deleteBookingAnd(bk ? (bk.id || bk.code) : code, 'Cita eliminada.');
         refreshBookingViews();
         log('Eliminó cita', code);
       });
@@ -2134,13 +2152,11 @@ g('a-bkm-save').addEventListener('click', function(){
   }
 
   var editId = g('a-bkm-id').value;
-  var bookings = getBookings();
   // Al editar se conservan los campos que este modal no maneja pero que sí
   // existen en la reserva (los arma el widget público al reservar). bkData
-  // reemplaza el objeto completo en el array, así que sin esto una edición
-  // desde el panel pisaría el estado real de la cita con los valores por
-  // defecto.
-  var prev = editId ? (bookings.find(function(b){return b.code===editId}) || {}) : {};
+  // reemplaza el objeto completo, así que sin esto una edición desde el
+  // panel pisaría el estado real de la cita con los valores por defecto.
+  var prev = editId ? (getBookings().find(function(b){return b.code===editId}) || {}) : {};
   var bkData = {
     code: editId || ('SW-' + Date.now().toString(36).toUpperCase().slice(-5) + Math.floor(Math.random()*900+100)),
     name: ne.value.trim(),
@@ -2166,17 +2182,14 @@ g('a-bkm-save').addEventListener('click', function(){
   };
 
   if(editId){
-    var idx = bookings.findIndex(function(b){return b.code===editId});
-    if(idx > -1) bookings[idx] = bkData;
     log('Editó cita', bkData.name + ' · ' + bkData.svcName);
   } else {
-    bookings.push(bkData);
     log('Creó cita', bkData.name + ' · ' + bkData.svcName);
   }
   // renderCalendar()/renderDash() no se llaman acá: la suscripción en
   // tiempo real a `bookings` (ver renderBookingsViews) los actualiza sola
   // en cuanto Firestore confirma el cambio.
-  saveBookingsAnd(bookings, 'Cita guardada correctamente.');
+  saveBookingAnd(bkData, 'Cita guardada correctamente.');
   closeModal('a-bkm');
 });
 
@@ -2184,8 +2197,8 @@ g('a-bkm-del').addEventListener('click', function(){
   var code = g('a-bkm-id').value;
   if(!code) return;
   openDel('¿Eliminar esta cita? Esta acción no se puede deshacer.', function(){
-    var bookings = getBookings().filter(function(b){return b.code !== code});
-    saveBookingsAnd(bookings, 'Cita eliminada.');
+    var bk = getBookings().find(function(b){return b.code === code});
+    deleteBookingAnd(bk ? (bk.id || bk.code) : code, 'Cita eliminada.');
     closeModal('a-bkm');
     log('Eliminó cita', code);
   });

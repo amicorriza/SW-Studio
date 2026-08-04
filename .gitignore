@@ -35,3 +35,8 @@ Thumbs.db
 
 # Salida de graphify (herramienta de análisis, se regenera)
 graphify-out/
+
+# Informes de auditoría: llevan nombres reales de clientes leídos de producción.
+# Nunca versionar, y nunca mover a public/ -- esa carpeta se publica entera en
+# Firebase Hosting y quedarían accesibles desde internet.
+*auditoria*.html

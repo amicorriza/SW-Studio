@@ -32,27 +32,35 @@ exports.onBookingCreated = onDocumentCreated(
     // ruido y costo evitable.
     const bookingUpdate = {};
 
-    try {
-      await sendBookingEmails({ ...b, email }, {
-        apiKey: RESEND_API_KEY.value(),
-        fromEmail: FROM_EMAIL.value(),
-        shopEmail: SHOP_EMAIL.value(),
-      });
-      bookingUpdate.emailStatus = 'sent';
-      logger.info('Emails enviados', { code: b.code });
-    } catch (err) {
-      logger.error('Fallo al enviar emails', err);
-      bookingUpdate.emailStatus = 'failed';
-      // Si esta escritura también falla (ej. IAM), no debe impedir el sync
-      // de patients de más abajo — fue lo que pasó en el incidente del 5-7 jul.
+    // Email opcional (panel admin): sin email no hay a quién enviarle, así
+    // que ni se intenta -- 'skipped' es un estado distinto de 'failed' (que
+    // significa "había email pero el envío falló") para no ensuciar adminLog
+    // con fallos de un envío que nunca correspondía intentar.
+    if (email) {
       try {
-        await getFirestore(app).collection('adminLog').add({
-          action: 'email_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
+        await sendBookingEmails({ ...b, email }, {
+          apiKey: RESEND_API_KEY.value(),
+          fromEmail: FROM_EMAIL.value(),
+          shopEmail: SHOP_EMAIL.value(),
         });
-      } catch (err2) {
-        logger.error('Fallo al registrar adminLog de email_failed', err2);
+        bookingUpdate.emailStatus = 'sent';
+        logger.info('Emails enviados', { code: b.code });
+      } catch (err) {
+        logger.error('Fallo al enviar emails', err);
+        bookingUpdate.emailStatus = 'failed';
+        // Si esta escritura también falla (ej. IAM), no debe impedir el sync
+        // de patients de más abajo — fue lo que pasó en el incidente del 5-7 jul.
+        try {
+          await getFirestore(app).collection('adminLog').add({
+            action: 'email_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
+          });
+        } catch (err2) {
+          logger.error('Fallo al registrar adminLog de email_failed', err2);
+        }
+        // No relanzar: la reserva ya está guardada.
       }
-      // No relanzar: la reserva ya está guardada.
+    } else {
+      bookingUpdate.emailStatus = 'skipped';
     }
 
     // Sin email no hay clave de unión para identificar/fusionar al cliente

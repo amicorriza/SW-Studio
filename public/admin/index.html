@@ -2158,6 +2158,7 @@ g('a-bkm-save').addEventListener('click', function(){
   // panel pisaría el estado real de la cita con los valores por defecto.
   var prev = editId ? (getBookings().find(function(b){return b.code===editId}) || {}) : {};
   var bkData = {
+    id: prev.id,
     code: editId || ('SW-' + Date.now().toString(36).toUpperCase().slice(-5) + Math.floor(Math.random()*900+100)),
     name: ne.value.trim(),
     phone: g('a-bkm-phone').value.trim(),

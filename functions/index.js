@@ -9,6 +9,7 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { sendBookingEmails } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
 const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./availability.js');
+const { resolveCreateBooking } = require('./createBooking.js');
 
 const app = initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -100,6 +101,60 @@ exports.onBookingCreated = onDocumentCreated(
     } catch (err) {
       logger.error('Fallo al actualizar el estado de la reserva', err);
     }
+  }
+);
+
+// createBooking (Fase A): reemplaza el addDoc directo del widget público.
+// Antes NADA verificaba disponibilidad al escribir -- dos reservas al mismo
+// horario simplemente coexistían. `runTransaction` + lecturas vía `tx.get()`
+// (nunca `db.get()` suelto: si no, Firestore no trackea el read-set y se
+// pierde la garantía de serialización que es todo el punto de la
+// transacción) hacen que dos llamadas concurrentes al mismo slot se
+// resuelvan en orden: la segunda relee el estado ya actualizado y encuentra
+// el solape. Toda la lógica de decisión vive en resolveCreateBooking()
+// (createBooking.js, puro, testeado sin emulador) -- acá solo se hace I/O.
+exports.createBooking = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const payload = request.data || {};
+    const svcId = typeof payload.svcId === 'string' ? payload.svcId : '';
+    // Guard explícito: `.doc('')` lanza una excepción cruda de Admin SDK
+    // (no un permission-denied ni un HttpsError legible) antes de llegar a
+    // resolveCreateBooking. isValidBookingPayload() replica `is string` de
+    // isValidBooking() en firestore.rules a propósito -- esa regla tampoco
+    // exige que svcId sea no-vacío -- así que este guard vive acá, en el
+    // límite de I/O, no en la validación pura.
+    if (!svcId) throw new HttpsError('invalid-argument', 'svcId es requerido.');
+
+    const dayKey = dateKeyOf(typeof payload.date === 'string' ? payload.date : '');
+    const { start, end } = dayBoundsOf(dayKey);
+    const db = getFirestore(app);
+
+    const result = await db.runTransaction(async (tx) => {
+      const [serviceSnap, staffSnap, bookingsSnap, blocksSnap] = await Promise.all([
+        tx.get(db.collection('services').doc(svcId)),
+        tx.get(db.collection('staff').where('status', '==', 'active')),
+        tx.get(db.collection('bookings').where('date', '>=', start).where('date', '<', end)),
+        tx.get(db.collection('scheduleBlocks').where('date', '==', dayKey)),
+      ]);
+
+      const resolved = resolveCreateBooking({
+        payload,
+        now: new Date(),
+        service: serviceSnap.exists ? { id: serviceSnap.id, ...serviceSnap.data() } : null,
+        staff: staffSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+        bookingsForDay: bookingsSnap.docs.map(d => d.data()),
+        scheduleBlocksForDay: blocksSnap.docs.map(d => d.data()),
+      });
+      if (!resolved.ok) return resolved;
+
+      const ref = db.collection('bookings').doc();
+      tx.set(ref, { ...resolved.doc, createdAtTs: FieldValue.serverTimestamp() });
+      return { ok: true, id: ref.id };
+    });
+
+    if (!result.ok) throw new HttpsError(result.code, result.message);
+    return { id: result.id };
   }
 );
 

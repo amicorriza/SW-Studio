@@ -29,26 +29,33 @@ service cloud.firestore {
     // Lectura pública para el widget de reservas; nunca escritura de cliente.
     match /availability/{date} { allow read: if true; allow write: if false; }
 
-    // Reservas: el público puede CREAR (validado), solo admin lee/edita/borra
+    // Reservas: solo admin lee/crea/edita/borra. La creación pública ya NO
+    // pasa por acá -- el widget (public/index.html) llama al callable
+    // transaccional `createBooking` (functions/createBooking.js, Admin SDK,
+    // no sujeto a estas reglas), que además verifica disponibilidad real
+    // antes de escribir (algo que una regla no puede hacer: no puede
+    // consultar otras colecciones, solo get()/exists() sobre rutas
+    // concretas). Antes de esta fase, cualquiera podía crear una reserva
+    // directo sin que NADA verificara solape de horario.
     match /bookings/{id} {
       allow read, update, delete: if isAdmin();
-      // El admin necesita su propia vía de creación: el payload del panel no
-      // lleva los campos que arma el widget público (`status`, `club`), y en
-      // las reglas una clave ausente no da `false` sino error de evaluación.
-      // Sin esta rama, "+ Nueva cita" fallaba siempre con permission-denied.
-      // isAdmin() cortocircuita antes de isValidBooking(), así que sin el
-      // chequeo explícito de abajo un email malformado (o ausente) enviado
-      // desde el panel se creaba sin validación alguna -- causa de la
-      // reserva SW-4BX2X833 con emailStatus:"failed" en producción.
-      allow create: if (isAdmin() && isValidEmail(request.resource.data.get('email', ''))) || isValidBooking();
+      allow create: if isAdmin() && isValidEmail(request.resource.data.get('email', ''));
     }
     // El email es opcional (un barbero puede agendar por teléfono sin
     // correo): si viene vacío se acepta, pero si trae contenido debe tener
     // formato válido -- mismo regex que usa el widget público
-    // (public/index.html) y que isValidBooking() de abajo.
+    // (public/index.html) y que isValidBookingPayload() en
+    // functions/createBooking.js.
     function isValidEmail(email) {
       return email is string && (email == '' || email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$'));
     }
+    // Ya NO la invoca ningún `allow` de este archivo -- queda como
+    // documentación del criterio que reemplazó al create público, portado
+    // (a mano; CEL y JS no comparten código) a isValidBookingPayload() en
+    // functions/createBooking.js, donde ahora vive la validación real.
+    // tests/rules/createBooking.crosscheck.test.js probó la equivalencia
+    // ANTES de este cambio y quedó retirado en el mismo commit que cerró
+    // esta rama -- ver el comentario al inicio de ese archivo.
     function isValidBooking() {
       let d = request.resource.data;
       return d.status == 'pending'

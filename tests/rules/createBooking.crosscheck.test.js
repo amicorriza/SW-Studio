@@ -2,17 +2,16 @@
 // isValidBookingPayload() (functions/createBooking.js, JS) -- son DOS
 // implementaciones separadas del mismo criterio (no se puede compartir
 // código entre CEL y JS), así que sincronizarlas a mano es deuda desde el
-// minuto uno. Este archivo prueba el MISMO set de fixtures contra ambos
-// caminos y falla si divergen.
+// minuto uno.
 //
-// IMPORTANTE -- este test solo tiene sentido MIENTRAS `bookings.create`
-// siga aceptando la rama pública `isValidBooking()` en firestore.rules. En
-// cuanto esa rama se cierre (ver el commit que deja `allow create` en
-// `isAdmin() && isValidEmail(...)` únicamente), isValidBooking() queda
-// inalcanzable para cualquier escritura real -- probarla vía
-// unauthenticatedContext ya no demuestra nada (todo se rechaza siempre, sin
-// importar el payload, así que "divergen" dejaría de significar un bug real
-// y este archivo se retira/skipea en ese mismo commit, no antes).
+// RETIRADO (mismo commit que cerró `bookings.create` a isAdmin()-only): con
+// la rama pública `isValidBooking()` fuera de la regla, queda inalcanzable
+// para cualquier escritura real -- probarla vía unauthenticatedContext ya no
+// demuestra nada (todo se rechaza siempre, sin importar el payload). La
+// mitad que toca reglas queda como `test.skip` (no se borra: es el registro
+// de que la equivalencia SÍ se verificó, contra la rama pública viva, antes
+// de cerrarla). La mitad que solo prueba isValidBookingPayload() sigue
+// activa como regresión pineada contra ese mismo snapshot verificado.
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
 import { doc, setDoc } from 'firebase/firestore';
@@ -74,9 +73,11 @@ beforeAll(async () => {
 afterAll(async () => { await env.cleanup(); });
 
 cases.forEach(([label, fixture, expectValid]) => {
-  test(`isValidBooking() (rules) e isValidBookingPayload() (JS) coinciden: ${label}`, async () => {
+  test(`isValidBookingPayload() (JS) coincide con la equivalencia verificada: ${label}`, () => {
     expect(isValidBookingPayload(fixture)).toBe(expectValid);
+  });
 
+  test.skip(`[retirado -- isValidBooking() ya inalcanzable, ver comentario de arriba] ${label}`, async () => {
     const db = env.unauthenticatedContext().firestore();
     const id = 'crosscheck' + (counter++);
     if (expectValid) {

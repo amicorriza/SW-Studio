@@ -205,6 +205,19 @@ test('detecta el día correcto aunque la reserva NUEVA use `date` en formato pan
   assert.strictEqual(result.code, 'already-exists');
 });
 
+test('payload inválido → resolveCreateBooking propaga invalid-argument end-to-end (no solo isValidBookingPayload aislado)', () => {
+  // Cubre el punto de integración real: el `if (!isValidBookingPayload(...))
+  // return {...}` inicial de resolveCreateBooking nunca se había probado a
+  // través de la función completa, solo isValidBookingPayload() por separado
+  // más abajo -- hueco detectado al revisar la cobertura del Bloque A.
+  const result = resolveCreateBooking({
+    payload: basePayload({ email: 'no-es-email' }), now: NOW, service: SERVICE, staff: staffList(),
+    bookingsForDay: [], scheduleBlocksForDay: [],
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.code, 'invalid-argument');
+});
+
 // ── isValidBookingPayload / orderCandidateBarbers: unidades sueltas ──
 test('isValidBookingPayload rechaza email/phone/name inválidos y acepta un payload completo', () => {
   assert.strictEqual(isValidBookingPayload(basePayload()), true);

@@ -7,6 +7,7 @@
 const {
   addMinutesToTime, computeAvailability, dateKeyOf, isRangeFree, isWithinOpenHours,
 } = require('./availability.js');
+const { zonedInstant } = require('./timezone.js');
 
 // Mismo regex que isValidBooking() en firestore.rules.
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -80,7 +81,16 @@ function resolveBarber({ barberId, activeStaff, dow, time, endTime, barberBusy }
 // payload del cliente. `barber` ya es el barbero real resuelto por
 // resolveBarber(): nunca se persiste 'any'. `createdAt` es del servidor
 // (`now`), no del cliente, por la misma razón.
-function buildBookingDoc({ payload, service, barber, now }) {
+//
+// `tz` se escribe SIEMPRE, incluso cuando `businessTz` resultó ser el
+// default (Fase 2) -- el campo tiene que estar presente para que su
+// AUSENCIA (no su valor) sea la señal inequívoca de "reserva de antes de
+// Fase 2". Si `tz` faltara también para negocios en el default, no habría
+// forma de distinguir "es el default" de "es de antes de esta fase".
+function buildBookingDoc({ payload, service, barber, now, businessTz }) {
+  if (!businessTz) {
+    throw new Error('buildBookingDoc: businessTz es obligatorio -- resolver con resolveBusinessTz() en el llamador.');
+  }
   return {
     code: payload.code,
     name: payload.name,
@@ -98,6 +108,7 @@ function buildBookingDoc({ payload, service, barber, now }) {
     club: payload.club,
     status: 'pending',
     emailStatus: 'pending',
+    tz: businessTz,
     // Marca de origen: permite verificar en Firestore que el 100% de los
     // creates nuevos pasan por este callable antes de cerrar la vía pública
     // directa en firestore.rules (ver plan de despliegue de Fase A).
@@ -110,7 +121,16 @@ function buildBookingDoc({ payload, service, barber, now }) {
 // index.js, dentro de la transacción; acá solo se decide. Devuelve
 // {ok:true, doc} o {ok:false, code, message} -- `code` es un HttpsError code
 // válido, index.js solo hace `throw new HttpsError(code, message)`.
-function resolveCreateBooking({ payload, now, service, staff, bookingsForDay, scheduleBlocksForDay }) {
+//
+// `businessTz` es OBLIGATORIO y no tiene default acá -- si el llamador lo
+// pierde en alguna ruta, esta función falla ruidosamente (excepción, no
+// devuelve {ok:false,...}) en vez de agendar en una zona equivocada sin que
+// nadie se entere. El único lugar con un default es resolveBusinessTz()
+// (timezone.js), y vive en el llamador (index.js), no acá.
+function resolveCreateBooking({ payload, now, service, staff, bookingsForDay, scheduleBlocksForDay, businessTz }) {
+  if (!businessTz) {
+    throw new Error('resolveCreateBooking: businessTz es obligatorio -- resolver con resolveBusinessTz() en el llamador.');
+  }
   if (!isValidBookingPayload(payload)) {
     return { ok: false, code: 'invalid-argument', message: 'Datos de reserva inválidos.' };
   }
@@ -123,16 +143,21 @@ function resolveCreateBooking({ payload, now, service, staff, bookingsForDay, sc
   if (!dayKey || Number.isNaN(dowDate.getTime())) {
     return { ok: false, code: 'invalid-argument', message: 'Fecha inválida.' };
   }
+  // El día de la semana de una fecha calendario es el mismo mirado desde
+  // cualquier zona -- el 15 de junio de 2026 es lunes lo mires desde donde
+  // lo mires. getUTCDay() sobre un date-key limpio ('YYYY-MM-DD', que el
+  // motor de JS parsea como medianoche UTC) ya da el día correcto sin
+  // ningún ajuste de zona horaria.
   const dow = dowDate.getUTCDay();
 
   const dur = service.dur || 0;
   const endTime = addMinutesToTime(payload.time, dur);
 
   // La hora candidata SIEMPRE sale de `time`, nunca del contenido horario de
-  // `date` -- ver la nota de consistencia de formato en availability.js
-  // (dateKeyOf) y en index.js (getAvailability). Coexisten 2 formatos de
-  // `date` en producción; `time` es la única fuente confiable de la hora.
-  const candidateInstant = new Date(`${dayKey}T${payload.time}:00.000Z`);
+  // `date` -- ver dateKeyOf en availability.js. El instante real que esa
+  // hora representa lo resuelve la zona del NEGOCIO (zonedInstant), nunca
+  // UTC -- acá vivía el hardcodeo de 'Z' que Fase 2 vino a corregir.
+  const candidateInstant = zonedInstant(dayKey, payload.time, businessTz);
   if (Number.isNaN(candidateInstant.getTime()) || candidateInstant.getTime() <= now.getTime()) {
     return { ok: false, code: 'failed-precondition', message: 'La fecha y hora de la reserva deben ser futuras.' };
   }
@@ -150,7 +175,7 @@ function resolveCreateBooking({ payload, now, service, staff, bookingsForDay, sc
   });
   if (!resolved.ok) return resolved;
 
-  return { ok: true, doc: buildBookingDoc({ payload, service, barber: resolved.barber, now }) };
+  return { ok: true, doc: buildBookingDoc({ payload, service, barber: resolved.barber, now, businessTz }) };
 }
 
 module.exports = {

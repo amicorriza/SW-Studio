@@ -21,41 +21,84 @@ exports.onBookingCreated = onDocumentCreated(
     const snap = event.data;
     if (!snap) return;
     const b = snap.data();
-    try {
-      await sendBookingEmails(b, {
-        apiKey: RESEND_API_KEY.value(),
-        fromEmail: FROM_EMAIL.value(),
-        shopEmail: SHOP_EMAIL.value(),
-      });
-      await snap.ref.update({ emailStatus: 'sent' });
-      logger.info('Emails enviados', { code: b.code });
-    } catch (err) {
-      logger.error('Fallo al enviar emails', err);
-      // Si estas escrituras también fallan (ej. IAM), no deben impedir el
-      // sync de patients de más abajo — fue lo que pasó en el incidente del 5-7 jul.
+    // Normalizado UNA sola vez: lo usan tanto el envío de emails como el sync
+    // de patients de abajo, para que ambos coincidan en qué cuenta como "el
+    // mismo" correo (mayúsculas/espacios no deberían crear fichas separadas).
+    const email = (b.email || '').trim().toLowerCase();
+    // Junta los campos a escribir y hace UN solo `update` al final del
+    // handler (ver más abajo) -- escribir emailStatus y patientSyncStatus por
+    // separado dispararía onBookingWritten dos veces más de las necesarias
+    // (recomputa `availability` cada vez); es idempotente, no un bug, pero
+    // ruido y costo evitable.
+    const bookingUpdate = {};
+
+    // Email opcional (panel admin): sin email no hay a quién enviarle, así
+    // que ni se intenta -- 'skipped' es un estado distinto de 'failed' (que
+    // significa "había email pero el envío falló") para no ensuciar adminLog
+    // con fallos de un envío que nunca correspondía intentar.
+    if (email) {
       try {
-        await snap.ref.update({ emailStatus: 'failed' });
-        await getFirestore(app).collection('adminLog').add({
-          action: 'email_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
+        await sendBookingEmails({ ...b, email }, {
+          apiKey: RESEND_API_KEY.value(),
+          fromEmail: FROM_EMAIL.value(),
+          shopEmail: SHOP_EMAIL.value(),
         });
-      } catch (err2) {
-        logger.error('Fallo al registrar emailStatus failed', err2);
+        bookingUpdate.emailStatus = 'sent';
+        logger.info('Emails enviados', { code: b.code });
+      } catch (err) {
+        logger.error('Fallo al enviar emails', err);
+        bookingUpdate.emailStatus = 'failed';
+        // Si esta escritura también falla (ej. IAM), no debe impedir el sync
+        // de patients de más abajo — fue lo que pasó en el incidente del 5-7 jul.
+        try {
+          await getFirestore(app).collection('adminLog').add({
+            action: 'email_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
+          });
+        } catch (err2) {
+          logger.error('Fallo al registrar adminLog de email_failed', err2);
+        }
+        // No relanzar: la reserva ya está guardada.
       }
-      // No relanzar: la reserva ya está guardada.
+    } else {
+      bookingUpdate.emailStatus = 'skipped';
     }
-    try {
-      const db = getFirestore(app);
-      const existingSnap = await db.collection('patients').where('email', '==', b.email).limit(1).get();
-      const existingDoc = existingSnap.empty ? null : existingSnap.docs[0];
-      const patient = buildPatientUpsert(existingDoc ? existingDoc.data() : null, b);
-      if (existingDoc) {
-        await existingDoc.ref.set(patient, { merge: true });
-      } else {
-        await db.collection('patients').add(patient);
+
+    // Sin email no hay clave de unión para identificar/fusionar al cliente
+    // entre reservas: no se crea ni actualiza ficha (nunca se consulta con
+    // string vacío -- eso fusionaba clientes distintos, ver countClubVisits).
+    // Consecuencia operativa: una reserva tomada por teléfono sin correo NO
+    // genera cliente en el CRM ni acumula visitas para el Club SW. Victoria
+    // puede crear la ficha a mano desde el panel si el cliente importa -- es
+    // una decisión explícita, no un olvido.
+    if (email) {
+      try {
+        const db = getFirestore(app);
+        const existingSnap = await db.collection('patients').where('email', '==', email).limit(1).get();
+        const existingDoc = existingSnap.empty ? null : existingSnap.docs[0];
+        const patient = buildPatientUpsert(existingDoc ? existingDoc.data() : null, { ...b, email });
+        if (existingDoc) {
+          await existingDoc.ref.set(patient, { merge: true });
+        } else {
+          await db.collection('patients').add(patient);
+        }
+      } catch (err) {
+        logger.error('Fallo al sincronizar patients', err);
+        bookingUpdate.patientSyncStatus = 'failed';
+        try {
+          await getFirestore(app).collection('adminLog').add({
+            action: 'patient_sync_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
+          });
+        } catch (err2) {
+          logger.error('Fallo al registrar adminLog de patient_sync_failed', err2);
+        }
+        // No relanzar: la reserva y el email ya se procesaron independientemente.
       }
+    }
+
+    try {
+      await snap.ref.update(bookingUpdate);
     } catch (err) {
-      logger.error('Fallo al sincronizar patients', err);
-      // No relanzar: la reserva y el email ya se procesaron independientemente.
+      logger.error('Fallo al actualizar el estado de la reserva', err);
     }
   }
 );

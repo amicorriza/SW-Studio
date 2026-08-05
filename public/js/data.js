@@ -1,7 +1,7 @@
 // public/js/data.js — capa de datos sobre Firestore. Expone window.SWData.
 import { db, storage, functions } from './firebase-init.js';
 import {
-  collection, getDocs, doc, setDoc, addDoc, deleteDoc,
+  collection, getDocs, doc, setDoc, addDoc, deleteDoc, deleteField,
   writeBatch, serverTimestamp, onSnapshot,
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import {
@@ -11,7 +11,10 @@ import { httpsCallable } from 'https://www.gstatic.com/firebasejs/10.13.0/fireba
 
 async function readCol(name) {
   const snap = await getDocs(collection(db, name));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // El ID real de Firestore va AL FINAL del spread para que gane sobre
+  // cualquier campo `id` que haya quedado guardado dentro del propio
+  // documento (ver bookings: versiones viejas de saveBookings lo estampaban).
+  return snap.docs.map(d => ({ ...d.data(), id: d.id }));
 }
 
 // Carga el objeto D que usa el admin: {services, staff, info, log, schedule}
@@ -63,16 +66,24 @@ async function getBookings() {
   return await readCol('bookings');
 }
 
-async function saveBookings(arr) {
-  const batch = writeBatch(db);
-  const snap = await getDocs(collection(db, 'bookings'));
-  const keep = new Set((arr || []).map(b => b.id || b.code));
-  snap.docs.forEach(d => { if (!keep.has(d.id)) batch.delete(d.ref); });
-  (arr || []).forEach(b => {
-    const id = b.id || b.code;
-    batch.set(doc(db, 'bookings', id), b, { merge: true });
-  });
-  await batch.commit();
+// Guarda UNA reserva por su ID (crea o edita). Escritura puntual -- antes esto
+// leía la colección `bookings` ENTERA y borraba cualquier doc que no viniera
+// en el array recibido (delete-diff). Sin transacción, eso dejaba una ventana
+// entre el getDocs y el commit en la que una reserva creada por el widget
+// público podía quedar fuera del array y ser BORRADA por el guardado del
+// panel. `stripId` + `id: deleteField()` limpian, al primer guardado
+// posterior, el campo `id` que versiones viejas de esta función estampaban
+// dentro del propio documento (no hace falta migración aparte).
+async function saveBooking(b) {
+  const id = b.id || b.code;
+  await setDoc(doc(db, 'bookings', id), { ...stripId(b), id: deleteField() }, { merge: true });
+  return id;
+}
+
+// Borra UNA reserva por su ID real (no por `code`: una reserva creada por el
+// widget público tiene un autoId de Firestore distinto de su `code`).
+async function deleteBooking(id) {
+  await deleteDoc(doc(db, 'bookings', id));
 }
 
 // Suscripción en tiempo real a `bookings` para el panel admin (permitido por
@@ -84,7 +95,7 @@ function subscribeBookings(onChange) {
   const unsubscribe = onSnapshot(
     collection(db, 'bookings'),
     snap => {
-      onChange(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      onChange(snap.docs.map(d => ({ ...d.data(), id: d.id })));
       if (first) { first = false; resolveReady(); }
     },
     err => {
@@ -237,14 +248,14 @@ function subscribeAvailability(dateKey, onChange, onError) {
 }
 
 window.SWData = {
-  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, subscribeBookings, createBooking,
+  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBooking, deleteBooking, subscribeBookings, createBooking,
   getPatients, savePatients, deletePatient,
   uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability, subscribeAvailability,
   loadSiteImages, saveSiteImage, deleteSiteImage,
   getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
 };
 export {
-  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, subscribeBookings, createBooking,
+  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBooking, deleteBooking, subscribeBookings, createBooking,
   getPatients, savePatients, deletePatient,
   uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability, subscribeAvailability,
   loadSiteImages, saveSiteImage, deleteSiteImage,

@@ -45,8 +45,13 @@ test('anónimo NO puede leer reservas ajenas', async () => {
   await assertFails(getDoc(doc(db, 'bookings/b1')));
 });
 
-test('staff autenticado SÍ puede leer reservas', async () => {
+test('autenticado sin claim admin NO puede leer reservas', async () => {
   const db = env.authenticatedContext('staff1').firestore();
+  await assertFails(getDoc(doc(db, 'bookings/b1')));
+});
+
+test('admin (custom claim) SÍ puede leer reservas', async () => {
+  const db = env.authenticatedContext('admin1', { admin: true }).firestore();
   await assertSucceeds(getDoc(doc(db, 'bookings/b1')));
 });
 
@@ -66,8 +71,14 @@ test('anónimo NO puede crear patients', async () => {
   await assertFails(setDoc(doc(db, 'patients/p1'), { name:'Juan', email:'juan@mail.com', club:'guest', visits:[], photos:[] }));
 });
 
-test('staff autenticado SÍ puede leer y escribir patients', async () => {
+test('autenticado sin claim admin NO puede leer ni escribir patients', async () => {
   const db = env.authenticatedContext('staff1').firestore();
+  await assertFails(setDoc(doc(db, 'patients/p1'), { name:'Juan', email:'juan@mail.com', club:'guest', visits:[], photos:[] }));
+  await assertFails(getDoc(doc(db, 'patients/p1')));
+});
+
+test('admin (custom claim) SÍ puede leer y escribir patients', async () => {
+  const db = env.authenticatedContext('admin1', { admin: true }).firestore();
   await assertSucceeds(setDoc(doc(db, 'patients/p1'), { name:'Juan', email:'juan@mail.com', club:'guest', visits:[], photos:[] }));
   await assertSucceeds(getDoc(doc(db, 'patients/p1')));
 });
@@ -101,4 +112,22 @@ test('admin (custom claim) SÍ puede leer y escribir scheduleBlocks', async () =
   const db = env.authenticatedContext('admin1', { admin: true }).firestore();
   await assertSucceeds(setDoc(doc(db, 'scheduleBlocks/sb1'), { barberId: 'victoria', date: '2026-08-05', start: '13:00', end: '14:00', reason: 'Colación' }));
   await assertSucceeds(getDoc(doc(db, 'scheduleBlocks/sb1')));
+});
+
+// El payload que arma el modal del panel no trae status/club/svcName/etc,
+// así que estos casos usan solo los campos que admin/index.html realmente
+// envía -- no el fixture `valid` (que simula el widget público).
+test('admin NO puede crear una reserva con email de formato inválido (antes isAdmin() cortocircuitaba isValidBooking)', async () => {
+  const db = env.authenticatedContext('admin1', { admin: true }).firestore();
+  await assertFails(setDoc(doc(db, 'bookings/adm1'), { code: 'SW-ADM1', name: 'Cliente', email: 'no-es-email' }));
+});
+
+test('admin SÍ puede crear una reserva sin email (opcional en el panel)', async () => {
+  const db = env.authenticatedContext('admin1', { admin: true }).firestore();
+  await assertSucceeds(setDoc(doc(db, 'bookings/adm2'), { code: 'SW-ADM2', name: 'Cliente' }));
+});
+
+test('admin SÍ puede crear una reserva con email válido', async () => {
+  const db = env.authenticatedContext('admin1', { admin: true }).firestore();
+  await assertSucceeds(setDoc(doc(db, 'bookings/adm3'), { code: 'SW-ADM3', name: 'Cliente', email: 'cliente@test.cl' }));
 });

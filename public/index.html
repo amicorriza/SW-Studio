@@ -2067,6 +2067,7 @@ body.sw-intro-lock{overflow:hidden;height:100vh;height:100dvh}
             <span>He leído y acepto las <strong>políticas del estudio</strong>.</span>
           </label>
           <span class="bk-ferr" id="bk-consent-err">Debes aceptar las políticas del estudio para continuar.</span>
+          <span class="bk-ferr" id="bk-submit-err" style="display:none"></span>
         </div>
         <div class="bk-foot">
           <button class="bk-btn bk-btn-s" onclick="bkGoTo(3)">← Volver</button>
@@ -3234,9 +3235,26 @@ function withTimeout(promise, ms, label){
   ]);
 }
 
+// Mapa explícito error -> mensaje para el submit de reserva. Hoy solo hay un
+// caso genérico (red/timeout/permiso), pero deja un punto de extensión único:
+// sumar una entrada nueva (ej. 'already-exists' cuando exista una Cloud
+// Function transaccional de creación, para "ese horario ya fue tomado") no
+// implica reescribir el handler, solo agregar una clave acá.
+const BK_SUBMIT_WHATSAPP_LINK = '<a href="https://wa.me/56982514114?text=Hola%2C%20tuve%20un%20problema%20al%20agendar%20mi%20cita" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">escríbenos por WhatsApp</a>';
+const BK_SUBMIT_ERROR_MESSAGES = {
+  default: 'No pudimos confirmar tu reserva por un problema de conexión. Nada quedó agendado -- ' + BK_SUBMIT_WHATSAPP_LINK + ' y lo coordinamos al toque, o inténtalo de nuevo.',
+};
+function bkSubmitErrorMessage(err){
+  const code = (err && (err.code || err.message)) || '';
+  return BK_SUBMIT_ERROR_MESSAGES[code] || BK_SUBMIT_ERROR_MESSAGES.default;
+}
+
 document.getElementById('bk-submit').addEventListener('click',()=>{
   if(!validate()) return;
   const btn=document.getElementById('bk-submit');
+  const errEl=document.getElementById('bk-submit-err');
+  const originalLabel=btn.innerHTML;
+  errEl.style.display='none';
   btn.innerHTML='<span class="bk-spinner"></span> Procesando...';
   btn.disabled=true;
   setTimeout(async ()=>{
@@ -3247,6 +3265,7 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
     const phone=document.getElementById('bkf-phone').value.trim();
     var clubVisitCount = 1;
     var clubBenefitReached = '';
+    var saved = false;
     // ── Persistir la reserva en Firestore (dispara email + sync de patients) ──
     try{
       await withTimeout(window.SWData.createBooking({
@@ -3258,10 +3277,19 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
         club:S.club||'guest',
         createdAt:new Date().toISOString()
       }), 15000, 'createBooking');
+      saved = true;
     }catch(e){
       console.error('No se pudo guardar la reserva', e);
-      // Fallback: mantener el link de WhatsApp visible para contacto manual
+      errEl.innerHTML = bkSubmitErrorMessage(e);
+      errEl.style.display='block';
+    } finally {
+      btn.innerHTML = originalLabel;
+      btn.disabled = false;
     }
+    // El éxito depende del resultado real de la escritura: sin esto, un
+    // fallo total de red igual mostraba "reserva confirmada" con código y
+    // todo, sin ninguna reserva en Firestore.
+    if(!saved) return;
     // Conteo de visitas Club SW vía Cloud Function (bookings es solo-staff).
     // Va en su propio try: si falla, la reserva YA quedó guardada y solo se
     // pierde el bloque de fidelización — no hay que reportarlo como error de reserva.

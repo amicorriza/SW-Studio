@@ -108,6 +108,16 @@ firebase emulators:start    # :5000 sitio, :5000/admin/ panel, :4000 UI
 cd seed && FIRESTORE_EMULATOR_HOST=localhost:8080 GCLOUD_PROJECT=scissor-white npm run seed && cd ..
 ```
 
+> **`functions/.secret.local` ya está versionado con valores falsos** para
+> `RESEND_API_KEY`/`FROM_EMAIL`/`SHOP_EMAIL` — no hay que crearlo ni copiarlo
+> de ningún lado. Es el mecanismo real para que el emulador use valores
+> locales en vez de ir a buscar los secretos reales a Secret Manager
+> (`functions/.env` NO cumple esa función — ver `functions/.env.example` y
+> [Deploy](#deploy)). Confirmado el 2026-08-05: sin este archivo, el
+> emulador usó los secretos reales de producción en pruebas locales, con
+> probable envío de emails reales. Nunca reemplazar sus valores por reales,
+> aunque sea temporalmente — el archivo se versiona.
+
 Tests de funciones (rápidos, sin emulador):
 
 ```bash

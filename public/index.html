@@ -2715,11 +2715,13 @@ const CAT_NAMES = {a:'Asesorías', c:'Corte de cabello', b:'Barba'};
 async function refreshCatalog(){
   if(!window.SWData) return;
   const { services, staff, tz } = await window.SWData.loadCatalog();
-  // TODAY/MAX_DATE arrancan en DEFAULT_TZ (ver más abajo) y se corrigen acá
-  // a la zona real del negocio en cuanto Firestore responde -- `tz` puede
-  // venir ausente (negocio recién configurado, o businessInfo/main de antes
-  // de Fase 2), de ahí el fallback.
-  TODAY = dateKeyToDate(dateKeyInZone(new Date(), tz || DEFAULT_TZ));
+  // BUSINESS_TZ/TODAY/TODAY_KEY/MAX_DATE arrancan en DEFAULT_TZ (ver más
+  // abajo) y se corrigen acá a la zona real del negocio en cuanto Firestore
+  // responde -- `tz` puede venir ausente (negocio recién configurado, o
+  // businessInfo/main de antes de Fase 2), de ahí el fallback.
+  BUSINESS_TZ = tz || DEFAULT_TZ;
+  TODAY_KEY = dateKeyInZone(new Date(), BUSINESS_TZ);
+  TODAY = dateKeyToDate(TODAY_KEY);
   MAX_DATE = new Date(TODAY); MAX_DATE.setMonth(MAX_DATE.getMonth()+2);
   const activeSvcs = (services||[]).filter(s=>s.status==='active');
   if(activeSvcs.length){
@@ -2807,14 +2809,41 @@ function dateKeyToDate(dateKey){
   const [y,m,d] = dateKey.split('-').map(Number);
   return new Date(y, m-1, d);
 }
+// Instante real -> 'HH:MM' de pared en `tz`. Copia deliberada de
+// timeKeyInZone() en functions/timezone.js -- mismo motivo que las de
+// arriba. Existe por un hallazgo concreto: el widget decidía qué horarios de
+// "hoy" ya pasaron con la hora del NAVEGADOR de quien reserva, no la del
+// negocio -- alguien reservando desde otra zona veía disponibilidad
+// distinta de la real (ver su uso en renderSlots).
+function timeKeyInZone(instant, tz){
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour:'2-digit', minute:'2-digit', hour12:false,
+  }).formatToParts(instant);
+  const get = t => parts.find(p=>p.type===t).value;
+  const hour = get('hour')==='24' ? '00' : get('hour');
+  return `${hour}:${get('minute')}`;
+}
+// 'YYYY-MM-DD' -> día de la semana (0=Dom..6=Sáb), para indexar
+// staff.schedule[dow]. Zona-independiente a propósito: el día de la semana
+// de una fecha calendario es el mismo mirado desde cualquier zona -- no hay
+// ningún `tz` que pasarle. Mismo criterio que createBooking.js en el
+// servidor.
+function dowOfDateKey(dateKey){
+  return new Date(dateKey+'T00:00:00Z').getUTCDay();
+}
 
 // STATE
 let S = {step:1, svc:null, barber:null, date:null, time:null, club:'member'};
 let calCursor = new Date(); calCursor.setDate(1);
 // Arrancan con DEFAULT_TZ (mismo espíritu que el fallback inicial de
 // CATS/BARBERS más arriba) -- refreshCatalog() los corrige a la zona real
-// del negocio en cuanto responde Firestore.
-let TODAY = dateKeyToDate(dateKeyInZone(new Date(), DEFAULT_TZ));
+// del negocio en cuanto responde Firestore. TODAY_KEY es la versión string
+// de TODAY (para comparar contra S.date, que ahora es string -- ver
+// renderSlots); BUSINESS_TZ queda disponible para timeKeyInZone() en el
+// mismo lugar.
+let BUSINESS_TZ = DEFAULT_TZ;
+let TODAY_KEY = dateKeyInZone(new Date(), BUSINESS_TZ);
+let TODAY = dateKeyToDate(TODAY_KEY);
 let MAX_DATE = new Date(TODAY); MAX_DATE.setMonth(MAX_DATE.getMonth()+2);
 
 // Disponibilidad real en tiempo real, vía subscribeAvailability (onSnapshot
@@ -3062,27 +3091,32 @@ function renderCal(){
   let html='';
   for(let i=0;i<startCol;i++) html+=`<button class="bk-day bk-empty"></button>`;
   for(let d=1;d<=last;d++){
+    // date: solo para aritmética de calendario (comparar contra TODAY/
+    // MAX_DATE, que son el mismo tipo de objeto -- medianoche local del
+    // navegador de un día calendario ya resuelto). dateKey (string) es lo
+    // que se guarda/compara de acá en adelante -- S.date ya no es Date.
     const date=new Date(y,m,d);
     const dow=date.getDay();
+    const dateKey=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isPast=date<TODAY;
     const isClosed=hoursRangeFor(dow,S.barber)===null;
     const isBeyond=date>MAX_DATE;
-    const isToday=date.getTime()===TODAY.getTime();
-    const isSel=S.date&&date.getTime()===S.date.getTime();
+    const isToday=dateKey===TODAY_KEY;
+    const isSel=S.date===dateKey;
     let cls='bk-day';
     if(isPast||isBeyond) cls+=' bk-past';
     else if(isClosed) cls+=' bk-closed';
     if(isToday) cls+=' bk-today';
     if(isSel) cls+=' bk-selday';
-    const data=(!isPast&&!isClosed&&!isBeyond)?`data-ts="${date.toISOString()}"`:'' ;
+    const data=(!isPast&&!isClosed&&!isBeyond)?`data-day="${dateKey}"`:'' ;
     html+=`<button class="${cls}" ${data}>${d}</button>`;
   }
   wrap.innerHTML=html;
-  wrap.querySelectorAll('.bk-day[data-ts]').forEach(el=>{
+  wrap.querySelectorAll('.bk-day[data-day]').forEach(el=>{
     el.addEventListener('click',()=>{
       wrap.querySelectorAll('.bk-day').forEach(x=>x.classList.remove('bk-selday'));
       el.classList.add('bk-selday');
-      S.date=new Date(el.dataset.ts);
+      S.date=el.dataset.day;
       S.time=null;
       loadAvailability();
       updateSummary();
@@ -3118,7 +3152,7 @@ function isBarberFreeAt(barberId, candStart, candEnd){
   // recalcular todas las fechas futuras de la vista ante cada guardado.
   // Ver recomputeAvailabilityForDate() en functions/index.js.
   const b=BARBERS.find(x=>x.id===barberId);
-  const day=(b && Array.isArray(b.schedule) && S.date) ? b.schedule[S.date.getDay()] : null;
+  const day=(b && Array.isArray(b.schedule) && S.date) ? b.schedule[dowOfDateKey(S.date)] : null;
   const brk=day && day.break;
   if(brk && brk.start && brk.end && candStart<toMin(brk.end) && candEnd>toMin(brk.start)) return false;
   return true;
@@ -3154,7 +3188,7 @@ function loadAvailability(){
   if(takenEl){ takenEl.style.display='none'; takenEl.textContent=''; }
   if(availUnsub){ availUnsub(); availUnsub=null; }
   if(!S.date){ AVAIL_LOADING=false; renderSlots(); return; }
-  const dow=S.date.getDay();
+  const dow=dowOfDateKey(S.date);
   if(!hoursRangeFor(dow,S.barber)){
     // Día cerrado para el barbero/horario vigente: no tiene sentido
     // suscribirse a disponibilidad real; renderSlots ya muestra "Cerrado
@@ -3165,8 +3199,9 @@ function loadAvailability(){
   }
   AVAIL_LOADING=true;
   renderSlots();
-  const dateKey=S.date.toISOString().slice(0,10);
-  availUnsub=window.SWData.subscribeAvailability(dateKey, function(barberBusy){
+  // S.date ya ES el date-key -- antes había que derivarlo de un ISO
+  // instante (.toISOString().slice(0,10)), ya no hace falta.
+  availUnsub=window.SWData.subscribeAvailability(S.date, function(barberBusy){
     AVAIL={barberBusy:barberBusy||{}};
     AVAIL_LOADING=false;
     renderSlots();
@@ -3182,7 +3217,7 @@ function renderSlots(){
   const lbl=document.getElementById('bk-slots-lbl');
   const cont=document.getElementById('bk-slots');
   if(!S.date){cont.innerHTML=`<div class="bk-slots-empty">Elige un día del calendario.</div>`;return}
-  const dow=S.date.getDay();
+  const dow=dowOfDateKey(S.date);
   const range=hoursRangeFor(dow,S.barber);
   if(!range){cont.innerHTML=`<div class="bk-slots-empty">Cerrado este día.</div>`;return}
   const [start,end]=range; // minutos desde medianoche
@@ -3198,9 +3233,14 @@ function renderSlots(){
     cands.push(cur);
     cur+=30;
   }
-  if(S.date.toDateString()===new Date().toDateString()){
-    const now=new Date();
-    const minStart=now.getHours()*60+now.getMinutes()+30;
+  // Hallazgo de Fase 2: esto comparaba contra `new Date()` en hora del
+  // NAVEGADOR de quien reserva -- alguien reservando desde una zona
+  // distinta a la del negocio veía disponibilidad distinta de la real (ej.
+  // desde una zona adelantada, horarios que en el negocio todavía no pasan
+  // se ocultaban igual). TODAY_KEY y timeKeyInZone() están en hora del
+  // negocio, nunca en la del navegador.
+  if(S.date===TODAY_KEY){
+    const minStart=toMin(timeKeyInZone(new Date(), BUSINESS_TZ))+30;
     cands=cands.filter(m=>m>minStart);
   }
   if(!cands.length){cont.innerHTML=`<div class="bk-slots-empty">Sin horarios disponibles. Prueba otra fecha.</div>`;return}
@@ -3243,7 +3283,7 @@ function updateSummary(){
     document.getElementById('bk-sum-total').textContent='—';
   }
   setSumVal('ss-barber', S.barber?S.barber.name:'—', !S.barber);
-  setSumVal('ss-date', S.date?S.date.toLocaleDateString('es-CL',{weekday:'short',day:'numeric',month:'short'}):'—', !S.date);
+  setSumVal('ss-date', S.date?dateKeyToDate(S.date).toLocaleDateString('es-CL',{weekday:'short',day:'numeric',month:'short'}):'—', !S.date);
   setSumVal('ss-time', S.time?`${S.time} hrs`:'—', !S.time);
 }
 
@@ -3338,7 +3378,7 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
         svcId:S.svc?.id, svcName:S.svc?.name, svcCat:S.svc?.cat||'',
         price:S.svc?.price||0, dur:S.svc?.dur||0,
         barberId:S.barber?.id, barberName:S.barber?.name,
-        date:S.date?S.date.toISOString():'', time:S.time,
+        date:S.date||'', time:S.time,
         club:S.club||'guest',
         createdAt:new Date().toISOString()
       }), 15000, 'createBooking');
@@ -3418,7 +3458,7 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
     document.getElementById('bk-confirm-details').innerHTML=loyaltyBlock+`
       <div class="bk-sum-row"><div class="bk-sum-lbl">Servicio</div><div class="bk-sum-val">${S.svc.name}</div></div>
       <div class="bk-sum-row"><div class="bk-sum-lbl">Barbero</div><div class="bk-sum-val">${S.barber.name}</div></div>
-      <div class="bk-sum-row"><div class="bk-sum-lbl">Fecha & Hora</div><div class="bk-sum-val">${S.date.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long'})} · ${S.time} hrs</div></div>
+      <div class="bk-sum-row"><div class="bk-sum-lbl">Fecha & Hora</div><div class="bk-sum-val">${dateKeyToDate(S.date).toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long'})} · ${S.time} hrs</div></div>
       <div class="bk-sum-row"><div class="bk-sum-lbl">Duración</div><div class="bk-sum-val">${S.svc.dur} minutos</div></div>
       <div class="bk-sum-row"><div class="bk-sum-lbl">Total</div><div class="bk-sum-val" style="font-family:'Orbitron',sans-serif;font-weight:600;font-size:16px">$${S.svc.price.toLocaleString('es-CL')}</div></div>
       <div class="bk-sum-row"><div class="bk-sum-lbl">Código</div><div class="bk-sum-val">${code}</div></div>

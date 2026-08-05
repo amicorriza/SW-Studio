@@ -1088,6 +1088,11 @@ html,body{height:100%;font-family:'Inter',sans-serif}
             </div>
             <div class="a-f"><label class="a-lbl">Slogan</label><input class="a-in" id="ai-slogan"></div>
             <div class="a-f"><label class="a-lbl">Descripción</label><textarea class="a-in a-ta" id="ai-desc" rows="3"></textarea></div>
+            <div class="a-f">
+              <label class="a-lbl">Zona horaria del negocio</label>
+              <select class="a-in" id="ai-tz"></select>
+              <span id="ai-tz-hint" style="font-size:11px;color:var(--a-meta);display:none"></span>
+            </div>
             <button class="a-btn a-btn-p" id="ai-save" style="align-self:flex-start;margin-top:4px">Guardar información</button>
           </div>
         </div>
@@ -2687,17 +2692,51 @@ function renderSchedule(){
 }
 
 // ═══ INFO ═══
+// Copia parcial de DEFAULT_TZ (functions/timezone.js) -- solo la constante,
+// no el resto del módulo: este commit se limita al selector de zona, la
+// Agenda todavía no se rige por zona del negocio (queda para un commit
+// aparte). Mismo motivo de siempre para la duplicación: <script> plano, sin
+// bundler, no puede importar.
+const DEFAULT_TZ = 'America/Santiago';
+// Verificadas con Intl.supportedValuesOf('timeZone') antes de ofrecerlas
+// (2026-08 -- las tres existen en el runtime probado). El .filter() repite
+// esa verificación en el navegador real de quien abra el panel: si alguna
+// zona dejara de existir ahí, no se ofrece, en vez de quedar seleccionable
+// pero rota.
+const TZ_OPTIONS = [
+  { value:'America/Santiago', label:'Chile continental (America/Santiago)' },
+  { value:'America/Punta_Arenas', label:'Magallanes (America/Punta_Arenas)' },
+  { value:'Pacific/Easter', label:'Isla de Pascua (Pacific/Easter)' },
+].filter(function(o){
+  return typeof Intl.supportedValuesOf !== 'function' || Intl.supportedValuesOf('timeZone').indexOf(o.value) !== -1;
+});
+
 function loadInfo(){
   var f = D.info || {};
   ['name','addr','phone','ig','slogan','desc'].forEach(function(k){
     var el = g('ai-'+k); if(el && f[k]) el.value = f[k];
   });
+  var tzSel = g('ai-tz');
+  if(tzSel){
+    tzSel.innerHTML = TZ_OPTIONS.map(function(o){ return '<option value="'+o.value+'">'+o.label+'</option>'; }).join('');
+    // f.tz ausente (negocio recién configurado, o businessInfo/main de antes
+    // de Fase 2) -> se selecciona el default, pero con un aviso visible --
+    // que se vea "sin configurar, usando el default", no un select que
+    // parezca vacío o roto.
+    tzSel.value = f.tz || DEFAULT_TZ;
+    var hint = g('ai-tz-hint');
+    if(hint){
+      hint.textContent = f.tz ? '' : 'Sin configurar -- se está usando el valor por defecto (' + DEFAULT_TZ + ').';
+      hint.style.display = hint.textContent ? 'block' : 'none';
+    }
+  }
 }
 g('ai-save').addEventListener('click', function(){
   D.info = {
     name: g('ai-name').value, addr: g('ai-addr').value,
     phone: g('ai-phone').value, ig: g('ai-ig').value,
-    slogan: g('ai-slogan').value, desc: g('ai-desc').value
+    slogan: g('ai-slogan').value, desc: g('ai-desc').value,
+    tz: g('ai-tz').value,
   };
   log('Actualizó info', 'Datos del negocio');
   admSave();

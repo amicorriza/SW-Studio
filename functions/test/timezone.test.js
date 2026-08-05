@@ -6,10 +6,21 @@ test('DEFAULT_TZ es America/Santiago', () => {
   assert.strictEqual(DEFAULT_TZ, 'America/Santiago');
 });
 
-test('resolveBusinessTz cae a DEFAULT_TZ cuando businessInfo no trae tz', () => {
+// Los dos casos reales que puede devolver el tx.get() de businessInfo/main
+// en index.js: el documento no existe todavía (negocio recién configurado,
+// nunca guardó Info & Contacto) o existe pero es de antes de Fase 2 (sin
+// campo tz). Ninguno de los dos debe tirar excepción ni bloquear la reserva
+// -- resolveBusinessTz() cae a DEFAULT_TZ en ambos, sin excepción.
+test('resolveBusinessTz: businessInfo/main NO existe todavía (negocio recién configurado) -> DEFAULT_TZ, sin tirar', () => {
+  // index.js pasa null cuando businessInfoSnap.exists es false.
+  assert.doesNotThrow(() => resolveBusinessTz(null));
   assert.strictEqual(resolveBusinessTz(null), DEFAULT_TZ);
   assert.strictEqual(resolveBusinessTz(undefined), DEFAULT_TZ);
-  assert.strictEqual(resolveBusinessTz({}), DEFAULT_TZ);
+});
+
+test('resolveBusinessTz: businessInfo/main existe pero es de antes de Fase 2 (sin campo tz) -> DEFAULT_TZ, sin tirar', () => {
+  assert.doesNotThrow(() => resolveBusinessTz({ name: 'Scissor White', addr: 'Cochrane 635' }));
+  assert.strictEqual(resolveBusinessTz({ name: 'Scissor White', addr: 'Cochrane 635' }), DEFAULT_TZ);
   assert.strictEqual(resolveBusinessTz({ tz: '' }), DEFAULT_TZ);
 });
 

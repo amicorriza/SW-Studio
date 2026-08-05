@@ -10,6 +10,7 @@ const { sendBookingEmails } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
 const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./availability.js');
 const { resolveCreateBooking } = require('./createBooking.js');
+const { resolveBusinessTz } = require('./timezone.js');
 
 const app = initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -131,11 +132,17 @@ exports.createBooking = onCall(
     const db = getFirestore(app);
 
     const result = await db.runTransaction(async (tx) => {
-      const [serviceSnap, staffSnap, bookingsSnap, blocksSnap] = await Promise.all([
+      // businessInfo/main va junto con el resto de las lecturas, ANTES de
+      // cualquier escritura -- regla dura de transacciones de Firestore: una
+      // lectura después de un set() falla o pierde la garantía de
+      // serialización (mismo motivo por el que todo acá usa tx.get(), nunca
+      // db.get() suelto).
+      const [serviceSnap, staffSnap, bookingsSnap, blocksSnap, businessInfoSnap] = await Promise.all([
         tx.get(db.collection('services').doc(svcId)),
         tx.get(db.collection('staff').where('status', '==', 'active')),
         tx.get(db.collection('bookings').where('date', '>=', start).where('date', '<', end)),
         tx.get(db.collection('scheduleBlocks').where('date', '==', dayKey)),
+        tx.get(db.collection('businessInfo').doc('main')),
       ]);
 
       const resolved = resolveCreateBooking({
@@ -145,6 +152,11 @@ exports.createBooking = onCall(
         staff: staffSnap.docs.map(d => ({ id: d.id, ...d.data() })),
         bookingsForDay: bookingsSnap.docs.map(d => d.data()),
         scheduleBlocksForDay: blocksSnap.docs.map(d => d.data()),
+        // businessInfo/main puede no existir todavía (negocio recién
+        // configurado) o existir sin `tz` (creado antes de Fase 2) --
+        // resolveBusinessTz() cae a DEFAULT_TZ en ambos casos, nunca
+        // bloquea la reserva.
+        businessTz: resolveBusinessTz(businessInfoSnap.exists ? businessInfoSnap.data() : null),
       });
       if (!resolved.ok) return resolved;
 

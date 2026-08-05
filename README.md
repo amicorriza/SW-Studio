@@ -116,6 +116,16 @@ cd functions && node --test
 
 ## Deploy
 
+> **`functions/.env` rompe el deploy de funciones.** Cloud Run rechaza que
+> `RESEND_API_KEY`/`FROM_EMAIL`/`SHOP_EMAIL` vengan a la vez de Secret Manager
+> (`defineSecret`, producción) y de una env var cargada desde `functions/.env`
+> (pensado solo para el emulador) — el deploy falla con `Secret environment
+> variable overlaps non secret environment variable`. **Antes de cualquier
+> `firebase deploy --only functions:...`, sacar `functions/.env` del
+> directorio** (ej. renombrarlo a `functions/.env.local-emulador` — ya cubierto
+> por `.gitignore`) y devolverlo a `functions/.env` después, para volver a
+> poder usar el emulador local.
+
 ```bash
 # Hosting + reglas/índices de Firestore + solo las funciones de este repo
 # (nombres explícitos: evita que el CLI ofrezca borrar `api`, ver nota arriba)

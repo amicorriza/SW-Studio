@@ -2714,7 +2714,13 @@ let BARBERS = [
 const CAT_NAMES = {a:'Asesorías', c:'Corte de cabello', b:'Barba'};
 async function refreshCatalog(){
   if(!window.SWData) return;
-  const { services, staff } = await window.SWData.loadCatalog();
+  const { services, staff, tz } = await window.SWData.loadCatalog();
+  // TODAY/MAX_DATE arrancan en DEFAULT_TZ (ver más abajo) y se corrigen acá
+  // a la zona real del negocio en cuanto Firestore responde -- `tz` puede
+  // venir ausente (negocio recién configurado, o businessInfo/main de antes
+  // de Fase 2), de ahí el fallback.
+  TODAY = dateKeyToDate(dateKeyInZone(new Date(), tz || DEFAULT_TZ));
+  MAX_DATE = new Date(TODAY); MAX_DATE.setMonth(MAX_DATE.getMonth()+2);
   const activeSvcs = (services||[]).filter(s=>s.status==='active');
   if(activeSvcs.length){
     CATS = Object.keys(CAT_NAMES).map(cid=>({
@@ -2771,11 +2777,45 @@ function hoursRangeFor(dow, barber){
   return h ? [h[0]*60, h[1]*60] : null;
 }
 
+// ══ ZONA HORARIA DEL NEGOCIO ══
+// Copia deliberada de dateKeyInZone()/DEFAULT_TZ en functions/timezone.js --
+// este <script> es plano, sin bundler, no puede importar ese módulo (mismo
+// motivo ya documentado para overlaps()/isRangeFree() en availability.js).
+// Misma copia también en public/admin/index.html. Cambiar la lógica en
+// cualquiera de los tres sin revisar los otros dos es el tipo de divergencia
+// silenciosa que ya nos mordió con isValidBooking()/isValidBookingPayload().
+//
+// PRINCIPIO (Fase 2): la zona del NEGOCIO gobierna todo -- el reloj/zona del
+// navegador de quien reserva no debe influir en nada. Por eso "hoy" para el
+// calendario nunca sale de `new Date()` a secas: siempre pasa por acá, con
+// `tz` explícito (el del negocio, cargado vía loadCatalog), nunca asumido
+// del entorno del navegador.
+const DEFAULT_TZ = 'America/Santiago';
+function dateKeyInZone(instant, tz){
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit',
+  }).formatToParts(instant);
+  const get = t => parts.find(p=>p.type===t).value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+// 'YYYY-MM-DD' -> Date a medianoche LOCAL DEL NAVEGADOR de ese día calendario.
+// No es una fuga de la zona del cliente: QUÉ día es ya lo resolvió
+// dateKeyInZone() contra la zona del negocio -- esto solo envuelve ese día ya
+// decidido en el mismo tipo de objeto que usa renderCal() para las celdas
+// (new Date(y,m,d), también medianoche local), para poder compararlos.
+function dateKeyToDate(dateKey){
+  const [y,m,d] = dateKey.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+
 // STATE
 let S = {step:1, svc:null, barber:null, date:null, time:null, club:'member'};
 let calCursor = new Date(); calCursor.setDate(1);
-const TODAY = new Date(); TODAY.setHours(0,0,0,0);
-const MAX_DATE = new Date(TODAY); MAX_DATE.setMonth(MAX_DATE.getMonth()+2);
+// Arrancan con DEFAULT_TZ (mismo espíritu que el fallback inicial de
+// CATS/BARBERS más arriba) -- refreshCatalog() los corrige a la zona real
+// del negocio en cuanto responde Firestore.
+let TODAY = dateKeyToDate(dateKeyInZone(new Date(), DEFAULT_TZ));
+let MAX_DATE = new Date(TODAY); MAX_DATE.setMonth(MAX_DATE.getMonth()+2);
 
 // Disponibilidad real en tiempo real, vía subscribeAvailability (onSnapshot
 // sobre la vista materializada `availability/{fecha}` -- ver
@@ -2809,6 +2849,10 @@ function openBK(){
   refreshCatalog().then(()=>{
     if(!S.svc) renderSvcs();
     if(!S.barber) renderBarbers();
+    // TODAY puede haberse corregido de DEFAULT_TZ a la zona real del
+    // negocio -- si el usuario ya eligió una fecha, no se toca (mismo
+    // criterio que servicio/barbero: no pisar una selección en curso).
+    if(!S.date) renderCal();
   }).catch(e=>console.error('No se pudo cargar el catálogo desde Firestore', e));
 }
 function closeBK(){

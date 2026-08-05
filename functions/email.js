@@ -1,10 +1,11 @@
 // functions/email.js — render + envío de emails vía Resend.
 'use strict';
 const { Resend } = require('resend');
+const { DEFAULT_TZ, zonedInstant } = require('./timezone.js');
+const { dateKeyOf } = require('./availability.js');
 
 const SITE_URL = 'https://scissorwhite.cl';
 const ASSETS_URL = SITE_URL + '/assets/email'; // logo.png / salon.png (Gmail bloquea data-URIs)
-const TZ = 'America/Santiago';
 const ADDRESS_LINE = 'Cochrane 635, Of. 303, Torre B, Concepción';
 // Copia fija del aviso interno de nueva reserva, además de SHOP_EMAIL.
 const SHOP_EMAIL_CC = ['amellado@micorriza.bio', 'scissorswhite111@gmail.com'];
@@ -16,16 +17,24 @@ function esc(s) {
 }
 
 // Piezas de fecha para el bloque calendario del template (VIERNES / 07 / JULIO 2025).
-function dateParts(iso) {
+// Arma el instante real desde dateKeyOf(dateStr)+time+tz (zonedInstant) en vez
+// de parsear `dateStr` directo -- una vez que `date` sea fecha pura
+// ('YYYY-MM-DD', Fase 2), new Date(dateStr) la interpreta como medianoche
+// UTC, y mostrar ESE instante en una zona de offset negativo corre el día
+// calendario hacia atrás (ej. "2026-06-15" -> medianoche UTC -> 2026-06-14
+// 20:00 en Santiago). Mismo patrón que ya usa createBooking.js para el
+// chequeo de futuro -- la hora siempre sale de `time`, nunca del contenido
+// horario de `date`.
+function dateParts(dateStr, time, tz) {
   try {
-    const d = new Date(iso);
-    if (isNaN(d)) throw new Error('bad date');
-    const weekday = d.toLocaleDateString('es-CL', { weekday:'long', timeZone: TZ }).toUpperCase();
-    const day = d.toLocaleDateString('es-CL', { day:'2-digit', timeZone: TZ });
-    const month = d.toLocaleDateString('es-CL', { month:'long', timeZone: TZ }).toUpperCase();
-    const year = d.toLocaleDateString('es-CL', { year:'numeric', timeZone: TZ });
+    const instant = zonedInstant(dateKeyOf(dateStr), time || '00:00', tz);
+    if (isNaN(instant)) throw new Error('bad date');
+    const weekday = instant.toLocaleDateString('es-CL', { weekday:'long', timeZone: tz }).toUpperCase();
+    const day = instant.toLocaleDateString('es-CL', { day:'2-digit', timeZone: tz });
+    const month = instant.toLocaleDateString('es-CL', { month:'long', timeZone: tz }).toUpperCase();
+    const year = instant.toLocaleDateString('es-CL', { year:'numeric', timeZone: tz });
     return { weekday, day, monthYear: month + ' ' + year };
-  } catch { return { weekday:'', day:'', monthYear: String(iso || '') }; }
+  } catch { return { weekday:'', day:'', monthYear: String(dateStr || '') }; }
 }
 function fmtCLP(n) { return '$' + Number(n || 0).toLocaleString('es-CL'); }
 
@@ -51,8 +60,12 @@ function detailRow(label, valueHtml, last) {
 // inline; sin flexbox ni SVG, que Gmail/Outlook no soportan). Las imágenes viven
 // en Hosting (public/assets/email) porque los clientes de correo bloquean data-URIs.
 function renderClientEmail(b) {
+  // b.tz ausente = reserva de antes de Fase 2 -- cae a DEFAULT_TZ, que es la
+  // misma zona que estaba hardcodeada acá, así que el comportamiento para
+  // esas reservas viejas no cambia.
+  const tz = b.tz || DEFAULT_TZ;
   const subject = `Tu reserva en Scissor White — ${b.code}`;
-  const d = dateParts(b.date);
+  const d = dateParts(b.date, b.time, tz);
   const rows = [
     detailRow('CLIENTE', esc(b.name)),
     detailRow('PROFESIONAL', esc(b.barberName)),
@@ -192,8 +205,9 @@ function renderClientEmail(b) {
 // ambos correos se sientan de la misma familia de marca. Sin CTA ni banda de
 // marketing: es una alerta operativa, no el momento "delight" del cliente.
 function renderShopEmail(b) {
+  const tz = b.tz || DEFAULT_TZ;
   const subject = `Nueva reserva — ${b.svcName} (${b.code})`;
-  const d = dateParts(b.date);
+  const d = dateParts(b.date, b.time, tz);
   const rows = [
     detailRow('CLIENTE', esc(b.name)),
     detailRow('TELÉFONO', `<a href="tel:${esc(b.phone)}" style="color:#161616;text-decoration:none;">${esc(b.phone)}</a>`),

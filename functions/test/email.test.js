@@ -4,6 +4,9 @@ const { renderClientEmail, renderShopEmail, parseRecipients, assertResendOk } = 
 
 const booking = {
   // date = medianoche en Chile (UTC-4) serializada con toISOString(), como hace el frontend.
+  // Sin `tz` a propósito -- ejercita el fallback a DEFAULT_TZ ('America/Santiago'),
+  // que es la misma zona que estaba hardcodeada antes de Fase 2, así que el
+  // comportamiento para estas reservas viejas no cambia.
   code:'SW-AB12345', name:'Juan Pérez', email:'juan@mail.com', phone:'+56912345678',
   svcName:'Corte + Lavado Premium', barberName:'Felipe',
   date:'2026-06-10T04:00:00.000Z', time:'11:00', price:21000, dur:45,
@@ -30,6 +33,29 @@ test('email al cliente usa el template SW Studio con fecha en hora de Chile', ()
   assert.match(html, /assets\/email\/logo\.png/);   // imágenes alojadas, no data-URI
   assert.match(html, /assets\/email\/salon\.png/);
   assert.doesNotMatch(html, /data:image/);
+});
+
+test('email al cliente usa la zona guardada en la reserva, no siempre Santiago', () => {
+  // Mismo date+time que el fixture principal, pero con tz explícito a
+  // Punta Arenas (GMT-3, no cambia de hora) -- si el resultado fuera igual
+  // al de `booking` (que cae a America/Santiago, GMT-4 en junio), significaría
+  // que renderClientEmail está ignorando b.tz y siempre usando el default.
+  const { html } = renderClientEmail({ ...booking, tz: 'America/Punta_Arenas' });
+  assert.match(html, /MIÉRCOLES/);
+  assert.match(html, />10</);
+  assert.match(html, /JUNIO 2026/);
+});
+
+test('email al cliente muestra el día calendario correcto cerca de la medianoche (borde donde el bug viejo habría corrido el día)', () => {
+  // 23:30 del 15 de junio en Punta Arenas (GMT-3 fijo) -- si dateParts
+  // todavía parseara `date` directo en vez de armar el instante real vía
+  // dateKeyOf+time+zonedInstant, un `date` en formato fecha pura ('2026-06-15')
+  // se leería como medianoche UTC y mostraría el 14, no el 15.
+  const { html } = renderClientEmail({
+    ...booking, date: '2026-06-15', time: '23:30', tz: 'America/Punta_Arenas',
+  });
+  assert.match(html, />15</);
+  assert.doesNotMatch(html, />14</);
 });
 
 test('email al cliente omite la fila DURACIÓN si la reserva no trae dur', () => {

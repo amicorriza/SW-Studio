@@ -1,7 +1,7 @@
 // public/js/data.js — capa de datos sobre Firestore. Expone window.SWData.
 import { db, storage, functions } from './firebase-init.js';
 import {
-  collection, getDocs, doc, setDoc, deleteDoc, deleteField,
+  collection, getDocs, getDoc, doc, setDoc, deleteDoc, deleteField,
   writeBatch, onSnapshot,
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import {
@@ -54,11 +54,18 @@ async function saveAdmin(D) {
 
 function stripId(o) { const { id, ...rest } = o; return rest; }
 
-// Catálogo para el widget público de reservas: solo services + staff
-// (lectura pública según firestore.rules; adminLog/bookings requieren auth).
+// Catálogo para el widget público de reservas: services + staff + la zona
+// horaria del negocio (businessInfo.tz -- lectura pública según
+// firestore.rules, igual que services/staff; adminLog/bookings requieren
+// auth). `tz` puede venir ausente (negocio recién configurado, o
+// businessInfo/main creado antes de Fase 2) -- el fallback a DEFAULT_TZ vive
+// en quien consuma esto (public/index.html), no acá: esta capa solo
+// devuelve lo que hay en Firestore, sin lógica de negocio.
 async function loadCatalog() {
-  const [services, staff] = await Promise.all([readCol('services'), readCol('staff')]);
-  return { services, staff };
+  const [services, staff, infoSnap] = await Promise.all([
+    readCol('services'), readCol('staff'), getDoc(doc(db, 'businessInfo', 'main')),
+  ]);
+  return { services, staff, tz: infoSnap.exists() ? infoSnap.data().tz : undefined };
 }
 
 // Reservas

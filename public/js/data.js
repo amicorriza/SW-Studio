@@ -2,7 +2,7 @@
 import { db, storage, functions } from './firebase-init.js';
 import {
   collection, getDocs, doc, setDoc, addDoc, deleteDoc,
-  writeBatch, serverTimestamp,
+  writeBatch, serverTimestamp, onSnapshot,
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import {
   ref, uploadBytes, getDownloadURL, deleteObject,
@@ -65,11 +65,34 @@ async function getBookings() {
 
 async function saveBookings(arr) {
   const batch = writeBatch(db);
+  const snap = await getDocs(collection(db, 'bookings'));
+  const keep = new Set((arr || []).map(b => b.id || b.code));
+  snap.docs.forEach(d => { if (!keep.has(d.id)) batch.delete(d.ref); });
   (arr || []).forEach(b => {
     const id = b.id || b.code;
     batch.set(doc(db, 'bookings', id), b, { merge: true });
   });
   await batch.commit();
+}
+
+// Suscripción en tiempo real a `bookings` para el panel admin (permitido por
+// firestore.rules: bookings es admin-read). `ready` resuelve tras el primer
+// snapshot para no dejar un flash de "0 reservas" en el dashboard tras login.
+function subscribeBookings(onChange) {
+  let first = true, resolveReady;
+  const ready = new Promise(res => { resolveReady = res; });
+  const unsubscribe = onSnapshot(
+    collection(db, 'bookings'),
+    snap => {
+      onChange(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      if (first) { first = false; resolveReady(); }
+    },
+    err => {
+      console.error('subscribeBookings: fallo la suscripción en tiempo real', err);
+      if (first) { first = false; resolveReady(); }
+    }
+  );
+  return { unsubscribe, ready };
 }
 
 // Crear UNA reserva (camino público). Dispara la Cloud Function de email.
@@ -94,6 +117,24 @@ async function savePatients(arr) {
 
 async function deletePatient(id) {
   await deleteDoc(doc(db, 'patients', id));
+}
+
+// Bloqueos de horario (colación puntual, trámites, etc.). Un doc por
+// bloqueo -- a diferencia de bookings/patients no se usa el patrón "array
+// completo + diff de borrados", porque acá cada mutación (crear/editar/
+// eliminar un bloqueo) ya es una operación puntual sobre un solo doc.
+async function getScheduleBlocks() {
+  return await readCol('scheduleBlocks');
+}
+
+async function saveScheduleBlock(block) {
+  const id = block.id || ('sb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7));
+  await setDoc(doc(db, 'scheduleBlocks', id), stripId({ ...block, id }), { merge: true });
+  return id;
+}
+
+async function deleteScheduleBlock(id) {
+  await deleteDoc(doc(db, 'scheduleBlocks', id));
 }
 
 // Sube una foto (blob ya comprimido por compressImage) a Storage y devuelve
@@ -123,6 +164,43 @@ async function deletePatientPhoto(patientId, path) {
   await setDoc(patientRef, { photos }, { merge: true });
 }
 
+// ══ IMÁGENES DEL SITIO (herramienta de reemplazo manual, panel admin) ══
+// Un doc por slot en la colección `siteImages` (id = slot, ej. 'hero',
+// 'galeria-3'). El landing público lee esta colección al cargar y, si un
+// slot trae `url`, reemplaza el <img data-img-slot="..."> correspondiente
+// -- si no hay override, el <img> conserva su src por defecto en /assets/.
+
+// Carga todos los overrides activos: {slot: {url, path}}. `path` es el
+// nombre del objeto en Storage -- lo necesita el admin para poder borrarlo
+// al restaurar el original; el landing público solo usa `.url`.
+async function loadSiteImages() {
+  const rows = await readCol('siteImages');
+  const map = {};
+  rows.forEach((r) => { if (r.url) map[r.id] = { url: r.url, path: r.path || '' }; });
+  return map;
+}
+
+// Sube el reemplazo (blob ya comprimido por compressImage) a Storage y
+// guarda {url, path, updatedAt} en el doc del slot.
+async function saveSiteImage(slot, blob) {
+  const path = `siteImages/${slot}/${Date.now()}.jpg`;
+  const objRef = ref(storage, path);
+  await uploadBytes(objRef, blob, { contentType: 'image/jpeg' });
+  const url = await getDownloadURL(objRef);
+  await setDoc(doc(db, 'siteImages', slot), { url, path, updatedAt: new Date().toISOString() });
+  return { url, path };
+}
+
+// Quita el override: borra el archivo de Storage (si se pasa `path`) y el
+// doc del slot -- el <img> vuelve a mostrar su src por defecto en /assets/.
+async function deleteSiteImage(slot, path) {
+  if (path) {
+    try { await deleteObject(ref(storage, path)); }
+    catch (e) { /* el archivo puede ya no existir; no bloquea el borrado del doc */ }
+  }
+  await deleteDoc(doc(db, 'siteImages', slot));
+}
+
 // Cuenta las visitas Club SW de un email vía Cloud Function (el cliente
 // público no tiene permiso de leer `bookings` directamente).
 async function getClubStatus(email) {
@@ -143,13 +221,32 @@ async function getAvailability(date, barberId) {
   return data; // { barberBusy, activeBarberIds }
 }
 
+// Disponibilidad real en tiempo real, vía la vista materializada
+// `availability/{YYYY-MM-DD}` que mantiene la Cloud Function
+// onBookingWritten (nunca contiene PII, solo rangos ocupados derivados —
+// ver functions/availability.js). `dateKey` no exista todavía = sin
+// reservas ese día = plena disponibilidad, se resuelve igual que
+// `barberBusy` vacío.
+function subscribeAvailability(dateKey, onChange, onError) {
+  return onSnapshot(doc(db, 'availability', dateKey), snap => {
+    onChange(snap.exists() ? (snap.data().barberBusy || {}) : {});
+  }, err => {
+    console.error('subscribeAvailability: fallo la suscripción', err);
+    if (onError) onError(err);
+  });
+}
+
 window.SWData = {
-  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, createBooking,
+  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, subscribeBookings, createBooking,
   getPatients, savePatients, deletePatient,
-  uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability,
+  uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability, subscribeAvailability,
+  loadSiteImages, saveSiteImage, deleteSiteImage,
+  getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
 };
 export {
-  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, createBooking,
+  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBookings, subscribeBookings, createBooking,
   getPatients, savePatients, deletePatient,
-  uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability,
+  uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability, subscribeAvailability,
+  loadSiteImages, saveSiteImage, deleteSiteImage,
+  getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
 };

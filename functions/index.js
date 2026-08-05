@@ -1,15 +1,16 @@
 // functions/index.js — envía emails al crear una reserva.
 'use strict';
-const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
-const admin = require('firebase-admin');
+const { initializeApp } = require('firebase-admin/app');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { sendBookingEmails } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
-const { computeAvailability } = require('./availability.js');
+const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./availability.js');
 
-admin.initializeApp();
+const app = initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const FROM_EMAIL = defineSecret('FROM_EMAIL');
 const SHOP_EMAIL = defineSecret('SHOP_EMAIL');
@@ -34,7 +35,7 @@ exports.onBookingCreated = onDocumentCreated(
       // sync de patients de más abajo — fue lo que pasó en el incidente del 5-7 jul.
       try {
         await snap.ref.update({ emailStatus: 'failed' });
-        await admin.firestore().collection('adminLog').add({
+        await getFirestore(app).collection('adminLog').add({
           action: 'email_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
         });
       } catch (err2) {
@@ -43,7 +44,7 @@ exports.onBookingCreated = onDocumentCreated(
       // No relanzar: la reserva ya está guardada.
     }
     try {
-      const db = admin.firestore();
+      const db = getFirestore(app);
       const existingSnap = await db.collection('patients').where('email', '==', b.email).limit(1).get();
       const existingDoc = existingSnap.empty ? null : existingSnap.docs[0];
       const patient = buildPatientUpsert(existingDoc ? existingDoc.data() : null, b);
@@ -64,7 +65,7 @@ exports.getClubStatus = onCall(
   async (request) => {
     const email = (request.data && request.data.email || '').trim();
     if (!email) throw new HttpsError('invalid-argument', 'email es requerido');
-    const db = admin.firestore();
+    const db = getFirestore(app);
     const snap = await db.collection('bookings').where('email', '==', email).where('club', '==', 'member').get();
     const bookings = snap.docs.map(d => d.data());
     return countClubVisits(bookings, email);
@@ -91,17 +92,121 @@ exports.getAvailability = onCall(
     if (!date) throw new HttpsError('invalid-argument', 'date es requerido');
     const barberId = ((request.data && request.data.barberId) || '').trim();
 
-    const db = admin.firestore();
+    // `date` puede venir con formatos ligeramente distintos según si la
+    // reserva se creó desde el widget público o desde el admin (uno usa
+    // toISOString(), el otro concatena fecha+hora a mano) -- pero ambos
+    // formatos siempre dejan el día calendario correcto en los primeros 10
+    // caracteres, así que dateKeyOf() es seguro sin importar cuál de los dos
+    // lo generó. `scheduleBlocks` es una colección nueva: se guarda y
+    // consulta siempre por el día puro 'YYYY-MM-DD', sin ese problema.
+    // `dow` se deriva con getUTCDay() (no getDay()) a propósito: Date-only
+    // ISO parsea como medianoche UTC, y getUTCDay() lee el día de semana en
+    // términos UTC sin importar en qué zona horaria corra el proceso --
+    // getDay() sí dependería de eso (verificado: da un día distinto bajo
+    // TZ=America/Santiago vs TZ=UTC), así que no es intercambiable acá.
+    const dayStr = dateKeyOf(date);
+    const dow = new Date(dayStr).getUTCDay();
+
+    const db = getFirestore(app);
     let bookingsQuery = db.collection('bookings').where('date', '==', date);
     if (barberId && barberId !== 'any') {
       bookingsQuery = bookingsQuery.where('barberId', '==', barberId);
     }
-    const [bookingsSnap, staffSnap] = await Promise.all([
+    let blocksQuery = db.collection('scheduleBlocks').where('date', '==', dayStr);
+    if (barberId && barberId !== 'any') {
+      blocksQuery = blocksQuery.where('barberId', '==', barberId);
+    }
+    const [bookingsSnap, staffSnap, blocksSnap] = await Promise.all([
       bookingsQuery.get(),
       db.collection('staff').where('status', '==', 'active').get(),
+      blocksQuery.get(),
     ]);
     const bookings = bookingsSnap.docs.map(d => d.data());
     const staff = staffSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    return computeAvailability({ bookings, staff, barberId });
+    const scheduleBlocks = blocksSnap.docs.map(d => d.data());
+    return computeAvailability({ bookings, staff, barberId, dow, scheduleBlocks });
+  }
+);
+
+// Recalcula la vista materializada `availability/{dateKey}` (sin PII, solo
+// rangos ocupados por barbero) para un día calendario, a partir de una
+// lectura fresca de `bookings` -- mismo espíritu de "recompute completo
+// desde el estado actual" que ya usan saveAdmin/saveBookings (public/js/data.js),
+// así que ejecuciones del trigger fuera de orden se autocorrigen: la última
+// en terminar simplemente sobreescribe con el estado correcto vigente.
+async function recomputeAvailabilityForDate(db, dateKey) {
+  const { start, end } = dayBoundsOf(dateKey);
+  // La vista incluye las dos fuentes de ocupación que son POR FECHA y que el
+  // público no puede leer directo: las reservas y los bloqueos puntuales
+  // (scheduleBlocks). Sin los bloqueos acá, el widget -- que lee esta vista y
+  // ya no llama a getAvailability -- volvería a ofrecer horas bloqueadas.
+  //
+  // La colación recurrente (staff.schedule[dow].break) NO entra acá a
+  // propósito: es semanal, no por fecha, y `staff` es lectura pública que el
+  // widget ya carga en refreshCatalog(), así que la aplica en cliente (ver
+  // isBarberFreeAt en public/index.html) junto al horario de apertura, que ya
+  // se resuelve ahí. Meterla también en la vista obligaría a recalcular todas
+  // las fechas futuras ante cada escritura de `staff` -- y saveAdmin reescribe
+  // todos los docs de staff en cada guardado del admin -- o dejaría la vista
+  // desactualizada al cambiar una colación. Una sola fuente por señal.
+  //
+  // `staff` sí se pasa (aunque no se use para la colación, al omitir `dow`):
+  // computeAvailability lo necesita para saber qué barberos están activos y
+  // así aceptar sus scheduleBlocks.
+  const [bookingsSnap, staffSnap, blocksSnap] = await Promise.all([
+    db.collection('bookings').where('date', '>=', start).where('date', '<', end).get(),
+    db.collection('staff').where('status', '==', 'active').get(),
+    db.collection('scheduleBlocks').where('date', '==', dateKey).get(),
+  ]);
+  const bookings = bookingsSnap.docs.map(d => d.data());
+  const staff = staffSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const scheduleBlocks = blocksSnap.docs.map(d => d.data());
+  const { barberBusy } = computeAvailability({
+    bookings, staff, barberId: 'any', scheduleBlocks,
+  });
+  const ref = db.collection('availability').doc(dateKey);
+  if (Object.keys(barberBusy).length === 0) await ref.delete();
+  else await ref.set({ barberBusy, updatedAt: FieldValue.serverTimestamp() });
+}
+
+// Mantiene `availability/{dateKey}` en tiempo real para el widget público
+// (que no puede leer `bookings` directo -- ver firestore.rules) ante
+// cualquier creación/edición/borrado de una reserva. Trigger independiente
+// de onBookingCreated -- mismo documento, otra responsabilidad.
+exports.onBookingWritten = onDocumentWritten(
+  { document: 'bookings/{id}', region: 'southamerica-east1' },
+  async (event) => {
+    const before = event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data.after.exists ? event.data.after.data() : null;
+    // Un update que cambia de día requiere recalcular AMBAS fechas -- la
+    // vieja (para liberar el horario que dejó de estar ocupado) y la nueva.
+    const dates = new Set();
+    if (before && before.date) dates.add(dateKeyOf(before.date));
+    if (after && after.date) dates.add(dateKeyOf(after.date));
+    if (!dates.size) return;
+    const db = getFirestore(app);
+    await Promise.all([...dates].map(dk => recomputeAvailabilityForDate(db, dk)));
+  }
+);
+
+// Mismo mantenimiento de `availability/{dateKey}` que onBookingWritten, pero
+// ante cambios de bloqueos puntuales de horario: sin esto, crear/editar/
+// borrar un bloqueo desde la Agenda no se reflejaría en el widget público
+// hasta que alguna reserva de esa misma fecha cambiara por casualidad.
+// `date` en scheduleBlocks ya es el día puro 'YYYY-MM-DD' (lo escribe así el
+// modal del admin), así que no necesita dateKeyOf.
+exports.onScheduleBlockWritten = onDocumentWritten(
+  { document: 'scheduleBlocks/{id}', region: 'southamerica-east1' },
+  async (event) => {
+    const before = event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data.after.exists ? event.data.after.data() : null;
+    // Igual que con las reservas: si el bloqueo se movió de fecha hay que
+    // recalcular la vieja (para liberarla) y la nueva.
+    const dates = new Set();
+    if (before && before.date) dates.add(before.date);
+    if (after && after.date) dates.add(after.date);
+    if (!dates.size) return;
+    const db = getFirestore(app);
+    await Promise.all([...dates].map(dk => recomputeAvailabilityForDate(db, dk)));
   }
 );

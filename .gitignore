@@ -29,3 +29,9 @@ Thumbs.db
 
 # Worktrees de desarrollo aislado
 .worktrees/
+
+# Mockups de brainstorming (companion visual)
+.superpowers/
+
+# Salida de graphify (herramienta de análisis, se regenera)
+graphify-out/

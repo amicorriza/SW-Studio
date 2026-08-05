@@ -2,9 +2,28 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     // Fotos de clientes: son datos personales, no material de marketing.
-    // Solo staff autenticado sube/lee/borra.
+    // Antes se exigía solo `request.auth != null`, pero el registro público
+    // de Auth está habilitado: CUALQUIERA podía crear una cuenta con la API
+    // key pública y leer/sobrescribir/borrar estas fotos. Ahora se exige ser
+    // admin -- mismo criterio que /siteImages/ abajo (custom claim
+    // `admin:true`, o el UID del admin actual como respaldo inmediato).
     match /patients/{patientId}/{photoId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.uid == 'VUm858rENuNVzB4MAMtzLnGb1A63'
+      );
+    }
+
+    // Imágenes del sitio (herramienta de reemplazo manual desde el admin):
+    // lectura pública porque el landing las sirve a cualquier visitante;
+    // solo el admin puede subir/reemplazar. Mismo criterio de admin que
+    // firestore.rules#isAdmin() (Storage no puede importar esa función).
+    match /siteImages/{slot}/{photoId} {
+      allow read: if true;
+      allow write: if request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.uid == 'VUm858rENuNVzB4MAMtzLnGb1A63'
+      );
     }
   }
 }

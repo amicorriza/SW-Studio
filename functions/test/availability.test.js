@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { toMinutes, addMinutesToTime, computeAvailability } = require('../availability.js');
+const { toMinutes, addMinutesToTime, computeAvailability, dateKeyOf, dayBoundsOf } = require('../availability.js');
 
 test('toMinutes convierte HH:MM a minutos desde medianoche', () => {
   assert.strictEqual(toMinutes('09:00'), 540);
@@ -106,4 +106,93 @@ test('computeAvailability con dur ausente/cero produce un rango de duración cer
   const staff = [{ id: 'felipe', status: 'active' }];
   const result = computeAvailability({ bookings, staff, barberId: 'felipe' });
   assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:00' }]);
+});
+
+test('dateKeyOf normaliza ambos formatos de `date` de una reserva al mismo día calendario', () => {
+  // Widget público: medianoche local serializada a UTC.
+  assert.strictEqual(dateKeyOf('2026-07-10T04:00:00.000Z'), '2026-07-10');
+  // Admin: hora real de la cita.
+  assert.strictEqual(dateKeyOf('2026-07-10T14:30:00.000Z'), '2026-07-10');
+});
+
+test('dateKeyOf tolera valores vacíos/ausentes sin crashear', () => {
+  assert.strictEqual(dateKeyOf(''), '');
+  assert.strictEqual(dateKeyOf(undefined), '');
+  assert.strictEqual(dateKeyOf(null), '');
+});
+
+test('dayBoundsOf devuelve [start,end) que cubre exactamente un día calendario UTC', () => {
+  const { start, end } = dayBoundsOf('2026-07-10');
+  assert.strictEqual(start, '2026-07-10T00:00:00.000Z');
+  assert.strictEqual(end, '2026-07-11T00:00:00.000Z');
+  // Ambos formatos de `date` deben caer dentro de [start, end) por comparación
+  // lexicográfica de strings ISO.
+  assert.ok('2026-07-10T04:00:00.000Z' >= start && '2026-07-10T04:00:00.000Z' < end);
+  assert.ok('2026-07-10T14:30:00.000Z' >= start && '2026-07-10T14:30:00.000Z' < end);
+});
+
+test('dayBoundsOf hace rollover correcto de fin de mes y fin de año', () => {
+  assert.deepStrictEqual(dayBoundsOf('2026-01-31'), {
+    start: '2026-01-31T00:00:00.000Z', end: '2026-02-01T00:00:00.000Z',
+  });
+  assert.deepStrictEqual(dayBoundsOf('2026-12-31'), {
+    start: '2026-12-31T00:00:00.000Z', end: '2027-01-01T00:00:00.000Z',
+  });
+});
+
+test('computeAvailability agrega la colación recurrente del barbero como rango ocupado', () => {
+  const staff = [{ id: 'victoria', status: 'active', schedule: [null, null, { open: true, start: '10:00', end: '20:00', break: { start: '13:00', end: '14:00' } }] }];
+  const result = computeAvailability({ bookings: [], staff, barberId: 'victoria', dow: 2, scheduleBlocks: [] });
+  assert.deepStrictEqual(result.barberBusy.victoria, [{ start: '13:00', end: '14:00' }]);
+});
+
+test('computeAvailability ignora la colación de otro día de la semana', () => {
+  const staff = [{ id: 'victoria', status: 'active', schedule: [null, null, { open: true, start: '10:00', end: '20:00', break: { start: '13:00', end: '14:00' } }] }];
+  const result = computeAvailability({ bookings: [], staff, barberId: 'victoria', dow: 3, scheduleBlocks: [] });
+  assert.deepStrictEqual(result.barberBusy.victoria || [], []);
+});
+
+test('computeAvailability agrega los scheduleBlocks del barbero como rangos ocupados', () => {
+  const staff = [{ id: 'victoria', status: 'active', schedule: [] }];
+  const scheduleBlocks = [{ barberId: 'victoria', date: '2026-08-05', start: '15:00', end: '16:00', reason: 'Trámite' }];
+  const result = computeAvailability({ bookings: [], staff, barberId: 'victoria', dow: 3, scheduleBlocks });
+  assert.deepStrictEqual(result.barberBusy.victoria, [{ start: '15:00', end: '16:00' }]);
+});
+
+test('computeAvailability combina reservas, colación y bloqueos puntuales sin pisarse', () => {
+  const bookings = [{ barberId: 'victoria', date: '2026-08-05', time: '10:00', dur: 50 }];
+  const staff = [{ id: 'victoria', status: 'active', schedule: [null, null, null, { open: true, start: '10:00', end: '20:00', break: { start: '13:00', end: '14:00' } }] }];
+  const scheduleBlocks = [{ barberId: 'victoria', date: '2026-08-05', start: '17:00', end: '18:00', reason: 'Trámite' }];
+  const result = computeAvailability({ bookings, staff, barberId: 'victoria', dow: 3, scheduleBlocks });
+  assert.deepStrictEqual(result.barberBusy.victoria, [
+    { start: '10:00', end: '10:50' },
+    { start: '13:00', end: '14:00' },
+    { start: '17:00', end: '18:00' },
+  ]);
+});
+
+test('computeAvailability con barberId "any" agrega colación/bloqueos de todos los barberos activos', () => {
+  const staff = [
+    { id: 'victoria', status: 'active', schedule: [null, null, null, { open: true, start: '10:00', end: '20:00', break: { start: '13:00', end: '14:00' } }] },
+    { id: 'esteban', status: 'active', schedule: [] },
+  ];
+  const scheduleBlocks = [{ barberId: 'esteban', date: '2026-08-05', start: '11:00', end: '11:30', reason: 'x' }];
+  const result = computeAvailability({ bookings: [], staff, barberId: 'any', dow: 3, scheduleBlocks });
+  assert.deepStrictEqual(result.barberBusy.victoria, [{ start: '13:00', end: '14:00' }]);
+  assert.deepStrictEqual(result.barberBusy.esteban, [{ start: '11:00', end: '11:30' }]);
+});
+
+test('computeAvailability ignora un scheduleBlock de un barbero distinto al filtrado', () => {
+  const staff = [{ id: 'victoria', status: 'active' }, { id: 'esteban', status: 'active' }];
+  const scheduleBlocks = [{ barberId: 'esteban', date: '2026-08-05', start: '11:00', end: '11:30', reason: 'x' }];
+  const result = computeAvailability({ bookings: [], staff, barberId: 'victoria', dow: 3, scheduleBlocks });
+  assert.deepStrictEqual(result.barberBusy.victoria || [], []);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(result.barberBusy, 'esteban'), false);
+});
+
+test('computeAvailability sin dow/scheduleBlocks se comporta exactamente igual que antes (compatibilidad)', () => {
+  const bookings = [{ barberId: 'felipe', date: '2026-07-10', time: '10:00', dur: 50 }];
+  const staff = [{ id: 'felipe', status: 'active' }];
+  const result = computeAvailability({ bookings, staff, barberId: 'felipe' });
+  assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:50' }]);
 });

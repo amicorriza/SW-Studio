@@ -19,8 +19,17 @@ test('anónimo NO puede subir una foto de cliente', async () => {
   await assertFails(uploadBytes(ref(storage, 'patients/p1/photo1.jpg'), bytes));
 });
 
-test('staff autenticado SÍ puede subir y leer una foto de cliente', async () => {
+test('autenticado sin claim admin NO puede subir ni leer una foto de cliente', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await uploadBytes(ref(ctx.storage(), 'patients/p1/photo-existente.jpg'), bytes);
+  });
   const storage = env.authenticatedContext('staff1').storage();
+  await assertFails(uploadBytes(ref(storage, 'patients/p1/photo1.jpg'), bytes));
+  await assertFails(getBytes(ref(storage, 'patients/p1/photo-existente.jpg')));
+});
+
+test('admin (custom claim) SÍ puede subir y leer una foto de cliente', async () => {
+  const storage = env.authenticatedContext('admin1', { admin: true }).storage();
   await assertSucceeds(uploadBytes(ref(storage, 'patients/p1/photo1.jpg'), bytes));
   await assertSucceeds(getBytes(ref(storage, 'patients/p1/photo1.jpg')));
 });

@@ -29,6 +29,25 @@ function addMinutesToTime(hhmm, durMin) {
   return toHHMM(toMinutes(hhmm) + (durMin || 0));
 }
 
+// YYYY-MM-DD a partir de cualquier `date` de reserva -- normaliza el mismo
+// desajuste de formato que ya tolera checkConflict (public/index.html): las
+// reservas del admin guardan la hora real de la cita en `date`
+// ('...T14:30:00.000Z'), las públicas guardan medianoche
+// ('...T00:00:00.000Z') -- ambas comparten el mismo prefijo de 10 caracteres.
+function dateKeyOf(dateStr) {
+  return String(dateStr || '').slice(0, 10);
+}
+
+// Límites [start, end) en formato ISO para una query de rango sobre `date`
+// que capture TODAS las reservas de un día calendario sin depender de la
+// hora-del-día exacta que traiga cada doc (ver dateKeyOf) -- comparación
+// lexicográfica de strings ISO preserva el orden cronológico.
+function dayBoundsOf(dateKey) {
+  const start = dateKey + 'T00:00:00.000Z';
+  const next = new Date(start); next.setUTCDate(next.getUTCDate() + 1);
+  return { start, end: next.toISOString() };
+}
+
 // Agrupa las reservas de un día por barbero, devolviendo solo {start, end}
 // derivados de `time`+`dur` — NUNCA name/email/phone/otro dato personal.
 //
@@ -45,25 +64,52 @@ function addMinutesToTime(hhmm, durMin) {
 // Un `barberId` que no aparece en `activeBarberIds` es un barbero
 // inactivo/inexistente — quien llama debe tratarlo como "no disponible",
 // esta función no lo valida ni lo rechaza.
-function computeAvailability({ bookings, staff, barberId }) {
+function computeAvailability({ bookings, staff, barberId, dow, scheduleBlocks }) {
   const wantsAny = !barberId || barberId === 'any';
   const relevant = wantsAny
     ? (bookings || [])
     : (bookings || []).filter(b => b.barberId === barberId);
 
   const barberBusy = {};
-  relevant.forEach(b => {
-    const id = b.barberId;
+  function addBusy(id, start, end) {
     if (!id) return;
     if (!barberBusy[id]) barberBusy[id] = [];
-    barberBusy[id].push({ start: b.time, end: addMinutesToTime(b.time, b.dur || 0) });
-  });
+    barberBusy[id].push({ start, end });
+  }
+
+  relevant.forEach(b => addBusy(b.barberId, b.time, addMinutesToTime(b.time, b.dur || 0)));
 
   const activeBarberIds = (staff || [])
     .filter(s => s.status === 'active')
     .map(s => s.id);
 
+  // Mismo criterio de filtrado que ya aplica a `relevant` para las
+  // reservas: si se pidió un barbero específico, solo su colación/sus
+  // bloqueos entran a barberBusy; si es 'any', los de todos los activos.
+  const relevantStaffIds = wantsAny ? activeBarberIds : activeBarberIds.filter(id => id === barberId);
+
+  // Colación recurrente (staff.schedule[dow].break) -- solo si se pasó
+  // `dow` (día de semana 0-6 de la fecha consultada). Si no se pasa,
+  // comportamiento idéntico al de antes de este cambio (compatibilidad).
+  if (typeof dow === 'number') {
+    (staff || []).forEach(s => {
+      if (relevantStaffIds.indexOf(s.id) === -1) return;
+      const day = Array.isArray(s.schedule) ? s.schedule[dow] : null;
+      if (day && day.break && day.break.start && day.break.end) {
+        addBusy(s.id, day.break.start, day.break.end);
+      }
+    });
+  }
+
+  // Bloqueos puntuales de la fecha consultada (ya filtrados por el
+  // llamador -- ver getAvailability en index.js).
+  (scheduleBlocks || []).forEach(blk => {
+    if (!blk.barberId) return;
+    if (relevantStaffIds.indexOf(blk.barberId) === -1) return;
+    addBusy(blk.barberId, blk.start, blk.end);
+  });
+
   return { barberBusy, activeBarberIds };
 }
 
-module.exports = { toMinutes, toHHMM, addMinutesToTime, computeAvailability };
+module.exports = { toMinutes, toHHMM, addMinutesToTime, computeAvailability, dateKeyOf, dayBoundsOf };

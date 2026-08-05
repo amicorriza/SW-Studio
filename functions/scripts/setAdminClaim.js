@@ -16,7 +16,8 @@
 // el token) para que el claim tome efecto. Luego se puede quitar el UID de
 // respaldo en firestore.rules y quedar solo con `request.auth.token.admin`.
 'use strict';
-const admin = require('firebase-admin');
+const { initializeApp, applicationDefault } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
 
 async function main() {
   const email = process.argv[2];
@@ -24,13 +25,14 @@ async function main() {
     console.error('Falta el email. Uso: node scripts/setAdminClaim.js <email>');
     process.exit(1);
   }
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
+  initializeApp({
+    credential: applicationDefault(),
     projectId: 'scissor-white',
   });
-  const user = await admin.auth().getUserByEmail(email);
-  await admin.auth().setCustomUserClaims(user.uid, { admin: true });
-  const updated = await admin.auth().getUser(user.uid);
+  const auth = getAuth();
+  const user = await auth.getUserByEmail(email);
+  await auth.setCustomUserClaims(user.uid, { admin: true });
+  const updated = await auth.getUser(user.uid);
   console.log(`OK: ${email} (uid ${user.uid}) ahora tiene claims:`, updated.customClaims);
   console.log('El usuario debe re-loguearse para que el claim tome efecto.');
 }

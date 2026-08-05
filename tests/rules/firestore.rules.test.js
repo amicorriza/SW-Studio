@@ -29,15 +29,15 @@ test('anónimo NO puede escribir services', async () => {
   await assertFails(setDoc(doc(db, 'services/lp'), { name:'x' }));
 });
 
-test('anónimo puede crear una reserva válida', async () => {
+// Fase A: la creación pública de reservas ya NO pasa por acá -- el widget
+// llama al callable transaccional createBooking (Admin SDK, no sujeto a
+// estas reglas), que además verifica disponibilidad real antes de escribir.
+// `valid` (perfectamente válido según el viejo isValidBooking()) se usa acá
+// a propósito: demuestra que el rechazo es INCONDICIONAL -- ya no depende de
+// la forma del payload, isAdmin() sola decide.
+test('anónimo NO puede crear una reserva directo, ni siquiera una con payload válido', async () => {
   const db = env.unauthenticatedContext().firestore();
-  await assertSucceeds(setDoc(doc(db, 'bookings/b1'), valid));
-});
-
-test('reserva inválida (sin email) es rechazada', async () => {
-  const db = env.unauthenticatedContext().firestore();
-  const bad = { ...valid }; delete bad.email;
-  await assertFails(setDoc(doc(db, 'bookings/b2'), bad));
+  await assertFails(setDoc(doc(db, 'bookings/b1'), valid));
 });
 
 test('anónimo NO puede leer reservas ajenas', async () => {
@@ -55,11 +55,6 @@ test('admin (custom claim) SÍ puede leer reservas', async () => {
   await assertSucceeds(getDoc(doc(db, 'bookings/b1')));
 });
 
-test('reserva con club inválido es rechazada', async () => {
-  const db = env.unauthenticatedContext().firestore();
-  const bad = { ...valid, club:'vip' };
-  await assertFails(setDoc(doc(db, 'bookings/b3'), bad));
-});
 
 test('anónimo NO puede leer patients', async () => {
   const db = env.unauthenticatedContext().firestore();

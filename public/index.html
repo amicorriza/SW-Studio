@@ -1957,6 +1957,7 @@ body.sw-intro-lock{overflow:hidden;height:100vh;height:100dvh}
           <div id="bk-slots-wrap">
             <div id="bk-slots-lbl">Selecciona un día</div>
             <div id="bk-slots"></div>
+            <span class="bk-ferr" id="bk-slot-taken-msg" style="display:none"></span>
           </div>
         </div>
         <div class="bk-foot">
@@ -3102,6 +3103,11 @@ function isSlotAvailable(candStart, candEnd){
 // FALLA ABIERTO: cualquier error de la suscripción se trata como "todo
 // disponible" -- nunca debe bloquear ni romper la reserva.
 function loadAvailability(){
+  // Limpia el aviso de "ese horario ya fue tomado" de un intento anterior --
+  // cualquier cambio de fecha/barbero que llegue hasta acá invalida ese
+  // aviso (ver el catch de #bk-submit).
+  const takenEl=document.getElementById('bk-slot-taken-msg');
+  if(takenEl){ takenEl.style.display='none'; takenEl.textContent=''; }
   if(availUnsub){ availUnsub(); availUnsub=null; }
   if(!S.date){ AVAIL_LOADING=false; renderSlots(); return; }
   const dow=S.date.getDay();
@@ -3235,18 +3241,33 @@ function withTimeout(promise, ms, label){
   ]);
 }
 
-// Mapa explícito error -> mensaje para el submit de reserva. Hoy solo hay un
-// caso genérico (red/timeout/permiso), pero deja un punto de extensión único:
-// sumar una entrada nueva (ej. 'already-exists' cuando exista una Cloud
-// Function transaccional de creación, para "ese horario ya fue tomado") no
-// implica reescribir el handler, solo agregar una clave acá.
+// Mapa explícito error -> mensaje para el submit de reserva. Punto de
+// extensión único: sumar una entrada nueva no implica reescribir el handler.
 const BK_SUBMIT_WHATSAPP_LINK = '<a href="https://wa.me/56982514114?text=Hola%2C%20tuve%20un%20problema%20al%20agendar%20mi%20cita" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">escríbenos por WhatsApp</a>';
 const BK_SUBMIT_ERROR_MESSAGES = {
   default: 'No pudimos confirmar tu reserva por un problema de conexión. Nada quedó agendado -- ' + BK_SUBMIT_WHATSAPP_LINK + ' y lo coordinamos al toque, o inténtalo de nuevo.',
 };
+// Códigos de createBooking (Fase A) que significan "ese horario específico
+// ya no está disponible" -- NO es un problema de conexión: hay que refrescar
+// la grilla y volver al paso 3, no mostrar la pantalla de error genérica del
+// paso 4 (ver el catch de #bk-submit). Van con mensaje propio porque el
+// usuario necesita saber cosas distintas: su horario se lo ganaron
+// (already-exists, elige otro) versus no queda nadie disponible
+// (resource-exhausted, elige otro horario u otro barbero).
+const BK_SLOT_TAKEN_MESSAGES = {
+  'already-exists': 'Ese horario acaba de ser tomado. Elige otro horario o barbero.',
+  'resource-exhausted': 'No queda ningún barbero disponible en ese horario. Elige otro horario o barbero.',
+};
+// El SDK de Functions antepone 'functions/' al code de un HttpsError
+// (ej. 'functions/already-exists') -- se saca acá una sola vez para que
+// tanto el mapa de arriba como BK_SUBMIT_ERROR_MESSAGES usen el code "pelado".
+function bkErrorCode(err){
+  const raw = (err && err.code) || '';
+  return raw.indexOf('functions/') === 0 ? raw.slice('functions/'.length) : raw;
+}
 function bkSubmitErrorMessage(err){
-  const code = (err && (err.code || err.message)) || '';
-  return BK_SUBMIT_ERROR_MESSAGES[code] || BK_SUBMIT_ERROR_MESSAGES.default;
+  const key = bkErrorCode(err) || (err && err.message) || '';
+  return BK_SUBMIT_ERROR_MESSAGES[key] || BK_SUBMIT_ERROR_MESSAGES.default;
 }
 
 document.getElementById('bk-submit').addEventListener('click',()=>{
@@ -3280,8 +3301,21 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
       saved = true;
     }catch(e){
       console.error('No se pudo guardar la reserva', e);
-      errEl.innerHTML = bkSubmitErrorMessage(e);
-      errEl.style.display='block';
+      const slotMsg = BK_SLOT_TAKEN_MESSAGES[bkErrorCode(e)];
+      if(slotMsg){
+        // No es un fallo de conexión: el horario elegido ya no está libre.
+        // Se vuelve al paso 3 con la grilla recargada en vez de mostrar la
+        // pantalla de error genérica -- loadAvailability() limpia este
+        // mismo aviso en su próxima llamada (cambio de fecha/barbero).
+        bkGoTo(3);
+        loadAvailability();
+        const takenEl = document.getElementById('bk-slot-taken-msg');
+        takenEl.textContent = slotMsg;
+        takenEl.style.display = 'block';
+      } else {
+        errEl.innerHTML = bkSubmitErrorMessage(e);
+        errEl.style.display='block';
+      }
     } finally {
       btn.innerHTML = originalLabel;
       btn.disabled = false;

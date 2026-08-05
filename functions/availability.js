@@ -57,10 +57,12 @@ function dayBoundsOf(dateKey) {
 // función solo agrupa lo que le llega.
 //
 // Esta función NO decide si un horario candidato está disponible — devuelve
-// los rangos ocupados en bruto. Es responsabilidad de quien consuma esta
-// respuesta (el widget público, en public/index.html) comparar un slot
-// candidato [start, start+durCandidata) contra estos rangos con el mismo
-// solape que ya usa checkConflict/parseDt: candStart < end && candEnd > start.
+// los rangos ocupados en bruto. `isRangeFree()` (más abajo) es quien aplica
+// el criterio de solape sobre este resultado -- el widget público
+// (isBarberFreeAt, public/index.html) y el panel (checkConflict/
+// checkScheduleBlock, admin/index.html) mantienen su propia copia porque son
+// <script> planos sin bundler y no pueden importar este archivo, pero
+// createBooking.js (server, autoridad real) sí usa esta.
 // Un `barberId` que no aparece en `activeBarberIds` es un barbero
 // inactivo/inexistente — quien llama debe tratarlo como "no disponible",
 // esta función no lo valida ni lo rechaza.
@@ -112,4 +114,38 @@ function computeAvailability({ bookings, staff, barberId, dow, scheduleBlocks })
   return { barberBusy, activeBarberIds };
 }
 
-module.exports = { toMinutes, toHHMM, addMinutesToTime, computeAvailability, dateKeyOf, dayBoundsOf };
+// Predicado atómico de solape en minutos desde medianoche. Único criterio en
+// todo el repo -- antes vivía duplicado en public/index.html (isBarberFreeAt)
+// y admin/index.html (checkConflict/checkScheduleBlock); esta es la
+// implementación real que el comentario de computeAvailability ya prometía
+// (una auditoría previa había confundido esa mención en prosa con código).
+function overlaps(aStart, aEnd, bStart, bEnd) {
+  return aStart < bEnd && aEnd > bStart;
+}
+
+// ¿[startHHMM,endHHMM) está libre contra `busyRanges` ([{start,end}] en
+// formato HH:MM, la misma forma que devuelve barberBusy de
+// computeAvailability)? Usado por createBooking.js para decidir si un
+// barbero candidato puede tomar una reserva nueva.
+function isRangeFree(busyRanges, startHHMM, endHHMM) {
+  const s = toMinutes(startHHMM);
+  const e = toMinutes(endHHMM);
+  return !(busyRanges || []).some(r => overlaps(s, e, toMinutes(r.start), toMinutes(r.end)));
+}
+
+// ¿`schedule[dow]` (staff.schedule, mismo campo que ya lee la colación de
+// computeAvailability) tiene abierto el rango [startHHMM,endHHMM)? Vive acá
+// junto a la colación -- ambas leen el mismo staff.schedule[dow] -- para no
+// terminar con una tercera copia de "cómo se interpreta el horario de un
+// barbero" el día que alguien la necesite de nuevo. Mismo criterio que
+// hoursRangeFor() en public/index.html, pero server-side.
+function isWithinOpenHours(schedule, dow, startHHMM, endHHMM) {
+  const day = Array.isArray(schedule) ? schedule[dow] : null;
+  if (!day || !day.open) return false;
+  return toMinutes(startHHMM) >= toMinutes(day.start) && toMinutes(endHHMM) <= toMinutes(day.end);
+}
+
+module.exports = {
+  toMinutes, toHHMM, addMinutesToTime, computeAvailability, dateKeyOf, dayBoundsOf,
+  overlaps, isRangeFree, isWithinOpenHours,
+};

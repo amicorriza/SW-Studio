@@ -1,6 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { toMinutes, addMinutesToTime, computeAvailability, dateKeyOf, dayBoundsOf } = require('../availability.js');
+const {
+  toMinutes, addMinutesToTime, computeAvailability, dateKeyOf, dayBoundsOf,
+  overlaps, isRangeFree, isWithinOpenHours,
+} = require('../availability.js');
 
 test('toMinutes convierte HH:MM a minutos desde medianoche', () => {
   assert.strictEqual(toMinutes('09:00'), 540);
@@ -195,4 +198,26 @@ test('computeAvailability sin dow/scheduleBlocks se comporta exactamente igual q
   const staff = [{ id: 'felipe', status: 'active' }];
   const result = computeAvailability({ bookings, staff, barberId: 'felipe' });
   assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:50' }]);
+});
+
+test('overlaps: solape exacto, parcial, adyacente y sin relación', () => {
+  assert.strictEqual(overlaps(600, 650, 600, 650), true); // exacto
+  assert.strictEqual(overlaps(600, 650, 620, 700), true); // parcial por el final
+  assert.strictEqual(overlaps(600, 650, 500, 620), true); // parcial por el inicio
+  assert.strictEqual(overlaps(600, 650, 650, 700), false); // adyacente, sin solape
+  assert.strictEqual(overlaps(600, 650, 700, 800), false); // sin relación
+});
+
+test('isRangeFree: libre sin rangos, ocupado con solape, libre si es adyacente', () => {
+  assert.strictEqual(isRangeFree([], '10:00', '10:50'), true);
+  assert.strictEqual(isRangeFree([{ start: '10:00', end: '10:50' }], '10:20', '10:40'), false);
+  assert.strictEqual(isRangeFree([{ start: '10:00', end: '10:50' }], '10:50', '11:20'), true);
+});
+
+test('isWithinOpenHours: dentro, fuera, día cerrado y sin schedule', () => {
+  const schedule = [null, null, { open: true, start: '10:00', end: '20:00' }];
+  assert.strictEqual(isWithinOpenHours(schedule, 2, '10:00', '10:50'), true);
+  assert.strictEqual(isWithinOpenHours(schedule, 2, '19:30', '20:30'), false); // se pasa del cierre
+  assert.strictEqual(isWithinOpenHours(schedule, 0, '10:00', '10:50'), false); // día sin entrada (cerrado)
+  assert.strictEqual(isWithinOpenHours(null, 2, '10:00', '10:50'), false);
 });

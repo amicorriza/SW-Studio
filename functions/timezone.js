@@ -64,4 +64,22 @@ function dateKeyInZone(instant, tz) {
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
-module.exports = { DEFAULT_TZ, resolveBusinessTz, zonedInstant, dateKeyInZone };
+// Instante real -> 'HH:MM', la hora de PARED que ESE instante representa
+// visto desde `tz`. Mismo patrón que dateKeyInZone, para la hora en vez de
+// la fecha. Existe por un hallazgo concreto: el widget decidía qué horarios
+// de "hoy" ya pasaron comparando contra `new Date()` en hora del NAVEGADOR
+// de quien reserva -- alguien reservando desde otra zona veía disponibilidad
+// distinta de la real en el negocio. No es un detalle de tipo, es un bug de
+// producto que este helper cierra.
+function timeKeyInZone(instant, tz) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(instant);
+  const get = (type) => parts.find(p => p.type === type).value;
+  // Mismo ajuste que zonedInstant: medianoche puede venir formateada como
+  // "24" en vez de "00".
+  const hour = get('hour') === '24' ? '00' : get('hour');
+  return `${hour}:${get('minute')}`;
+}
+
+module.exports = { DEFAULT_TZ, resolveBusinessTz, zonedInstant, dateKeyInZone, timeKeyInZone };

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { DEFAULT_TZ, resolveBusinessTz, zonedInstant, dateKeyInZone } = require('../timezone.js');
+const { DEFAULT_TZ, resolveBusinessTz, zonedInstant, dateKeyInZone, timeKeyInZone } = require('../timezone.js');
 
 test('DEFAULT_TZ es America/Santiago', () => {
   assert.strictEqual(DEFAULT_TZ, 'America/Santiago');
@@ -86,4 +86,37 @@ test('dateKeyInZone devuelve el día calendario visto desde la zona, no el día 
   // que es el día equivocado para el negocio.
   const instant = new Date('2026-06-16T02:00:00.000Z');
   assert.strictEqual(dateKeyInZone(instant, 'America/Santiago'), '2026-06-15');
+});
+
+// ── timeKeyInZone ──
+// Hallazgo que motivó este helper: el widget decidía qué horarios de "hoy"
+// ya pasaron comparando contra `new Date()` en hora del NAVEGADOR de quien
+// reserva -- alguien reservando desde otra zona veía disponibilidad
+// distinta de la real en el negocio. No es un detalle de tipo (S.date de
+// Date a string), es un bug de producto -- de ahí que tenga commit y tests
+// propios, separados del resto de la migración.
+
+test('timeKeyInZone devuelve la hora de pared correcta en America/Santiago (invierno, GMT-4)', () => {
+  // 18:00 UTC - 4h = 14:00 local.
+  assert.strictEqual(timeKeyInZone(new Date('2026-07-15T18:00:00.000Z'), 'America/Santiago'), '14:00');
+});
+
+test('el mismo instante da horas de pared DISTINTAS en zonas distintas (Santiago invierno GMT-4 vs Punta Arenas GMT-3 fijo)', () => {
+  const instant = new Date('2026-07-15T18:00:00.000Z');
+  assert.strictEqual(timeKeyInZone(instant, 'America/Santiago'), '14:00');
+  assert.strictEqual(timeKeyInZone(instant, 'America/Punta_Arenas'), '15:00');
+});
+
+test('timeKeyInZone + zonedInstant hacen roundtrip correcto', () => {
+  const tz = 'America/Punta_Arenas';
+  for (const time of ['00:30', '11:45', '23:30']) {
+    const instant = zonedInstant('2026-06-15', time, tz);
+    assert.strictEqual(timeKeyInZone(instant, tz), time);
+  }
+});
+
+test('timeKeyInZone normaliza medianoche a "00:00", no "24:00"', () => {
+  // 03:00 UTC = medianoche exacta en America/Punta_Arenas (GMT-3 fijo).
+  const instant = new Date('2026-06-15T03:00:00.000Z');
+  assert.strictEqual(timeKeyInZone(instant, 'America/Punta_Arenas'), '00:00');
 });

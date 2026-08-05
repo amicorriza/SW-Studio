@@ -124,23 +124,41 @@ test('dateKeyOf tolera valores vacíos/ausentes sin crashear', () => {
   assert.strictEqual(dateKeyOf(null), '');
 });
 
-test('dayBoundsOf devuelve [start,end) que cubre exactamente un día calendario UTC', () => {
+test('dayBoundsOf devuelve [start,end) como fechas puras, sin hora ni Z (Fase 2)', () => {
   const { start, end } = dayBoundsOf('2026-07-10');
-  assert.strictEqual(start, '2026-07-10T00:00:00.000Z');
-  assert.strictEqual(end, '2026-07-11T00:00:00.000Z');
-  // Ambos formatos de `date` deben caer dentro de [start, end) por comparación
-  // lexicográfica de strings ISO.
-  assert.ok('2026-07-10T04:00:00.000Z' >= start && '2026-07-10T04:00:00.000Z' < end);
-  assert.ok('2026-07-10T14:30:00.000Z' >= start && '2026-07-10T14:30:00.000Z' < end);
+  assert.strictEqual(start, '2026-07-10');
+  assert.strictEqual(end, '2026-07-11');
 });
 
 test('dayBoundsOf hace rollover correcto de fin de mes y fin de año', () => {
-  assert.deepStrictEqual(dayBoundsOf('2026-01-31'), {
-    start: '2026-01-31T00:00:00.000Z', end: '2026-02-01T00:00:00.000Z',
-  });
-  assert.deepStrictEqual(dayBoundsOf('2026-12-31'), {
-    start: '2026-12-31T00:00:00.000Z', end: '2027-01-01T00:00:00.000Z',
-  });
+  assert.deepStrictEqual(dayBoundsOf('2026-01-31'), { start: '2026-01-31', end: '2026-02-01' });
+  assert.deepStrictEqual(dayBoundsOf('2026-12-31'), { start: '2026-12-31', end: '2027-01-01' });
+});
+
+// CONVIVENCIA DE FORMATOS -- la prueba de que no hace falta migrar ninguna
+// reserva existente. Documentos viejos siguen en formato ISO con hora
+// ("2026-06-15T03:00:00.000Z", como escribía el widget antes de Fase 2);
+// documentos nuevos van a ser fecha pura ("2026-06-15"). Ambos formatos
+// tienen que convivir en la MISMA consulta de rango sin ningún cambio de
+// datos -- si esto no se sostiene, todo el enfoque de "sin migración" se cae.
+test('dayBoundsOf: un booking en formato ISO viejo cae dentro del rango calculado sobre la fecha pura nueva', () => {
+  const { start, end } = dayBoundsOf('2026-06-15');
+  const oldFormatDate = '2026-06-15T03:00:00.000Z'; // formato widget pre-Fase 2
+  assert.ok(oldFormatDate >= start && oldFormatDate < end);
+});
+
+test('dayBoundsOf: primer y último instante posible del día en formato viejo, ambos dentro del rango', () => {
+  const { start, end } = dayBoundsOf('2026-06-15');
+  const firstInstant = '2026-06-15T00:00:00.000Z';
+  const lastInstant = '2026-06-15T23:59:59.999Z';
+  assert.ok(firstInstant >= start && firstInstant < end, 'primer instante del día debe entrar');
+  assert.ok(lastInstant >= start && lastInstant < end, 'último instante del día debe entrar');
+});
+
+test('dayBoundsOf: una fecha del día siguiente en formato viejo NO entra en el rango', () => {
+  const { start, end } = dayBoundsOf('2026-06-15');
+  const nextDayOldFormat = '2026-06-16T00:00:00.000Z';
+  assert.ok(!(nextDayOldFormat >= start && nextDayOldFormat < end));
 });
 
 test('computeAvailability agrega la colación recurrente del barbero como rango ocupado', () => {

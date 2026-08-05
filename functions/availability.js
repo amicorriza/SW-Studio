@@ -38,14 +38,24 @@ function dateKeyOf(dateStr) {
   return String(dateStr || '').slice(0, 10);
 }
 
-// Límites [start, end) en formato ISO para una query de rango sobre `date`
-// que capture TODAS las reservas de un día calendario sin depender de la
-// hora-del-día exacta que traiga cada doc (ver dateKeyOf) -- comparación
-// lexicográfica de strings ISO preserva el orden cronológico.
+// Límites [start, end) en formato de fecha pura ('YYYY-MM-DD') para una
+// query de rango sobre `date` que capture TODAS las reservas de un día
+// calendario -- comparación lexicográfica de strings preserva el orden
+// cronológico. A propósito SIN hora ni 'Z': Fase 2 guarda `date` como fecha
+// pura (la hora vive solo en `time`; qué instante real representa esa hora
+// lo resuelve la zona del negocio -- ver timezone.js -- nunca UTC).
+//
+// Documentos viejos (formato ISO con hora, ej. "2026-06-15T03:00:00.000Z")
+// siguen cayendo correctamente acá SIN NINGUNA MIGRACIÓN: comparado
+// lexicográficamente, un string que comparte el mismo prefijo de 10
+// caracteres pero sigue con más caracteres ordena DESPUÉS del prefijo solo
+// -- por eso tanto "...T00:00:00.000Z" como "...T23:59:59.999Z" del mismo
+// día calendario son >= dateKey y < el día siguiente. Ver el test de
+// convivencia en test/availability.test.js.
 function dayBoundsOf(dateKey) {
-  const start = dateKey + 'T00:00:00.000Z';
-  const next = new Date(start); next.setUTCDate(next.getUTCDate() + 1);
-  return { start, end: next.toISOString() };
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  return { start: dateKey, end: next.toISOString().slice(0, 10) };
 }
 
 // Agrupa las reservas de un día por barbero, devolviendo solo {start, end}

@@ -2713,12 +2713,14 @@ let BARBERS = [
 const CAT_NAMES = {a:'Asesorías', c:'Corte de cabello', b:'Barba'};
 async function refreshCatalog(){
   if(!window.SWData) return;
-  const { services, staff, tz } = await window.SWData.loadCatalog();
+  const { services, staff, tz, bufferMin } = await window.SWData.loadCatalog();
   // BUSINESS_TZ/TODAY/TODAY_KEY/MAX_DATE arrancan en DEFAULT_TZ (ver más
   // abajo) y se corrigen acá a la zona real del negocio en cuanto Firestore
   // responde -- `tz` puede venir ausente (negocio recién configurado, o
-  // businessInfo/main de antes de Fase 2), de ahí el fallback.
+  // businessInfo/main de antes de Fase 2), de ahí el fallback. Mismo criterio
+  // para `bufferMin`.
   BUSINESS_TZ = tz || DEFAULT_TZ;
+  BUSINESS_BUFFER_MIN = Number.isFinite(bufferMin) ? bufferMin : DEFAULT_BUFFER_MIN;
   TODAY_KEY = dateKeyInZone(new Date(), BUSINESS_TZ);
   TODAY = dateKeyToDate(TODAY_KEY);
   MAX_DATE = new Date(TODAY); MAX_DATE.setMonth(MAX_DATE.getMonth()+2);
@@ -2791,6 +2793,7 @@ function hoursRangeFor(dow, barber){
 // `tz` explícito (el del negocio, cargado vía loadCatalog), nunca asumido
 // del entorno del navegador.
 const DEFAULT_TZ = 'America/Santiago';
+const DEFAULT_BUFFER_MIN = 0;
 function dateKeyInZone(instant, tz){
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit',
@@ -2840,6 +2843,7 @@ let calCursor = new Date(); calCursor.setDate(1);
 // renderSlots); BUSINESS_TZ queda disponible para timeKeyInZone() en el
 // mismo lugar.
 let BUSINESS_TZ = DEFAULT_TZ;
+let BUSINESS_BUFFER_MIN = DEFAULT_BUFFER_MIN;
 let TODAY_KEY = dateKeyInZone(new Date(), BUSINESS_TZ);
 let TODAY = dateKeyToDate(TODAY_KEY);
 let MAX_DATE = new Date(TODAY); MAX_DATE.setMonth(MAX_DATE.getMonth()+2);
@@ -3138,10 +3142,16 @@ document.getElementById('bk-cnext').addEventListener('click',()=>{
 // según los rangos ocupados en bruto que llegaron por subscribeAvailability?
 // Mismo criterio de solape que checkConflict/parseDt en el panel admin:
 // candStart < end && candEnd > start. AVAIL.barberBusy[id] puede venir
-// ausente (sin reservas ese día) -- se lee con `|| []`.
+// ausente (sin reservas ese día) -- se lee con `|| []`. Cada rango trae
+// `kind` ('booking'|'block', nunca 'break' -- ver recomputeAvailabilityForDate
+// en functions/index.js); BUSINESS_BUFFER_MIN solo se aplica contra
+// kind:'booking', igual que en checkConflict (admin) y overlaps() (server).
 function isBarberFreeAt(barberId, candStart, candEnd){
   const busy=(AVAIL.barberBusy||{})[barberId]||[];
-  if(busy.some(r=>candStart<toMin(r.end) && candEnd>toMin(r.start))) return false;
+  if(busy.some(r=>{
+    const buf = r.kind==='booking' ? BUSINESS_BUFFER_MIN : 0;
+    return candStart<toMin(r.end)+buf && candEnd>toMin(r.start)-buf;
+  })) return false;
   // Colación recurrente: se resuelve en cliente, no vía la vista materializada
   // `availability/{fecha}`. Es semanal (no por fecha) y viene en `staff`, que
   // es lectura pública y refreshCatalog() ya mantiene al día en BARBERS[] --

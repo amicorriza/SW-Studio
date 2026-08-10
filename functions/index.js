@@ -10,7 +10,7 @@ const { sendBookingEmails } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
 const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./availability.js');
 const { resolveCreateBooking } = require('./createBooking.js');
-const { resolveBusinessTz } = require('./timezone.js');
+const { resolveBusinessTz, resolveBufferMin } = require('./timezone.js');
 
 const app = initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -157,6 +157,9 @@ exports.createBooking = onCall(
         // resolveBusinessTz() cae a DEFAULT_TZ en ambos casos, nunca
         // bloquea la reserva.
         businessTz: resolveBusinessTz(businessInfoSnap.exists ? businessInfoSnap.data() : null),
+        // Mismo doc ya leído arriba, sin I/O adicional. bufferMin ausente
+        // -> resolveBufferMin cae a 0 (comportamiento actual, sin margen).
+        bufferMin: resolveBufferMin(businessInfoSnap.exists ? businessInfoSnap.data() : null),
       });
       if (!resolved.ok) return resolved;
 

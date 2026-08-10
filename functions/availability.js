@@ -82,14 +82,18 @@ function computeAvailability({ bookings, staff, barberId, dow, scheduleBlocks })
     ? (bookings || [])
     : (bookings || []).filter(b => b.barberId === barberId);
 
+  // `kind` distingue el origen de cada rango ocupado -- isRangeFree() lo usa
+  // para aplicar el buffer de limpieza (bufferMin) SOLO entre reservas
+  // reales, nunca contra colación ni bloqueos administrativos (son límites
+  // duros, no necesitan margen adicional).
   const barberBusy = {};
-  function addBusy(id, start, end) {
+  function addBusy(id, start, end, kind) {
     if (!id) return;
     if (!barberBusy[id]) barberBusy[id] = [];
-    barberBusy[id].push({ start, end });
+    barberBusy[id].push({ start, end, kind });
   }
 
-  relevant.forEach(b => addBusy(b.barberId, b.time, addMinutesToTime(b.time, b.dur || 0)));
+  relevant.forEach(b => addBusy(b.barberId, b.time, addMinutesToTime(b.time, b.dur || 0), 'booking'));
 
   const activeBarberIds = (staff || [])
     .filter(s => s.status === 'active')
@@ -108,7 +112,7 @@ function computeAvailability({ bookings, staff, barberId, dow, scheduleBlocks })
       if (relevantStaffIds.indexOf(s.id) === -1) return;
       const day = Array.isArray(s.schedule) ? s.schedule[dow] : null;
       if (day && day.break && day.break.start && day.break.end) {
-        addBusy(s.id, day.break.start, day.break.end);
+        addBusy(s.id, day.break.start, day.break.end, 'break');
       }
     });
   }
@@ -118,29 +122,39 @@ function computeAvailability({ bookings, staff, barberId, dow, scheduleBlocks })
   (scheduleBlocks || []).forEach(blk => {
     if (!blk.barberId) return;
     if (relevantStaffIds.indexOf(blk.barberId) === -1) return;
-    addBusy(blk.barberId, blk.start, blk.end);
+    addBusy(blk.barberId, blk.start, blk.end, 'block');
   });
 
   return { barberBusy, activeBarberIds };
 }
 
-// Predicado atómico de solape en minutos desde medianoche. Único criterio en
-// todo el repo -- antes vivía duplicado en public/index.html (isBarberFreeAt)
-// y admin/index.html (checkConflict/checkScheduleBlock); esta es la
-// implementación real que el comentario de computeAvailability ya prometía
-// (una auditoría previa había confundido esa mención en prosa con código).
-function overlaps(aStart, aEnd, bStart, bEnd) {
-  return aStart < bEnd && aEnd > bStart;
+// Predicado atómico de solape en minutos desde medianoche, con un margen de
+// limpieza opcional (bufferMin, default 0 = comportamiento idéntico al
+// criterio original). Único criterio en todo el repo -- antes vivía
+// duplicado en public/index.html (isBarberFreeAt) y admin/index.html
+// (checkConflict/checkScheduleBlock); esta es la implementación real que el
+// comentario de computeAvailability ya prometía (una auditoría previa había
+// confundido esa mención en prosa con código).
+function overlaps(aStart, aEnd, bStart, bEnd, bufferMin = 0) {
+  return aStart < bEnd + bufferMin && aEnd > bStart - bufferMin;
 }
 
-// ¿[startHHMM,endHHMM) está libre contra `busyRanges` ([{start,end}] en
+// ¿[startHHMM,endHHMM) está libre contra `busyRanges` ([{start,end,kind}] en
 // formato HH:MM, la misma forma que devuelve barberBusy de
 // computeAvailability)? Usado por createBooking.js para decidir si un
 // barbero candidato puede tomar una reserva nueva.
-function isRangeFree(busyRanges, startHHMM, endHHMM) {
+//
+// `bufferMin` (tiempo de limpieza configurable, businessInfo.bufferMin) se
+// aplica SOLO contra rangos con kind:'booking' -- colación y bloqueos
+// administrativos (kind:'break'/'block') son límites duros, no llevan
+// margen adicional.
+function isRangeFree(busyRanges, startHHMM, endHHMM, bufferMin = 0) {
   const s = toMinutes(startHHMM);
   const e = toMinutes(endHHMM);
-  return !(busyRanges || []).some(r => overlaps(s, e, toMinutes(r.start), toMinutes(r.end)));
+  return !(busyRanges || []).some(r => {
+    const buf = r.kind === 'booking' ? bufferMin : 0;
+    return overlaps(s, e, toMinutes(r.start), toMinutes(r.end), buf);
+  });
 }
 
 // ¿`schedule[dow]` (staff.schedule, mismo campo que ya lee la colación de

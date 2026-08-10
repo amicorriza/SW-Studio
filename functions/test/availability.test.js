@@ -27,7 +27,7 @@ test('computeAvailability filtra por barberId cuando se especifica uno concreto'
   ];
   const result = computeAvailability({ bookings, staff, barberId: 'felipe' });
   assert.deepStrictEqual(Object.keys(result.barberBusy), ['felipe']);
-  assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:50' }]);
+  assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:50', kind: 'booking' }]);
 });
 
 test('computeAvailability con barberId "any" agrupa todas las reservas del día por su propio barbero', () => {
@@ -43,10 +43,10 @@ test('computeAvailability con barberId "any" agrupa todas las reservas del día 
   ];
   const result = computeAvailability({ bookings, staff, barberId: 'any' });
   assert.deepStrictEqual(result.barberBusy.felipe, [
-    { start: '10:00', end: '10:50' },
-    { start: '15:00', end: '16:00' },
+    { start: '10:00', end: '10:50', kind: 'booking' },
+    { start: '15:00', end: '16:00', kind: 'booking' },
   ]);
-  assert.deepStrictEqual(result.barberBusy.victoria, [{ start: '11:00', end: '11:30' }]);
+  assert.deepStrictEqual(result.barberBusy.victoria, [{ start: '11:00', end: '11:30', kind: 'booking' }]);
   assert.deepStrictEqual(result.activeBarberIds.sort(), ['felipe', 'victoria']);
 });
 
@@ -71,7 +71,7 @@ test('computeAvailability nunca incluye PII (name/email/phone) en el resultado',
   assert.ok(!serialized.includes('juan@mail.com'));
   assert.ok(!serialized.includes('+56912345678'));
   assert.ok(!serialized.includes('SW-XYZ'));
-  assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:50' }]);
+  assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:50', kind: 'booking' }]);
 });
 
 test('computeAvailability solo incluye barberos activos en activeBarberIds', () => {
@@ -108,7 +108,7 @@ test('computeAvailability con dur ausente/cero produce un rango de duración cer
   const bookings = [{ barberId: 'felipe', date: '2026-07-10', time: '10:00' }]; // sin dur
   const staff = [{ id: 'felipe', status: 'active' }];
   const result = computeAvailability({ bookings, staff, barberId: 'felipe' });
-  assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:00' }]);
+  assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:00', kind: 'booking' }]);
 });
 
 test('dateKeyOf normaliza ambos formatos de `date` de una reserva al mismo día calendario', () => {
@@ -164,7 +164,7 @@ test('dayBoundsOf: una fecha del día siguiente en formato viejo NO entra en el 
 test('computeAvailability agrega la colación recurrente del barbero como rango ocupado', () => {
   const staff = [{ id: 'victoria', status: 'active', schedule: [null, null, { open: true, start: '10:00', end: '20:00', break: { start: '13:00', end: '14:00' } }] }];
   const result = computeAvailability({ bookings: [], staff, barberId: 'victoria', dow: 2, scheduleBlocks: [] });
-  assert.deepStrictEqual(result.barberBusy.victoria, [{ start: '13:00', end: '14:00' }]);
+  assert.deepStrictEqual(result.barberBusy.victoria, [{ start: '13:00', end: '14:00', kind: 'break' }]);
 });
 
 test('computeAvailability ignora la colación de otro día de la semana', () => {
@@ -177,7 +177,7 @@ test('computeAvailability agrega los scheduleBlocks del barbero como rangos ocup
   const staff = [{ id: 'victoria', status: 'active', schedule: [] }];
   const scheduleBlocks = [{ barberId: 'victoria', date: '2026-08-05', start: '15:00', end: '16:00', reason: 'Trámite' }];
   const result = computeAvailability({ bookings: [], staff, barberId: 'victoria', dow: 3, scheduleBlocks });
-  assert.deepStrictEqual(result.barberBusy.victoria, [{ start: '15:00', end: '16:00' }]);
+  assert.deepStrictEqual(result.barberBusy.victoria, [{ start: '15:00', end: '16:00', kind: 'block' }]);
 });
 
 test('computeAvailability combina reservas, colación y bloqueos puntuales sin pisarse', () => {
@@ -186,9 +186,9 @@ test('computeAvailability combina reservas, colación y bloqueos puntuales sin p
   const scheduleBlocks = [{ barberId: 'victoria', date: '2026-08-05', start: '17:00', end: '18:00', reason: 'Trámite' }];
   const result = computeAvailability({ bookings, staff, barberId: 'victoria', dow: 3, scheduleBlocks });
   assert.deepStrictEqual(result.barberBusy.victoria, [
-    { start: '10:00', end: '10:50' },
-    { start: '13:00', end: '14:00' },
-    { start: '17:00', end: '18:00' },
+    { start: '10:00', end: '10:50', kind: 'booking' },
+    { start: '13:00', end: '14:00', kind: 'break' },
+    { start: '17:00', end: '18:00', kind: 'block' },
   ]);
 });
 
@@ -199,8 +199,8 @@ test('computeAvailability con barberId "any" agrega colación/bloqueos de todos 
   ];
   const scheduleBlocks = [{ barberId: 'esteban', date: '2026-08-05', start: '11:00', end: '11:30', reason: 'x' }];
   const result = computeAvailability({ bookings: [], staff, barberId: 'any', dow: 3, scheduleBlocks });
-  assert.deepStrictEqual(result.barberBusy.victoria, [{ start: '13:00', end: '14:00' }]);
-  assert.deepStrictEqual(result.barberBusy.esteban, [{ start: '11:00', end: '11:30' }]);
+  assert.deepStrictEqual(result.barberBusy.victoria, [{ start: '13:00', end: '14:00', kind: 'break' }]);
+  assert.deepStrictEqual(result.barberBusy.esteban, [{ start: '11:00', end: '11:30', kind: 'block' }]);
 });
 
 test('computeAvailability ignora un scheduleBlock de un barbero distinto al filtrado', () => {
@@ -215,10 +215,10 @@ test('computeAvailability sin dow/scheduleBlocks se comporta exactamente igual q
   const bookings = [{ barberId: 'felipe', date: '2026-07-10', time: '10:00', dur: 50 }];
   const staff = [{ id: 'felipe', status: 'active' }];
   const result = computeAvailability({ bookings, staff, barberId: 'felipe' });
-  assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:50' }]);
+  assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:50', kind: 'booking' }]);
 });
 
-test('overlaps: solape exacto, parcial, adyacente y sin relación', () => {
+test('overlaps: solape exacto, parcial, adyacente y sin relación (bufferMin=0, comportamiento original)', () => {
   assert.strictEqual(overlaps(600, 650, 600, 650), true); // exacto
   assert.strictEqual(overlaps(600, 650, 620, 700), true); // parcial por el final
   assert.strictEqual(overlaps(600, 650, 500, 620), true); // parcial por el inicio
@@ -226,10 +226,36 @@ test('overlaps: solape exacto, parcial, adyacente y sin relación', () => {
   assert.strictEqual(overlaps(600, 650, 700, 800), false); // sin relación
 });
 
-test('isRangeFree: libre sin rangos, ocupado con solape, libre si es adyacente', () => {
+test('overlaps: bufferMin>0 bloquea rangos adyacentes o cercanos que sin buffer estarían libres', () => {
+  assert.strictEqual(overlaps(600, 650, 650, 700, 10), true); // adyacente, pero con 10min de buffer sí choca
+  assert.strictEqual(overlaps(600, 650, 660, 700, 10), false); // hueco == buffer (10min): justo libre, mismo criterio que el borde adyacente sin buffer
+  assert.strictEqual(overlaps(600, 650, 659, 700, 10), true); // hueco de 9min < buffer 10min: no alcanza, choca
+  assert.strictEqual(overlaps(600, 650, 661, 700, 10), false); // 11min de hueco, buffer=10 alcanza a dejarlo libre
+  assert.strictEqual(overlaps(600, 650, 500, 600, 10), true); // adyacente por el inicio, con buffer choca
+});
+
+test('isRangeFree: libre sin rangos, ocupado con solape, libre si es adyacente (bufferMin=0)', () => {
   assert.strictEqual(isRangeFree([], '10:00', '10:50'), true);
-  assert.strictEqual(isRangeFree([{ start: '10:00', end: '10:50' }], '10:20', '10:40'), false);
-  assert.strictEqual(isRangeFree([{ start: '10:00', end: '10:50' }], '10:50', '11:20'), true);
+  assert.strictEqual(isRangeFree([{ start: '10:00', end: '10:50', kind: 'booking' }], '10:20', '10:40'), false);
+  assert.strictEqual(isRangeFree([{ start: '10:00', end: '10:50', kind: 'booking' }], '10:50', '11:20'), true);
+});
+
+test('isRangeFree: bufferMin>0 aplica el margen solo contra kind:"booking", nunca contra break/block', () => {
+  // Adyacente a una reserva real: sin buffer estaría libre, con buffer=15 no.
+  assert.strictEqual(
+    isRangeFree([{ start: '10:00', end: '10:50', kind: 'booking' }], '10:50', '11:20', 15),
+    false
+  );
+  // Mismo horario adyacente, pero contra una colación/bloqueo: el buffer NO
+  // aplica -- sigue libre igual que con bufferMin=0.
+  assert.strictEqual(
+    isRangeFree([{ start: '10:00', end: '10:50', kind: 'break' }], '10:50', '11:20', 15),
+    true
+  );
+  assert.strictEqual(
+    isRangeFree([{ start: '10:00', end: '10:50', kind: 'block' }], '10:50', '11:20', 15),
+    true
+  );
 });
 
 test('isWithinOpenHours: dentro, fuera, día cerrado y sin schedule', () => {

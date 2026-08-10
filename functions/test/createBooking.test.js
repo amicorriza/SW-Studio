@@ -115,6 +115,42 @@ test('cita adyacente (termina exactamente cuando empieza la otra) → acepta', (
   assert.strictEqual(result.ok, true);
 });
 
+test('cita adyacente con bufferMin>0 → rechaza (el margen de limpieza sí bloquea lo que sin buffer estaba libre)', () => {
+  // Mismo caso que el test anterior (existente 11:50-12:40, candidata
+  // 11:00-11:50) pero con bufferMin=10 -- ya no debería caber.
+  const bookingsForDay = [{ barberId: 'felipe', date: FUTURE_DATE_WIDGET, time: '11:50', dur: 50 }];
+  const result = resolveCreateBooking({
+    businessTz: TZ, bufferMin: 10,
+    payload: basePayload(), now: NOW, service: SERVICE, staff: staffList(),
+    bookingsForDay, scheduleBlocksForDay: [],
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.code, 'already-exists');
+});
+
+test('sin bufferMin (default 0), el comportamiento es idéntico al de antes de este parámetro', () => {
+  const bookingsForDay = [{ barberId: 'felipe', date: FUTURE_DATE_WIDGET, time: '11:50', dur: 50 }];
+  const result = resolveCreateBooking({
+    businessTz: TZ,
+    payload: basePayload(), now: NOW, service: SERVICE, staff: staffList(),
+    bookingsForDay, scheduleBlocksForDay: [],
+  });
+  assert.strictEqual(result.ok, true);
+});
+
+test('bufferMin>0 NO se aplica contra colación ni bloqueos -- solo entre reservas reales', () => {
+  // Colación 10:45-11:15 termina justo cuando... no, aquí probamos que un
+  // horario ADYACENTE a la colación (candidata 11:15-12:05) sigue aceptando
+  // aunque bufferMin sea alto -- el margen de limpieza es solo entre citas.
+  const staff = [{ id: 'felipe', name: 'Felipe', status: 'active', schedule: openAllWeek({ break: { start: '10:15', end: '11:00' } }) }];
+  const result = resolveCreateBooking({
+    businessTz: TZ, bufferMin: 30,
+    payload: basePayload({ time: '11:00' }), now: NOW, service: SERVICE, staff,
+    bookingsForDay: [], scheduleBlocksForDay: [],
+  });
+  assert.strictEqual(result.ok, true);
+});
+
 test("'any' se resuelve a un barbero real libre y NUNCA se persiste 'any'", () => {
   // felipe ocupado a esa hora, victoria libre -- 'any' debe caer en victoria.
   const bookingsForDay = [{ barberId: 'felipe', date: FUTURE_DATE_WIDGET, time: '11:00', dur: 50 }];

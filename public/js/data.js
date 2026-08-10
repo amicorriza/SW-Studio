@@ -57,15 +57,17 @@ function stripId(o) { const { id, ...rest } = o; return rest; }
 // Catálogo para el widget público de reservas: services + staff + la zona
 // horaria del negocio (businessInfo.tz -- lectura pública según
 // firestore.rules, igual que services/staff; adminLog/bookings requieren
-// auth). `tz` puede venir ausente (negocio recién configurado, o
-// businessInfo/main creado antes de Fase 2) -- el fallback a DEFAULT_TZ vive
-// en quien consuma esto (public/index.html), no acá: esta capa solo
-// devuelve lo que hay en Firestore, sin lógica de negocio.
+// auth) + el buffer de limpieza entre citas (businessInfo.bufferMin). Ambos
+// pueden venir ausentes (negocio recién configurado, o businessInfo/main de
+// antes de que existiera el campo) -- el fallback a DEFAULT_TZ/0 vive en
+// quien consuma esto (public/index.html), no acá: esta capa solo devuelve lo
+// que hay en Firestore, sin lógica de negocio.
 async function loadCatalog() {
   const [services, staff, infoSnap] = await Promise.all([
     readCol('services'), readCol('staff'), getDoc(doc(db, 'businessInfo', 'main')),
   ]);
-  return { services, staff, tz: infoSnap.exists() ? infoSnap.data().tz : undefined };
+  const info = infoSnap.exists() ? infoSnap.data() : {};
+  return { services, staff, tz: info.tz, bufferMin: info.bufferMin };
 }
 
 // Reservas

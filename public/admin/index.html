@@ -1093,6 +1093,11 @@ html,body{height:100%;font-family:'Inter',sans-serif}
               <select class="a-in" id="ai-tz"></select>
               <span id="ai-tz-hint" style="font-size:11px;color:var(--a-meta);display:none"></span>
             </div>
+            <div class="a-f">
+              <label class="a-lbl">Tiempo de limpieza entre citas (min)</label>
+              <input class="a-in" id="ai-bufferMin" type="number" min="0" step="5">
+              <span style="font-size:11px;color:var(--a-meta)">Margen mínimo entre el fin de una cita y el inicio de la siguiente del mismo profesional. 0 = sin margen.</span>
+            </div>
             <button class="a-btn a-btn-p" id="ai-save" style="align-self:flex-start;margin-top:4px">Guardar información</button>
           </div>
         </div>
@@ -1432,11 +1437,21 @@ g('adm-lgout').addEventListener('click', async function(){
 
 // ═══ SAVE / LOG ═══
 async function admSave(){
-  try { await window.SWData.saveAdmin(D); }
-  catch(e){ console.error('Error guardando', e); }
   var el = g('adm-ss');
-  el.textContent = '✓ ' + new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
-  setTimeout(function(){ el.textContent = ''; }, 2500);
+  try {
+    await window.SWData.saveAdmin(D);
+    el.style.color = '';
+    el.style.display = '';
+    el.textContent = '✓ ' + new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+    setTimeout(function(){ el.textContent = ''; }, 2500);
+  } catch(e){
+    console.error('Error guardando', e);
+    // Sin esto el error queda invisible en celulares: #adm-ss tiene
+    // display:none bajo 560px (ver CSS), y acá SÍ necesitamos que se vea.
+    el.style.display = 'block';
+    el.style.color = 'var(--a-err)';
+    el.textContent = '⚠ Error al guardar -- reintentá';
+  }
 }
 g('adm-save-btn').addEventListener('click', admSave);
 
@@ -1596,8 +1611,12 @@ function deleteScheduleBlockLocal(id){
   SB = SB.filter(function(b){ return b.id !== id; });
   return window.SWData.deleteScheduleBlock(id);
 }
-// Check if a proposed booking conflicts with existing ones (same barber, overlapping time)
-function checkConflict(barberId, dateStr, timeStr, durMin, ignoreId){
+// Check if a proposed booking conflicts with existing ones (same barber, overlapping time).
+// bufferMin (D.info.bufferMin, default 0) es el margen de limpieza contra
+// OTRAS RESERVAS -- checkScheduleBlock (colación/bloqueos) no lo usa, son
+// límites duros e independientes del buffer.
+function checkConflict(barberId, dateStr, timeStr, durMin, ignoreId, bufferMin){
+  bufferMin = bufferMin || 0;
   var bookings = getBookings();
   var newStart = parseDt(dateStr, timeStr);
   if(!newStart) return null;
@@ -1609,7 +1628,9 @@ function checkConflict(barberId, dateStr, timeStr, durMin, ignoreId){
     var bStart = parseDt(b.date ? b.date.substring(0,10) : '', b.time);
     if(!bStart) continue;
     var bEnd = new Date(bStart.getTime() + (b.dur||30)*60000);
-    if(newStart < bEnd && newEnd > bStart){
+    var bStartBuf = new Date(bStart.getTime() - bufferMin*60000);
+    var bEndBuf = new Date(bEnd.getTime() + bufferMin*60000);
+    if(newStart < bEndBuf && newEnd > bStartBuf){
       return b;
     }
   }
@@ -2136,7 +2157,7 @@ function checkBookingConflict(){
     box.classList.remove('show');
     return;
   }
-  var conflict = checkConflict(barberId, dateStr, timeStr, dur, editId);
+  var conflict = checkConflict(barberId, dateStr, timeStr, dur, editId, (D.info && D.info.bufferMin) || 0);
   if(conflict){
     var barber = D.staff.find(function(s){return s.id===barberId});
     box.innerHTML = '⚠ <strong>Conflicto de horario:</strong> '+esc(barber?barber.name:'')+' ya tiene a "'+esc(conflict.name||'')+'" para el servicio "'+esc(conflict.svcName||'')+'" a las '+esc(conflict.time||'')+'. Marca "Sobrecupo" si deseas agendar de todas formas, o cambia la hora/barbero.';
@@ -2172,7 +2193,7 @@ g('a-bkm-save').addEventListener('click', function(){
 
   var sOpt = sv.options[sv.selectedIndex];
   var bOpt = br.options[br.selectedIndex];
-  var conflict = checkConflict(br.value, da.value, ti.value, parseInt(sOpt.dataset.dur), g('a-bkm-id').value||null);
+  var conflict = checkConflict(br.value, da.value, ti.value, parseInt(sOpt.dataset.dur), g('a-bkm-id').value||null, (D.info && D.info.bufferMin) || 0);
   var blocked = checkScheduleBlock(br.value, da.value, ti.value, parseInt(sOpt.dataset.dur));
   var isOver = g('a-bkm-over').checked;
   if((conflict || blocked) && !isOver){
@@ -2698,6 +2719,7 @@ function renderSchedule(){
 // aparte). Mismo motivo de siempre para la duplicación: <script> plano, sin
 // bundler, no puede importar.
 const DEFAULT_TZ = 'America/Santiago';
+const DEFAULT_BUFFER_MIN = 0;
 // Verificadas con Intl.supportedValuesOf('timeZone') antes de ofrecerlas
 // (2026-08 -- las tres existen en el runtime probado). El .filter() repite
 // esa verificación en el navegador real de quien abra el panel: si alguna
@@ -2730,6 +2752,8 @@ function loadInfo(){
       hint.style.display = hint.textContent ? 'block' : 'none';
     }
   }
+  var bufEl = g('ai-bufferMin');
+  if(bufEl) bufEl.value = Number.isFinite(f.bufferMin) ? f.bufferMin : DEFAULT_BUFFER_MIN;
 }
 g('ai-save').addEventListener('click', function(){
   D.info = {
@@ -2737,6 +2761,7 @@ g('ai-save').addEventListener('click', function(){
     phone: g('ai-phone').value, ig: g('ai-ig').value,
     slogan: g('ai-slogan').value, desc: g('ai-desc').value,
     tz: g('ai-tz').value,
+    bufferMin: parseInt(g('ai-bufferMin').value, 10) || 0,
   };
   log('Actualizó info', 'Datos del negocio');
   admSave();

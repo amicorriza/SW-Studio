@@ -45,13 +45,15 @@ function orderCandidateBarbers(activeBarberIds) {
 // Resuelve qué barbero toma la reserva y si hay hueco. NUNCA devuelve 'any'
 // -- si se pidió 'any', devuelve un barbero real y activo, o falla.
 // `barberBusy` ya viene calculado (una sola vez, para todos los barberos
-// activos) por el llamador -- ver resolveCreateBooking.
-function resolveBarber({ barberId, activeStaff, dow, time, endTime, barberBusy }) {
+// activos) por el llamador -- ver resolveCreateBooking. `bufferMin` (default
+// 0) solo afecta el margen contra otras reservas -- ver isRangeFree en
+// availability.js.
+function resolveBarber({ barberId, activeStaff, dow, time, endTime, barberBusy, bufferMin = 0 }) {
   const wantsAny = !barberId || barberId === 'any';
 
   function fitsAt(staffMember) {
     if (!isWithinOpenHours(staffMember.schedule, dow, time, endTime)) return false;
-    return isRangeFree(barberBusy[staffMember.id] || [], time, endTime);
+    return isRangeFree(barberBusy[staffMember.id] || [], time, endTime, bufferMin);
   }
 
   if (!wantsAny) {
@@ -62,7 +64,7 @@ function resolveBarber({ barberId, activeStaff, dow, time, endTime, barberBusy }
     if (!isWithinOpenHours(candidate.schedule, dow, time, endTime)) {
       return { ok: false, code: 'failed-precondition', message: 'Ese horario está fuera de la disponibilidad del barbero.' };
     }
-    if (!isRangeFree(barberBusy[candidate.id] || [], time, endTime)) {
+    if (!isRangeFree(barberBusy[candidate.id] || [], time, endTime, bufferMin)) {
       return { ok: false, code: 'already-exists', message: 'Ese horario acaba de ser tomado.' };
     }
     return { ok: true, barber: candidate };
@@ -127,7 +129,7 @@ function buildBookingDoc({ payload, service, barber, now, businessTz }) {
 // devuelve {ok:false,...}) en vez de agendar en una zona equivocada sin que
 // nadie se entere. El único lugar con un default es resolveBusinessTz()
 // (timezone.js), y vive en el llamador (index.js), no acá.
-function resolveCreateBooking({ payload, now, service, staff, bookingsForDay, scheduleBlocksForDay, businessTz }) {
+function resolveCreateBooking({ payload, now, service, staff, bookingsForDay, scheduleBlocksForDay, businessTz, bufferMin = 0 }) {
   if (!businessTz) {
     throw new Error('resolveCreateBooking: businessTz es obligatorio -- resolver con resolveBusinessTz() en el llamador.');
   }
@@ -171,7 +173,7 @@ function resolveCreateBooking({ payload, now, service, staff, bookingsForDay, sc
   });
 
   const resolved = resolveBarber({
-    barberId: payload.barberId, activeStaff, dow, time: payload.time, endTime, barberBusy,
+    barberId: payload.barberId, activeStaff, dow, time: payload.time, endTime, barberBusy, bufferMin,
   });
   if (!resolved.ok) return resolved;
 

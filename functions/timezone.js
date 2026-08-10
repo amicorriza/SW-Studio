@@ -14,12 +14,20 @@
 'use strict';
 
 const DEFAULT_TZ = 'America/Santiago';
+const DEFAULT_BUFFER_MIN = 0;
 
 // businessInfo.tz ausente (negocios existentes, o el campo nunca se guardó)
 // -> DEFAULT_TZ. Único punto de este fallback en todo el código -- explícito
 // a propósito, no un default disperso en cada llamador.
 function resolveBusinessTz(businessInfo) {
   return (businessInfo && businessInfo.tz) || DEFAULT_TZ;
+}
+
+// businessInfo.bufferMin ausente/no numérico -> DEFAULT_BUFFER_MIN (0, sin
+// margen). Mismo patrón que resolveBusinessTz: único punto de este
+// fallback, explícito en el llamador (index.js), nunca disperso.
+function resolveBufferMin(businessInfo) {
+  return (businessInfo && Number.isFinite(businessInfo.bufferMin)) ? businessInfo.bufferMin : DEFAULT_BUFFER_MIN;
 }
 
 // 'YYYY-MM-DD' + 'HH:MM', interpretados como hora de PARED en `tz`, ->
@@ -82,4 +90,7 @@ function timeKeyInZone(instant, tz) {
   return `${hour}:${get('minute')}`;
 }
 
-module.exports = { DEFAULT_TZ, resolveBusinessTz, zonedInstant, dateKeyInZone, timeKeyInZone };
+module.exports = {
+  DEFAULT_TZ, resolveBusinessTz, DEFAULT_BUFFER_MIN, resolveBufferMin,
+  zonedInstant, dateKeyInZone, timeKeyInZone,
+};

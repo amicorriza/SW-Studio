@@ -44,8 +44,18 @@ const retiredServices = [
 
 // schedule indexado por Date.getDay(): 0=Dom (null=cerrado) … 6=Sáb.
 const staff = [
-  { id:'victoria', name:'Victoria', role:'Barbera Senior · Visagismo', days:'Lun — Sáb', bio:'4 años de experiencia, especializada en asesoría con visagismo.', status:'active', photo:'/assets/barbero-victoria.jpg',
-    schedule:[null,{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'17:00'}] },
+  { id:'victoria', name:'Victoria', role:'Barbera Senior · Visagismo', days:'Lun — Sáb',
+    bio:'Barbera con 4 años de experiencia, especializada en asesoría con VISAGISMO y atención personalizada.\nEnfoqué en detalle , estilo y comodidad, para que cada cliente se vaya conforme y seguro con su imagen.',
+    status:'active', photo:'/assets/barbero-victoria.jpg',
+    schedule:[
+      {open:false,start:'10:00',end:'20:00'},
+      {open:true,start:'10:00',end:'20:00',break:{start:'14:00',end:'15:00'}},
+      {open:true,start:'10:00',end:'20:00',break:{start:'14:00',end:'15:00'}},
+      {open:true,start:'10:00',end:'20:00',break:{start:'14:00',end:'15:00'}},
+      {open:true,start:'10:00',end:'20:00',break:{start:'14:00',end:'15:00'}},
+      {open:true,start:'10:00',end:'20:00',break:{start:'14:00',end:'15:00'}},
+      {open:true,start:'10:00',end:'17:00',break:{start:'13:00',end:'14:00'}}
+    ] },
   { id:'esteban', name:'Esteban', role:'Barbero', days:'Lun — Vie', bio:'', status:'inactive', photo:'',
     schedule:[null,{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:true,start:'10:00',end:'20:00'},{open:false}] },
   { id:'ariel', name:'Ariel', role:'Barbero', days:'Lun — Vie', bio:'', status:'inactive', photo:'',

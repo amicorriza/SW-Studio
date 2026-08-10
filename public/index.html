@@ -2678,7 +2678,7 @@ let CATS = [
      desc:'Experiencia completa de barbería. Asesoría personalizada aplicando visagismo en corte y barba, adaptando el estilo según tu perfil facial, mentón y nariz para lograr mayor equilibrio y definición.'}
   ]},
   {id:'c', name:'Corte de cabello', items:[
-    {id:'adulto', name:'Corte de cabello adulto', dur:45, price:18000,
+    {id:'adulto', name:'Corte de cabello adulto', dur:60, price:18000,
      desc:'Corte según tu estilo, perfilado de ceja, lavado con masaje capilar y asesoría exprés de cómo peinarte y qué producto usar. Cortesía a elección incluida.'},
     {id:'nino', name:'Corte de cabello niño (2-10 años)', dur:45, price:16000,
      desc:'Corte especializado para los más pequeños, con paciencia y atención al detalle.'},
@@ -2700,7 +2700,6 @@ let CATS = [
 ];
 
 let BARBERS = [
-  {id:'any', name:'Sin preferencia', init:'SW', role:'Cualquier barbero disponible', any:true},
   {id:'victoria', name:'Victoria', init:'V', role:'Barbera Senior · Visagismo', photo:'/assets/barbero-victoria.jpg'},
   {id:'esteban', name:'Esteban', init:'E', role:'Barbero'},
   {id:'ariel', name:'Ariel', init:'A', role:'Barbero'}
@@ -2736,7 +2735,6 @@ async function refreshCatalog(){
   const activeStaff = (staff||[]).filter(s=>s.status==='active');
   if(activeStaff.length){
     BARBERS = [
-      {id:'any', name:'Sin preferencia', init:'SW', role:'Cualquier barbero disponible', any:true},
       ...activeStaff.map(b=>({
         id:b.id, name:b.name,
         init:(b.name&&b.name[0]||'?').toUpperCase(),

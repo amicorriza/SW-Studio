@@ -263,6 +263,7 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 .a-fr{display:grid;grid-template-columns:1fr 1fr;gap:11px}
 @media(max-width:520px){.a-fr{grid-template-columns:1fr}}
 .a-lbl{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--a-sd)}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .a-in{font-family:'Inter',sans-serif;font-size:13.5px;color:var(--a-txt);padding:9px 11px;border:1.5px solid var(--a-g2);border-radius:7px;outline:none;transition:border-color .2s,box-shadow .2s;background:#fff;width:100%}
 .a-in:focus{border-color:var(--a-ink);box-shadow:0 0 0 3px rgba(10,10,10,.06)}
 .a-ta{resize:vertical;min-height:65px}
@@ -861,7 +862,9 @@ html,body{height:100%;font-family:'Inter',sans-serif}
     <img id="adm-ll" src="/assets/logo.png" alt="SW">
     <div id="adm-lb">SW Studio</div>
     <div id="adm-ls">Panel de Administración</div>
+    <label class="sr-only" for="adm-email">Email</label>
     <input id="adm-email" type="email" placeholder="email" autocomplete="username" />
+    <label class="sr-only" for="adm-pass">Contraseña</label>
     <input id="adm-pass" type="password" placeholder="Contraseña de acceso">
     <button id="adm-login-btn">Ingresar</button>
     <div id="adm-login-err">Contraseña incorrecta.</div>
@@ -939,6 +942,9 @@ html,body{height:100%;font-family:'Inter',sans-serif}
           <button class="a-btn a-btn-p" id="adm-save-btn">Guardar</button>
           <a id="adm-x" class="a-btn a-btn-g" href="/">← Volver al sitio</a>
         </div>
+      </div>
+      <div id="adm-load-err-banner" class="a-alert a-err-t" role="alert" style="margin:12px 16px 0">
+        ⚠ No se pudo cargar tu información real desde el servidor. Lo que ves abajo puede ser un catálogo de ejemplo -- recargá la página antes de guardar cualquier cambio.
       </div>
       <div id="adm-scroll">
 
@@ -1080,21 +1086,21 @@ html,body{height:100%;font-family:'Inter',sans-serif}
         <div class="a-panel" id="adm-p-info">
           <div class="a-sh"><div class="a-st">Info & Contacto</div></div>
           <div class="a-fc">
-            <div class="a-f"><label class="a-lbl">Nombre del negocio</label><input class="a-in" id="ai-name"></div>
-            <div class="a-f"><label class="a-lbl">Dirección</label><input class="a-in" id="ai-addr"></div>
+            <div class="a-f"><label class="a-lbl" for="ai-name">Nombre del negocio</label><input class="a-in" id="ai-name"></div>
+            <div class="a-f"><label class="a-lbl" for="ai-addr">Dirección</label><input class="a-in" id="ai-addr"></div>
             <div class="a-fr">
-              <div class="a-f"><label class="a-lbl">Teléfono</label><input class="a-in" id="ai-phone"></div>
-              <div class="a-f"><label class="a-lbl">Instagram</label><input class="a-in" id="ai-ig"></div>
+              <div class="a-f"><label class="a-lbl" for="ai-phone">Teléfono</label><input class="a-in" id="ai-phone"></div>
+              <div class="a-f"><label class="a-lbl" for="ai-ig">Instagram</label><input class="a-in" id="ai-ig"></div>
             </div>
-            <div class="a-f"><label class="a-lbl">Slogan</label><input class="a-in" id="ai-slogan"></div>
-            <div class="a-f"><label class="a-lbl">Descripción</label><textarea class="a-in a-ta" id="ai-desc" rows="3"></textarea></div>
+            <div class="a-f"><label class="a-lbl" for="ai-slogan">Slogan</label><input class="a-in" id="ai-slogan"></div>
+            <div class="a-f"><label class="a-lbl" for="ai-desc">Descripción</label><textarea class="a-in a-ta" id="ai-desc" rows="3"></textarea></div>
             <div class="a-f">
-              <label class="a-lbl">Zona horaria del negocio</label>
+              <label class="a-lbl" for="ai-tz">Zona horaria del negocio</label>
               <select class="a-in" id="ai-tz"></select>
               <span id="ai-tz-hint" style="font-size:11px;color:var(--a-meta);display:none"></span>
             </div>
             <div class="a-f">
-              <label class="a-lbl">Tiempo de limpieza entre citas (min)</label>
+              <label class="a-lbl" for="ai-bufferMin">Tiempo de limpieza entre citas (min)</label>
               <input class="a-in" id="ai-bufferMin" type="number" min="0" step="5">
               <span style="font-size:11px;color:var(--a-meta)">Margen mínimo entre el fin de una cita y el inicio de la siguiente del mismo profesional. 0 = sin margen.</span>
             </div>
@@ -1114,24 +1120,24 @@ html,body{height:100%;font-family:'Inter',sans-serif}
   </div>
 </div>
 <!-- ─ MODAL: SERVICE ─ -->
-<div id="a-sm" class="a-mb">
+<div id="a-sm" class="a-mb" role="dialog" aria-modal="true">
   <div class="a-mo">
     <div class="a-mh"><div class="a-mt" id="a-sm-t">Nuevo servicio</div><button class="a-mc" data-close="a-sm">✕</button></div>
     <div class="a-mb2">
       <input type="hidden" id="a-se-id">
-      <div class="a-f"><label class="a-lbl">Nombre *</label><input class="a-in" id="a-sf-n" placeholder="Nombre"><span class="a-fe">Obligatorio.</span></div>
+      <div class="a-f"><label class="a-lbl" for="a-sf-n">Nombre *</label><input class="a-in" id="a-sf-n" placeholder="Nombre"><span class="a-fe">Obligatorio.</span></div>
       <div class="a-fr">
-        <div class="a-f"><label class="a-lbl">Categoría</label><select class="a-in" id="a-sf-c"><option value="a">Asesorías</option><option value="c">Cortes</option><option value="b">Barba</option></select></div>
-        <div class="a-f"><label class="a-lbl">Estado</label><select class="a-in" id="a-sf-st"><option value="active">Activo</option><option value="inactive">Inactivo</option></select></div>
+        <div class="a-f"><label class="a-lbl" for="a-sf-c">Categoría</label><select class="a-in" id="a-sf-c"><option value="a">Asesorías</option><option value="c">Cortes</option><option value="b">Barba</option></select></div>
+        <div class="a-f"><label class="a-lbl" for="a-sf-st">Estado</label><select class="a-in" id="a-sf-st"><option value="active">Activo</option><option value="inactive">Inactivo</option></select></div>
       </div>
       <div class="a-fr">
-        <div class="a-f"><label class="a-lbl">Precio CLP *</label><input class="a-in" id="a-sf-p" type="number" min="0" step="500"><span class="a-fe">Requerido.</span></div>
-        <div class="a-f"><label class="a-lbl">Duración (min) *</label><input class="a-in" id="a-sf-d" type="number" min="5" step="5"><span class="a-fe">Requerido.</span></div>
+        <div class="a-f"><label class="a-lbl" for="a-sf-p">Precio CLP *</label><input class="a-in" id="a-sf-p" type="number" min="0" step="500"><span class="a-fe">Requerido.</span></div>
+        <div class="a-f"><label class="a-lbl" for="a-sf-d">Duración (min) *</label><input class="a-in" id="a-sf-d" type="number" min="5" step="5"><span class="a-fe">Requerido.</span></div>
       </div>
-      <div class="a-f"><label class="a-lbl">Descripción</label><textarea class="a-in a-ta" id="a-sf-desc" rows="3"></textarea></div>
+      <div class="a-f"><label class="a-lbl" for="a-sf-desc">Descripción</label><textarea class="a-in a-ta" id="a-sf-desc" rows="3"></textarea></div>
       <div class="a-fr">
-        <div class="a-f"><label class="a-lbl">Etiqueta</label><select class="a-in" id="a-sf-tag"><option value="">Sin etiqueta</option><option value="Promo">Promo</option><option value="Premium">Premium</option><option value="Nuevo">Nuevo</option></select></div>
-        <div class="a-f"><label class="a-lbl">Foto</label><div class="a-pu"><input type="file" accept="image/*" id="a-sp-file"><img id="a-sp-prev" style="display:none;width:48px;height:48px;border-radius:6px;object-fit:cover"><span id="a-sp-lbl">📷 Subir</span></div></div>
+        <div class="a-f"><label class="a-lbl" for="a-sf-tag">Etiqueta</label><select class="a-in" id="a-sf-tag"><option value="">Sin etiqueta</option><option value="Promo">Promo</option><option value="Premium">Premium</option><option value="Nuevo">Nuevo</option></select></div>
+        <div class="a-f"><label class="a-lbl" for="a-sp-file">Foto</label><div class="a-pu"><input type="file" accept="image/*" id="a-sp-file"><img id="a-sp-prev" style="display:none;width:48px;height:48px;border-radius:6px;object-fit:cover"><span id="a-sp-lbl">📷 Subir</span></div></div>
       </div>
     </div>
     <div class="a-mf"><button class="a-btn a-btn-g" data-close="a-sm">Cancelar</button><button class="a-btn a-btn-p" id="a-svc-save">Guardar</button></div>
@@ -1139,45 +1145,49 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 </div>
 
 <!-- ─ MODAL: STAFF ─ -->
-<div id="a-stm" class="a-mb">
+<div id="a-stm" class="a-mb" role="dialog" aria-modal="true">
   <div class="a-mo">
     <div class="a-mh"><div class="a-mt" id="a-stm-t">Agregar barbero</div><button class="a-mc" data-close="a-stm">✕</button></div>
     <div class="a-mb2">
       <input type="hidden" id="a-ste-id">
-      <div class="a-f"><label class="a-lbl">Foto</label><div class="a-pu"><input type="file" accept="image/*" id="a-stp-file"><img id="a-stp-prev" style="display:none;width:48px;height:48px;border-radius:50%;object-fit:cover"><span id="a-stp-lbl">👤 Subir</span></div></div>
+      <div class="a-f"><label class="a-lbl" for="a-stp-file">Foto</label><div class="a-pu"><input type="file" accept="image/*" id="a-stp-file"><img id="a-stp-prev" style="display:none;width:48px;height:48px;border-radius:50%;object-fit:cover"><span id="a-stp-lbl">👤 Subir</span></div></div>
       <div class="a-fr">
-        <div class="a-f"><label class="a-lbl">Nombre *</label><input class="a-in" id="a-stf-n"><span class="a-fe">Obligatorio.</span></div>
-        <div class="a-f"><label class="a-lbl">Estado</label><select class="a-in" id="a-stf-st"><option value="active">Activo</option><option value="inactive">Inactivo</option></select></div>
+        <div class="a-f"><label class="a-lbl" for="a-stf-n">Nombre *</label><input class="a-in" id="a-stf-n"><span class="a-fe">Obligatorio.</span></div>
+        <div class="a-f"><label class="a-lbl" for="a-stf-st">Estado</label><select class="a-in" id="a-stf-st"><option value="active">Activo</option><option value="inactive">Inactivo</option></select></div>
       </div>
-      <div class="a-f"><label class="a-lbl">Especialidad / Cargo</label><input class="a-in" id="a-stf-r"></div>
-      <div class="a-f"><label class="a-lbl">Días de atención (texto)</label><input class="a-in" id="a-stf-dy" placeholder="Ej: Mar — Sáb"></div>
-      <div class="a-f"><label class="a-lbl">Bio</label><textarea class="a-in a-ta" id="a-stf-b" rows="3"></textarea></div>
+      <div class="a-f"><label class="a-lbl" for="a-stf-r">Especialidad / Cargo</label><input class="a-in" id="a-stf-r"></div>
+      <div class="a-f"><label class="a-lbl" for="a-stf-dy">Días de atención (texto)</label><input class="a-in" id="a-stf-dy" placeholder="Ej: Mar — Sáb"></div>
+      <div class="a-f"><label class="a-lbl" for="a-stf-b">Bio</label><textarea class="a-in a-ta" id="a-stf-b" rows="3"></textarea></div>
     </div>
     <div class="a-mf"><button class="a-btn a-btn-g" data-close="a-stm">Cancelar</button><button class="a-btn a-btn-p" id="a-stf-save">Guardar</button></div>
   </div>
 </div>
 
 <!-- ─ MODAL: BOOKING (create/edit/manage) ─ -->
-<div id="a-bkm" class="a-mb">
+<div id="a-bkm" class="a-mb" role="dialog" aria-modal="true">
   <div class="a-mo" style="max-width:600px">
     <div class="a-mh"><div class="a-mt" id="a-bkm-t">Nueva cita</div><button class="a-mc" data-close="a-bkm">✕</button></div>
     <div class="a-mb2">
       <input type="hidden" id="a-bkm-id">
       <input type="hidden" id="a-bkm-orig-date">
       <div class="a-fr">
-        <div class="a-f"><label class="a-lbl">Cliente *</label><input class="a-in" id="a-bkm-name" placeholder="Nombre del cliente"><span class="a-fe">Obligatorio.</span></div>
-        <div class="a-f"><label class="a-lbl">Teléfono</label><input class="a-in" id="a-bkm-phone" placeholder="+56 9 ..."></div>
+        <div class="a-f"><label class="a-lbl" for="a-bkm-name">Cliente *</label><input class="a-in" id="a-bkm-name" placeholder="Nombre del cliente"><span class="a-fe">Obligatorio.</span></div>
+        <div class="a-f"><label class="a-lbl" for="a-bkm-phone">Teléfono</label><input class="a-in" id="a-bkm-phone" placeholder="+56 9 ..."></div>
       </div>
-      <div class="a-f"><label class="a-lbl">Email</label><input class="a-in" id="a-bkm-email" type="email"><span class="a-fe">Formato de email inválido.</span><span id="a-bkm-email-hint" style="font-size:11px;color:var(--a-meta);display:none"></span></div>
+      <div class="a-f"><label class="a-lbl" for="a-bkm-email">Email</label><input class="a-in" id="a-bkm-email" type="email"><span class="a-fe">Formato de email inválido.</span><span id="a-bkm-email-hint" style="font-size:11px;color:var(--a-meta);display:none"></span></div>
       <div class="a-fr">
-        <div class="a-f"><label class="a-lbl">Servicio *</label><select class="a-in" id="a-bkm-svc"></select><span class="a-fe">Selecciona servicio.</span></div>
-        <div class="a-f"><label class="a-lbl">Barbero *</label><select class="a-in" id="a-bkm-barber"></select><span class="a-fe">Selecciona barbero.</span></div>
+        <div class="a-f"><label class="a-lbl" for="a-bkm-svc">Servicio *</label><select class="a-in" id="a-bkm-svc"></select><span class="a-fe">Selecciona servicio.</span></div>
+        <div class="a-f"><label class="a-lbl" for="a-bkm-barber">Barbero *</label><select class="a-in" id="a-bkm-barber"></select><span class="a-fe">Selecciona barbero.</span></div>
       </div>
       <div class="a-fr">
-        <div class="a-f"><label class="a-lbl">Fecha *</label><input class="a-in" id="a-bkm-date" type="date"><span class="a-fe">Selecciona fecha.</span></div>
-        <div class="a-f"><label class="a-lbl">Hora *</label><input class="a-in" id="a-bkm-time" type="time"><span class="a-fe">Selecciona hora.</span></div>
+        <div class="a-f"><label class="a-lbl" for="a-bkm-date">Fecha *</label><input class="a-in" id="a-bkm-date" type="date"><span class="a-fe">Selecciona fecha.</span></div>
+        <div class="a-f"><label class="a-lbl" for="a-bkm-time">Hora *</label><input class="a-in" id="a-bkm-time" type="time"><span class="a-fe">Selecciona hora.</span></div>
       </div>
-      <div class="a-f"><label class="a-lbl">Notas</label><textarea class="a-in a-ta" id="a-bkm-notes" rows="2" placeholder="Observaciones..."></textarea></div>
+      <div class="a-fr">
+        <div class="a-f"><label class="a-lbl" for="a-bkm-dur">Duración (min)</label><input class="a-in" id="a-bkm-dur" type="number" min="5" step="5"><span style="font-size:11px;color:var(--a-meta)">Se autocompleta según el servicio; ajustala si esta cita en particular necesita más o menos tiempo.</span></div>
+        <div id="a-bkm-patsync-hint" style="font-size:11px;color:var(--a-warn);display:none;align-self:flex-end;padding-bottom:8px"></div>
+      </div>
+      <div class="a-f"><label class="a-lbl" for="a-bkm-notes">Notas</label><textarea class="a-in a-ta" id="a-bkm-notes" rows="2" placeholder="Observaciones..."></textarea></div>
       <label class="a-chk"><input type="checkbox" id="a-bkm-over"><span>Sobrecupo (permitir agendar aunque haya conflicto de horario)</span></label>
       <div id="a-bkm-conflict" class="a-conflict"></div>
     </div>
@@ -1190,18 +1200,18 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 </div>
 
 <!-- ─ MODAL: SCHEDULE BLOCK (bloqueo puntual de horario) ─ -->
-<div id="a-blkm" class="a-mb">
+<div id="a-blkm" class="a-mb" role="dialog" aria-modal="true">
   <div class="a-mo" style="max-width:480px">
     <div class="a-mh"><div class="a-mt" id="a-blkm-t">Bloquear horario</div><button class="a-mc" data-close="a-blkm">✕</button></div>
     <div class="a-mb2">
       <input type="hidden" id="a-blkm-id">
-      <div class="a-f"><label class="a-lbl">Barbero *</label><select class="a-in" id="a-blkm-barber"></select><span class="a-fe">Selecciona barbero.</span></div>
-      <div class="a-f"><label class="a-lbl">Fecha *</label><input class="a-in" id="a-blkm-date" type="date"><span class="a-fe">Selecciona fecha.</span></div>
+      <div class="a-f"><label class="a-lbl" for="a-blkm-barber">Barbero *</label><select class="a-in" id="a-blkm-barber"></select><span class="a-fe">Selecciona barbero.</span></div>
+      <div class="a-f"><label class="a-lbl" for="a-blkm-date">Fecha *</label><input class="a-in" id="a-blkm-date" type="date"><span class="a-fe">Selecciona fecha.</span></div>
       <div class="a-fr">
-        <div class="a-f"><label class="a-lbl">Hora inicio *</label><input class="a-in" id="a-blkm-start" type="time"><span class="a-fe">Selecciona hora.</span></div>
-        <div class="a-f"><label class="a-lbl">Hora fin *</label><input class="a-in" id="a-blkm-end" type="time"><span class="a-fe" id="a-blkm-end-err">Selecciona hora.</span></div>
+        <div class="a-f"><label class="a-lbl" for="a-blkm-start">Hora inicio *</label><input class="a-in" id="a-blkm-start" type="time"><span class="a-fe">Selecciona hora.</span></div>
+        <div class="a-f"><label class="a-lbl" for="a-blkm-end">Hora fin *</label><input class="a-in" id="a-blkm-end" type="time"><span class="a-fe" id="a-blkm-end-err">Selecciona hora.</span></div>
       </div>
-      <div class="a-f"><label class="a-lbl">Motivo</label><input class="a-in" id="a-blkm-reason" placeholder="Ej: Trámite personal"></div>
+      <div class="a-f"><label class="a-lbl" for="a-blkm-reason">Motivo</label><input class="a-in" id="a-blkm-reason" placeholder="Ej: Trámite personal"></div>
     </div>
     <div class="a-mf">
       <button class="a-btn a-btn-danger" id="a-blkm-del" style="margin-right:auto;display:none">Eliminar bloqueo</button>
@@ -1229,23 +1239,23 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 
 
 <!-- ─ MODAL: PATIENT ─ -->
-<div id="a-pm" class="a-mb">
+<div id="a-pm" class="a-mb" role="dialog" aria-modal="true">
   <div class="a-mo">
     <div class="a-mh"><div class="a-mt" id="a-pm-t">Nuevo cliente</div><button class="a-mc" data-close="a-pm">✕</button></div>
     <div class="a-mb2">
       <input type="hidden" id="a-pm-id">
       <div class="a-fr">
-        <div class="a-f"><label class="a-lbl">Nombre completo *</label><input class="a-in" id="a-pm-name" placeholder="Nombre del cliente"><span class="a-fe">Obligatorio.</span></div>
-        <div class="a-f"><label class="a-lbl">Teléfono</label><input class="a-in" id="a-pm-phone" placeholder="+56 9 ..."></div>
+        <div class="a-f"><label class="a-lbl" for="a-pm-name">Nombre completo *</label><input class="a-in" id="a-pm-name" placeholder="Nombre del cliente"><span class="a-fe">Obligatorio.</span></div>
+        <div class="a-f"><label class="a-lbl" for="a-pm-phone">Teléfono</label><input class="a-in" id="a-pm-phone" placeholder="+56 9 ..."></div>
       </div>
-      <div class="a-f"><label class="a-lbl">Email *</label><input class="a-in" id="a-pm-email" type="email" placeholder="email@ejemplo.cl"><span class="a-fe">Email no válido.</span></div>
-      <div class="a-f"><label class="a-lbl">Última prestación realizada</label>
+      <div class="a-f"><label class="a-lbl" for="a-pm-email">Email *</label><input class="a-in" id="a-pm-email" type="email" placeholder="email@ejemplo.cl"><span class="a-fe">Email no válido.</span></div>
+      <div class="a-f"><label class="a-lbl" for="a-pm-svc">Última prestación realizada</label>
         <select class="a-in" id="a-pm-svc">
           <option value="">— Selecciona servicio —</option>
         </select>
       </div>
-      <div class="a-f"><label class="a-lbl">Fecha de la prestación</label><input class="a-in" id="a-pm-date" type="date"></div>
-      <div class="a-f"><label class="a-lbl">Notas / observaciones</label><textarea class="a-in a-ta" id="a-pm-notes" rows="2" placeholder="Alergias, preferencias, alguna observación..."></textarea></div>
+      <div class="a-f"><label class="a-lbl" for="a-pm-date">Fecha de la prestación</label><input class="a-in" id="a-pm-date" type="date"></div>
+      <div class="a-f"><label class="a-lbl" for="a-pm-notes">Notas / observaciones</label><textarea class="a-in a-ta" id="a-pm-notes" rows="2" placeholder="Alergias, preferencias, alguna observación..."></textarea></div>
       <div id="a-pm-history" style="display:none">
         <label class="a-lbl">Historial de visitas</label>
         <div id="a-pm-history-list" style="background:var(--a-off);border-radius:8px;padding:10px 12px;max-height:160px;overflow-y:auto;font-size:12.5px"></div>
@@ -1270,13 +1280,13 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 </div>
 
 <!-- ─ LIGHTBOX: Full photo view ─ -->
-<div id="a-pm-lb" class="a-pm-lb">
-  <button class="a-pm-lb-close" onclick="document.getElementById('a-pm-lb').classList.remove('a-open')">✕</button>
+<div id="a-pm-lb" class="a-pm-lb" role="dialog" aria-modal="true">
+  <button class="a-pm-lb-close" id="a-pm-lb-close">✕</button>
   <img id="a-pm-lb-img" alt="">
 </div>
 
 <!-- ─ MODAL: DELETE CONFIRM ─ -->
-<div id="a-dm" class="a-mb">
+<div id="a-dm" class="a-mb" role="dialog" aria-modal="true">
   <div class="a-mo" style="max-width:380px">
     <div class="a-mh"><div class="a-mt">Confirmar eliminación</div><button class="a-mc" data-close="a-dm">✕</button></div>
     <div class="a-mb2"><p id="a-dm-msg" style="font-size:13px;color:#2A2A2A;line-height:1.6"></p></div>
@@ -1381,6 +1391,8 @@ function defaults(){
 
 // ═══ CLOUD LOAD (datos admin desde Firestore, llamado desde login()) ═══
 async function loadFromCloud(){
+  dataLoadFailed = false;
+  g('adm-load-err-banner').style.display = 'none';
   try {
     D = await window.SWData.loadAdmin();
     if(!D.services) D.services = [];
@@ -1402,7 +1414,16 @@ async function loadFromCloud(){
     await sub.ready;
     PT = await window.SWData.getPatients();    // cache de clientes (ver Task 5.6)
     SB = await window.SWData.getScheduleBlocks(); // cache de bloqueos de horario
-  } catch(e){ console.error('Error cargando datos', e); defaults(); }
+  } catch(e){
+    console.error('Error cargando datos', e);
+    // defaults() sigue siendo necesario para que el panel tenga algo que
+    // renderizar en vez de crashear -- pero es catálogo DEMO, no real, así
+    // que dataLoadFailed bloquea admSave() y el banner avisa antes de que
+    // alguien edite algo pensando que son sus datos reales.
+    defaults();
+    dataLoadFailed = true;
+    g('adm-load-err-banner').style.display = 'flex';
+  }
 }
 
 // ═══ LOGIN ═══
@@ -1436,14 +1457,28 @@ g('adm-lgout').addEventListener('click', async function(){
 });
 
 // ═══ SAVE / LOG ═══
+// true si loadFromCloud() no pudo traer los datos reales y D quedó poblado
+// con defaults() (catálogo demo hardcodeado) -- admSave() se niega a
+// escribir mientras esto sea true, sin importar qué handler la dispare,
+// para no sobrescribir Firestore real con datos ficticios por un toque
+// accidental. Ver loadFromCloud().
+var dataLoadFailed = false;
+
 async function admSave(){
   var el = g('adm-ss');
+  if(dataLoadFailed){
+    el.style.display = 'block';
+    el.style.color = 'var(--a-err)';
+    el.textContent = '⚠ No se pudo cargar tu información -- recargá la página antes de guardar';
+    return { ok:false };
+  }
   try {
     await window.SWData.saveAdmin(D);
     el.style.color = '';
     el.style.display = '';
     el.textContent = '✓ ' + new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
     setTimeout(function(){ el.textContent = ''; }, 2500);
+    return { ok:true };
   } catch(e){
     console.error('Error guardando', e);
     // Sin esto el error queda invisible en celulares: #adm-ss tiene
@@ -1451,14 +1486,19 @@ async function admSave(){
     el.style.display = 'block';
     el.style.color = 'var(--a-err)';
     el.textContent = '⚠ Error al guardar -- reintentá';
+    return { ok:false };
   }
 }
 g('adm-save-btn').addEventListener('click', admSave);
 
+// Devuelve la promesa de admSave() -- la mayoría de los llamadores (ej. los
+// toggles de Horarios) la ignoran (fire-and-forget, igual que siempre), pero
+// los handlers que necesitan confirmar el guardado real antes de mostrar
+// "guardado" (a-svc-save, a-stf-save) pueden hacer `await log(...)`.
 function log(action, item){
   D.log.unshift({action:action, item:item, date:new Date().toLocaleString('es-CL')});
   if(D.log.length > 30) D.log.pop();
-  admSave();
+  return admSave();
 }
 
 function updateBadges(){
@@ -2079,6 +2119,7 @@ function openBookingModal(bk, presetHour){
   g('a-bkm-email').value = bk ? (bk.email||'') : '';
   updateBkmEmailHint(bk);
   g('a-bkm-email').addEventListener('input', function(){ updateBkmEmailHint(bk); });
+  updateBkmPatSyncHint(bk);
   g('a-bkm-notes').value = bk ? (bk.notes||'') : '';
   g('a-bkm-over').checked = bk ? !!bk.over : false;
 
@@ -2089,6 +2130,15 @@ function openBookingModal(bk, presetHour){
       return '<option value="'+esc(s.id)+'" data-dur="'+s.dur+'" data-price="'+s.price+'" data-name="'+esc(s.name)+'">'+esc(s.name)+' · '+fmtCLP(s.price)+'</option>';
     }).join('');
   if(bk) svcSel.value = bk.svcId || '';
+  // Duración: se autocompleta con la del servicio elegido, pero es
+  // editable -- si `bk` ya trae un `dur` propio (override guardado en una
+  // edición anterior), gana ese; si no, el del servicio.
+  var initSvcOpt = svcSel.options[svcSel.selectedIndex];
+  g('a-bkm-dur').value = bk ? (bk.dur || (initSvcOpt && initSvcOpt.dataset.dur) || '') : '';
+  svcSel.addEventListener('change', function(){
+    var opt = svcSel.options[svcSel.selectedIndex];
+    g('a-bkm-dur').value = opt && opt.dataset.dur ? opt.dataset.dur : '';
+  });
 
   var bSel = g('a-bkm-barber');
   bSel.innerHTML = '<option value="">— Selecciona —</option>' +
@@ -2115,14 +2165,14 @@ function openBookingModal(bk, presetHour){
   g('a-bkm-del').style.display = bk ? 'inline-flex' : 'none';
 
   // Conflict check on changes
-  ['a-bkm-barber','a-bkm-date','a-bkm-time','a-bkm-svc'].forEach(function(id){
+  ['a-bkm-barber','a-bkm-date','a-bkm-time','a-bkm-svc','a-bkm-dur'].forEach(function(id){
     g(id).addEventListener('change', checkBookingConflict);
   });
   checkBookingConflict();
 
   // Clear errors
   document.querySelectorAll('#a-bkm .a-f').forEach(function(f){f.classList.remove('a-err')});
-  g('a-bkm').classList.add('a-open');
+  openModal('a-bkm');
 }
 
 // Email opcional en el panel (un barbero puede agendar por teléfono sin
@@ -2144,10 +2194,26 @@ function updateBkmEmailHint(bk){
   hint.style.display = hint.textContent ? 'block' : 'none';
 }
 
+// patientSyncStatus:'failed' se escribe server-side (functions/index.js)
+// cuando el upsert automático de ficha de cliente falla tras crear la
+// reserva -- sin este hint, esa reserva queda sin ficha asociada y nadie
+// del negocio se entera salvo mirando Firestore a mano.
+function updateBkmPatSyncHint(bk){
+  var hint = g('a-bkm-patsync-hint');
+  if(!hint) return;
+  hint.textContent = (bk && bk.patientSyncStatus === 'failed')
+    ? '⚠ No se pudo sincronizar esta reserva con la ficha del cliente.'
+    : '';
+  hint.style.display = hint.textContent ? 'block' : 'none';
+}
+
 function checkBookingConflict(){
   var svcSel = g('a-bkm-svc');
   var sOpt = svcSel.options[svcSel.selectedIndex];
-  var dur = sOpt ? parseInt(sOpt.dataset.dur||30) : 30;
+  // La duración real de ESTA cita puede haber sido overrideada en
+  // a-bkm-dur (ítem "override de duración") -- gana sobre la del servicio.
+  var durVal = g('a-bkm-dur').value;
+  var dur = durVal ? parseInt(durVal) : (sOpt ? parseInt(sOpt.dataset.dur||30) : 30);
   var barberId = g('a-bkm-barber').value;
   var dateStr = g('a-bkm-date').value;
   var timeStr = g('a-bkm-time').value;
@@ -2193,8 +2259,12 @@ g('a-bkm-save').addEventListener('click', function(){
 
   var sOpt = sv.options[sv.selectedIndex];
   var bOpt = br.options[br.selectedIndex];
-  var conflict = checkConflict(br.value, da.value, ti.value, parseInt(sOpt.dataset.dur), g('a-bkm-id').value||null, (D.info && D.info.bufferMin) || 0);
-  var blocked = checkScheduleBlock(br.value, da.value, ti.value, parseInt(sOpt.dataset.dur));
+  // Igual que en checkBookingConflict(): un override en a-bkm-dur gana
+  // sobre la duración del servicio.
+  var durValSave = g('a-bkm-dur').value;
+  var dur = durValSave ? parseInt(durValSave) : parseInt(sOpt.dataset.dur);
+  var conflict = checkConflict(br.value, da.value, ti.value, dur, g('a-bkm-id').value||null, (D.info && D.info.bufferMin) || 0);
+  var blocked = checkScheduleBlock(br.value, da.value, ti.value, dur);
   var isOver = g('a-bkm-over').checked;
   if((conflict || blocked) && !isOver){
     showAlert('a-bk-alert','err', conflict ? 'Hay un conflicto de horario. Marca "Sobrecupo" para forzar el agendamiento.' : 'Ese horario está bloqueado. Marca "Sobrecupo" para forzar el agendamiento.');
@@ -2216,7 +2286,7 @@ g('a-bkm-save').addEventListener('click', function(){
     svcId: sv.value,
     svcName: sOpt.dataset.name,
     price: parseInt(sOpt.dataset.price),
-    dur: parseInt(sOpt.dataset.dur),
+    dur: dur,
     barberId: br.value,
     barberName: bOpt.dataset.name,
     date: da.value + 'T' + ti.value + ':00.000Z',
@@ -2271,7 +2341,7 @@ function openBlockModal(blk){
   g('a-blkm-reason').value = blk ? (blk.reason||'') : '';
   g('a-blkm-del').style.display = blk ? 'inline-flex' : 'none';
   document.querySelectorAll('#a-blkm .a-f').forEach(function(f){f.classList.remove('a-err')});
-  g('a-blkm').classList.add('a-open');
+  openModal('a-blkm');
 }
 g('a-bk-block-new').addEventListener('click', function(){ openBlockModal(null); });
 
@@ -2472,10 +2542,10 @@ function openSvcModal(s){
   if(svcPh){ prev.src = svcPh; prev.style.display='block'; lbl.style.display='none'; }
   else { prev.style.display='none'; lbl.style.display='block'; }
   document.querySelectorAll('#a-sm .a-f').forEach(function(f){f.classList.remove('a-err')});
-  g('a-sm').classList.add('a-open');
+  openModal('a-sm');
 }
 g('a-svc-new').addEventListener('click', function(){ openSvcModal(null); });
-g('a-svc-save').addEventListener('click', function(){
+g('a-svc-save').addEventListener('click', async function(){
   var ne = g('a-sf-n'), pe = g('a-sf-p'), de = g('a-sf-d'), ok = true;
   [ne,pe,de].forEach(function(el){el.parentElement.classList.remove('a-err')});
   if(!ne.value.trim()){ ne.parentElement.classList.add('a-err'); ok=false; }
@@ -2496,14 +2566,13 @@ g('a-svc-save').addEventListener('click', function(){
   if(eid){
     var i = D.services.findIndex(function(x){return x.id===eid});
     if(i > -1) D.services[i] = s;
-    log('Editó servicio', s.name);
   } else {
     D.services.push(s);
-    log('Creó servicio', s.name);
   }
   closeModal('a-sm');
   renderSvcs(); renderDash(); updateBadges();
-  showAlert('a-svc-alert','ok','"'+s.name+'" guardado.');
+  var res = await log(eid ? 'Editó servicio' : 'Creó servicio', s.name);
+  showAlert('a-svc-alert', res.ok ? 'ok' : 'err', res.ok ? '"'+s.name+'" guardado.' : 'No se pudo guardar. Reintentá.');
 });
 g('a-sp-file').addEventListener('change', function(e){
   var f = e.target.files[0]; if(!f) return;
@@ -2566,10 +2635,10 @@ function openStfModal(s){
   if(stfPh){ prev.src = stfPh; prev.style.display='block'; lbl.style.display='none'; }
   else { prev.style.display='none'; lbl.style.display='block'; }
   document.querySelectorAll('#a-stm .a-f').forEach(function(f){f.classList.remove('a-err')});
-  g('a-stm').classList.add('a-open');
+  openModal('a-stm');
 }
 g('a-stf-new').addEventListener('click', function(){ openStfModal(null); });
-g('a-stf-save').addEventListener('click', function(){
+g('a-stf-save').addEventListener('click', async function(){
   var ne = g('a-stf-n');
   ne.parentElement.classList.remove('a-err');
   if(!ne.value.trim()){ ne.parentElement.classList.add('a-err'); return; }
@@ -2590,15 +2659,14 @@ g('a-stf-save').addEventListener('click', function(){
       s.schedule = D.staff[i].schedule;
       D.staff[i] = s;
     }
-    log('Editó barbero', s.name);
   } else {
     s.schedule = JSON.parse(JSON.stringify(DT[0].schedule));
     D.staff.push(s);
-    log('Agregó barbero', s.name);
   }
   closeModal('a-stm');
   renderStaff(); renderSchedule(); updateBadges();
-  showAlert('a-stf-alert','ok','"'+s.name+'" guardado.');
+  var res = await log(eid ? 'Editó barbero' : 'Agregó barbero', s.name);
+  showAlert('a-stf-alert', res.ok ? 'ok' : 'err', res.ok ? '"'+s.name+'" guardado.' : 'No se pudo guardar. Reintentá.');
 });
 g('a-stp-file').addEventListener('change', function(e){
   var f = e.target.files[0]; if(!f) return;
@@ -2755,7 +2823,7 @@ function loadInfo(){
   var bufEl = g('ai-bufferMin');
   if(bufEl) bufEl.value = Number.isFinite(f.bufferMin) ? f.bufferMin : DEFAULT_BUFFER_MIN;
 }
-g('ai-save').addEventListener('click', function(){
+g('ai-save').addEventListener('click', async function(){
   D.info = {
     name: g('ai-name').value, addr: g('ai-addr').value,
     phone: g('ai-phone').value, ig: g('ai-ig').value,
@@ -2763,9 +2831,8 @@ g('ai-save').addEventListener('click', function(){
     tz: g('ai-tz').value,
     bufferMin: parseInt(g('ai-bufferMin').value, 10) || 0,
   };
-  log('Actualizó info', 'Datos del negocio');
-  admSave();
-  showAlert('a-bk-alert','ok','Información guardada.');
+  var res = await log('Actualizó info', 'Datos del negocio');
+  showAlert('a-bk-alert', res.ok ? 'ok' : 'err', res.ok ? 'Información guardada.' : 'No se pudo guardar. Reintentá.');
 });
 
 // ═══ SITE IMAGES ═══
@@ -2878,7 +2945,24 @@ function loadSiteImagesUI(){
 }
 
 // ═══ MODALS HELPERS ═══
-function closeModal(id){ g(id).classList.remove('a-open'); }
+// Sin esto, aria-modal="true" (agregado junto con esto) es una promesa
+// vacía para lectores de pantalla: el foco seguía en lo que sea que estaba
+// detrás del overlay, o se perdía por completo. openModal() guarda qué
+// elemento tenía el foco antes de abrir y lo enfoca al primer campo del
+// modal; closeModal() lo restaura -- mismo patrón para los 6 modales que
+// comparten esta clase (a-sm, a-stm, a-bkm, a-blkm, a-pm, a-dm).
+var lastFocusedEl = null;
+function openModal(id){
+  lastFocusedEl = document.activeElement;
+  g(id).classList.add('a-open');
+  var first = g(id).querySelector('input,select,textarea,button');
+  if(first) first.focus();
+}
+function closeModal(id){
+  g(id).classList.remove('a-open');
+  if(lastFocusedEl && document.body.contains(lastFocusedEl)) lastFocusedEl.focus();
+  lastFocusedEl = null;
+}
 document.querySelectorAll('[data-close]').forEach(function(b){
   b.addEventListener('click', function(){ closeModal(b.dataset.close); });
 });
@@ -2890,7 +2974,7 @@ document.querySelectorAll('[data-close]').forEach(function(b){
 function openDel(msg, cb){
   g('a-dm-msg').innerHTML = msg;
   delCb = cb;
-  g('a-dm').classList.add('a-open');
+  openModal('a-dm');
 }
 g('a-dm-ok').addEventListener('click', function(){ if(delCb) delCb(); closeModal('a-dm'); });
 
@@ -3045,7 +3129,10 @@ function renderPatients(){
           log('Eliminó cliente', p.name);
           renderPatients();
           showAlert('a-pat-alert', 'ok', 'Cliente eliminado.');
-        }).catch(function(e){ console.error('Error eliminando cliente', e); });
+        }).catch(function(e){
+          console.error('Error eliminando cliente', e);
+          showAlert('a-pat-alert', 'err', 'No se pudo eliminar el cliente. Reintentá.');
+        });
       });
     });
   });
@@ -3095,7 +3182,7 @@ function openPatModal(p){
     photosWrap.style.display = 'none';
   }
 
-  g('a-pm').classList.add('a-open');
+  openModal('a-pm');
 }
 
 // ══ PATIENT PHOTOS GALLERY ══
@@ -3132,7 +3219,7 @@ function renderPatPhotos(p){
       var idx = parseInt(el.dataset.photoIdx);
       if(!isNaN(idx) && p.photos[idx]){
         g('a-pm-lb-img').src = p.photos[idx].url;
-        g('a-pm-lb').classList.add('a-open');
+        openPmLb();
       }
     });
   });
@@ -3206,13 +3293,28 @@ function compressImage(dataUrl, maxWidth, quality, cb){
   img.src = dataUrl;
 }
 
+// Foco al abrir/cerrar el lightbox -- mismo motivo que openModal/closeModal
+// arriba: aria-modal="true" sin esto no mueve el foco para nadie que use
+// lector de pantalla o teclado.
+var lastFocusedPmLb = null;
+function openPmLb(){
+  lastFocusedPmLb = document.activeElement;
+  g('a-pm-lb').classList.add('a-open');
+  g('a-pm-lb-close').focus();
+}
+function closePmLb(){
+  g('a-pm-lb').classList.remove('a-open');
+  if(lastFocusedPmLb && document.body.contains(lastFocusedPmLb)) lastFocusedPmLb.focus();
+  lastFocusedPmLb = null;
+}
+g('a-pm-lb-close').addEventListener('click', closePmLb);
 // Close lightbox on background click or Escape
 g('a-pm-lb').addEventListener('click', function(e){
-  if(e.target === g('a-pm-lb')) g('a-pm-lb').classList.remove('a-open');
+  if(e.target === g('a-pm-lb')) closePmLb();
 });
 document.addEventListener('keydown', function(e){
   if(e.key === 'Escape' && g('a-pm-lb').classList.contains('a-open')){
-    g('a-pm-lb').classList.remove('a-open');
+    closePmLb();
   }
 });
 
@@ -3287,7 +3389,10 @@ g('a-pm-del').addEventListener('click', function(){
       log('Eliminó cliente', p.name);
       renderPatients();
       showAlert('a-pat-alert', 'ok', 'Cliente eliminado.');
-    }).catch(function(e){ console.error('Error eliminando cliente', e); });
+    }).catch(function(e){
+      console.error('Error eliminando cliente', e);
+      showAlert('a-pat-alert', 'err', 'No se pudo eliminar el cliente. Reintentá.');
+    });
   });
 });
 

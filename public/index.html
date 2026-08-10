@@ -2865,16 +2865,24 @@ let availUnsub = null;
 function activeBarberIds(){ return BARBERS.filter(b=>!b.any).map(b=>b.id); }
 
 // ══ OPEN / CLOSE ══
+// aria-modal="true" (ver el div arriba) no mueve el foco por sí solo -- sin
+// esto, un lector de pantalla o alguien navegando por teclado quedaba con
+// el foco en lo que tenía detrás del overlay. lastFocusedBK guarda qué
+// tenía el foco antes de abrir para devolvérselo al cerrar.
+let lastFocusedBK = null;
 function openBK(){
   // El CTA del menú móvil abre el wizard: hay que cerrar el menú antes, o queda
   // abierto detrás del overlay y su cm() posterior desbloquearía el scroll.
   if(typeof cm === 'function') cm();
+  lastFocusedBK = document.activeElement;
   document.getElementById('booking-overlay').style.display='flex';
   document.body.style.overflow='hidden';
   // Reset state
   S = {step:1, svc:null, barber:null, date:null, time:null};
   renderSvcs(); renderBarbers(); renderCal(); updateSummary();
   bkGoTo(1);
+  var first = document.getElementById('booking-overlay').querySelector('button,input,select,textarea,[tabindex]');
+  if(first) first.focus();
   // Refrescar catálogo desde Firestore y re-pintar solo lo que el usuario
   // aún no seleccionó (para no pisar una selección en curso).
   refreshCatalog().then(()=>{
@@ -2890,6 +2898,8 @@ function closeBK(){
   document.getElementById('booking-overlay').style.display='none';
   document.body.style.overflow='';
   if(availUnsub){ availUnsub(); availUnsub=null; }
+  if(lastFocusedBK && document.body.contains(lastFocusedBK)) lastFocusedBK.focus();
+  lastFocusedBK = null;
 }
 window.closeBK = closeBK;
 window.openBK = openBK;

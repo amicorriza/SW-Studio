@@ -1106,6 +1106,34 @@ html,body{height:100%;font-family:'Inter',sans-serif}
             </div>
             <button class="a-btn a-btn-p" id="ai-save" style="align-self:flex-start;margin-top:4px">Guardar información</button>
           </div>
+
+          <!-- ─ RESEÑAS DE GOOGLE ─ -->
+          <div class="a-sh" style="margin-top:38px">
+            <div>
+              <div class="a-st">Reseñas de Google</div>
+              <div class="a-ss">Lo que se muestra en la sección "La voz de quienes vuelven" del sitio público. Se actualiza sola todos los días a las 6:00.</div>
+            </div>
+            <button class="a-btn a-btn-g" id="a-gr-sync">Sincronizar ahora</button>
+          </div>
+          <div id="a-gr-alert" class="a-alert"></div>
+          <div class="a-fc">
+            <div id="a-gr-state" style="font-size:12.5px;color:var(--a-meta);line-height:1.7"></div>
+            <div class="a-f">
+              <label class="a-lbl" for="ai-googlePlaceId">ID del lugar en Google (Place ID)</label>
+              <input class="a-in" id="ai-googlePlaceId" placeholder="Se resuelve solo desde el nombre y la dirección">
+              <span style="font-size:11px;color:var(--a-meta)">Déjalo vacío y el sistema lo busca solo con el nombre y la dirección de arriba. Complétalo a mano solo si Google apunta a otro local. Se guarda con el botón "Guardar información".</span>
+            </div>
+
+            <div class="a-sh" style="margin-top:14px;padding-bottom:0;border:0">
+              <div>
+                <div class="a-st" style="font-size:14px">Reseñas de respaldo</div>
+                <div class="a-ss">Solo se muestran si Google todavía no devuelve ninguna reseña con texto. Apenas haya reseñas reales, estas se ocultan solas.</div>
+              </div>
+              <button class="a-btn a-btn-g" id="a-gr-add">+ Agregar</button>
+            </div>
+            <div id="a-gr-manual"></div>
+            <button class="a-btn a-btn-p" id="a-gr-save" style="align-self:flex-start">Guardar reseñas de respaldo</button>
+          </div>
         </div>
 
         <!-- ─ SITE IMAGES ─ -->
@@ -1512,6 +1540,11 @@ function renderAll(){
   renderDash(); renderStats(); renderSvcs(); renderStaff();
   renderSchedule(); renderCalendar(); loadInfo(); updateBadges();
   renderPatients(); updatePatBadge();
+  // Sin await: es una lectura suelta de `googleReviews/main` que solo alimenta
+  // la tarjeta de Info & Contacto -- no debe demorar el render del panel. Se
+  // cachea sola, así que los renderAll() posteriores a cada guardado no
+  // vuelven a leer (ver GR_LOADED).
+  loadGoogleReviewsAdmin();
 }
 
 // Subconjunto de renderAll() que depende solo de BK -- callback de la
@@ -2803,7 +2836,7 @@ const TZ_OPTIONS = [
 
 function loadInfo(){
   var f = D.info || {};
-  ['name','addr','phone','ig','slogan','desc'].forEach(function(k){
+  ['name','addr','phone','ig','slogan','desc','googlePlaceId'].forEach(function(k){
     var el = g('ai-'+k); if(el && f[k]) el.value = f[k];
   });
   var tzSel = g('ai-tz');
@@ -2830,9 +2863,171 @@ g('ai-save').addEventListener('click', async function(){
     slogan: g('ai-slogan').value, desc: g('ai-desc').value,
     tz: g('ai-tz').value,
     bufferMin: parseInt(g('ai-bufferMin').value, 10) || 0,
+    // Vacío es un valor válido y significa "resolvelo solo": la Cloud
+    // Function busca la ficha por nombre + dirección y persiste acá el id que
+    // encuentre, así que si este guardado lo borra, la próxima sincronización
+    // lo vuelve a dejar puesto.
+    googlePlaceId: g('ai-googlePlaceId').value.trim(),
   };
   var res = await log('Actualizó info', 'Datos del negocio');
   showAlert('a-bk-alert', res.ok ? 'ok' : 'err', res.ok ? 'Información guardada.' : 'No se pudo guardar. Reintentá.');
+});
+
+// ═══ RESEÑAS DE GOOGLE ═══
+// El doc `googleReviews/main` lo escribe la Cloud Function (Places API); acá
+// solo se lee para mostrar el estado, y se escribe el campo `manualReviews`,
+// que ninguna sincronización pisa (ver saveManualReviews en js/data.js).
+var GR = null;        // última lectura del doc
+var GR_MANUAL = [];   // borrador editable de las reseñas de respaldo
+var GR_LOADED = false;
+
+function grFmtDate(iso){
+  var t = Date.parse(iso || '');
+  return isFinite(t) ? new Date(t).toLocaleString('es-CL') : '—';
+}
+
+function renderGrState(){
+  var el = g('a-gr-state'); if(!el) return;
+  if(!GR){
+    el.innerHTML = '<strong>Todavía no se ha sincronizado.</strong><br>' +
+      'Apretá "Sincronizar ahora" para traer las reseñas del perfil de Google. ' +
+      'Si aún no está configurada la clave de Google Places, usá las reseñas de respaldo de más abajo.';
+    return;
+  }
+  var n = (GR.reviews || []).length;
+  el.innerHTML =
+    '<strong>' + esc(GR.name || 'Perfil de Google') + '</strong> — ' +
+    (Number(GR.rating) || 0).toLocaleString('es-CL', {minimumFractionDigits:1, maximumFractionDigits:1}) +
+    ' ★ sobre ' + (Number(GR.userRatingCount) || 0).toLocaleString('es-CL') + ' opiniones<br>' +
+    n + (n === 1 ? ' reseña con texto publicada' : ' reseñas con texto publicadas') + ' en el sitio · ' +
+    'Última sincronización: ' + esc(grFmtDate(GR.fetchedAt)) +
+    (GR.placeId ? '<br>Place ID: <code>' + esc(GR.placeId) + '</code>' : '');
+}
+
+function renderManualReviews(){
+  var box = g('a-gr-manual'); if(!box) return;
+  if(!GR_MANUAL.length){
+    box.innerHTML = '<div style="font-size:12.5px;color:var(--a-meta);padding:10px 0">' +
+      'Sin reseñas de respaldo. Mientras Google no devuelva ninguna, la sección de reseñas no se muestra en el sitio.</div>';
+    return;
+  }
+  box.innerHTML = GR_MANUAL.map(function(r, i){
+    var stars = [1,2,3,4,5].map(function(v){
+      return '<option value="' + v + '"' + (Number(r.rating) === v ? ' selected' : '') + '>' + v + ' ★</option>';
+    }).join('');
+    return '<div class="a-f" style="border:1px solid var(--a-g200);border-radius:8px;padding:12px;margin-bottom:10px">' +
+      '<div class="a-fr">' +
+        '<div class="a-f"><label class="a-lbl">Nombre</label>' +
+          '<input class="a-in" data-gr-i="' + i + '" data-gr-k="author" value="' + esc(r.author || '') + '"></div>' +
+        '<div class="a-f"><label class="a-lbl">Puntaje</label>' +
+          '<select class="a-in" data-gr-i="' + i + '" data-gr-k="rating">' + stars + '</select></div>' +
+      '</div>' +
+      '<label class="a-lbl">Reseña</label>' +
+      '<textarea class="a-in a-ta" rows="3" data-gr-i="' + i + '" data-gr-k="text">' + esc(r.text || '') + '</textarea>' +
+      '<button class="a-btn a-btn-g" data-gr-del="' + i + '" style="align-self:flex-start;margin-top:8px">Eliminar</button>' +
+    '</div>';
+  }).join('');
+}
+
+async function loadGoogleReviewsAdmin(force){
+  // Una sola lectura por sesión salvo que se pida de nuevo: renderAll() corre
+  // después de cada guardado y no tiene sentido releer este doc cada vez.
+  if(GR_LOADED && !force) return;
+  if(!window.SWData || !window.SWData.loadGoogleReviews) return;
+  try{
+    GR = await window.SWData.loadGoogleReviews();
+    GR_LOADED = true;
+    GR_MANUAL = (GR && Array.isArray(GR.manualReviews)) ? GR.manualReviews.slice() : [];
+    renderGrState();
+    renderManualReviews();
+  }catch(e){
+    console.error('No se pudieron leer las reseñas de Google', e);
+  }
+}
+
+g('a-gr-sync').addEventListener('click', async function(){
+  var btn = this;
+  btn.disabled = true;
+  var prev = btn.textContent;
+  btn.textContent = 'Sincronizando…';
+  try{
+    // Sin `force`: deja actuar el guard de frescura de la Cloud Function. Cada
+    // llamada a Places se factura, y el cron diario ya mantiene esto al día --
+    // el botón es para ver un cambio recién publicado, no para repetirse.
+    var res = await window.SWData.syncGoogleReviews(false);
+    if(res && res.skipped === 'fresh'){
+      // No es un error ni un fallo silencioso: se dice cuándo fue la última
+      // sincronización para que se note que el dato ya está al día.
+      showAlert('a-gr-alert', 'ok', 'Ya estaba al día (última sincronización: ' + grFmtDate(res.fetchedAt) + '). Se puede volver a intentar en unos minutos.');
+    }else if(res && res.ok){
+      await loadGoogleReviewsAdmin(true);
+      showAlert('a-gr-alert', 'ok', 'Listo: ' + (res.reviews || 0) + ' reseñas traídas desde Google.');
+      await log('Sincronizó reseñas', 'Google Business');
+    }else if(res && res.reason === 'place-not-found'){
+      showAlert('a-gr-alert', 'err', 'No se encontró la ficha en Google. Revisá el nombre y la dirección, o pegá el Place ID a mano.');
+    }else{
+      showAlert('a-gr-alert', 'err', 'No se pudo sincronizar. Reintentá.');
+    }
+  }catch(e){
+    // El mensaje de Places ('API key not valid', 'Places API has not been
+    // used in project...') es justo lo que necesita ver quien está
+    // configurando esto por primera vez.
+    var msg = (e && e.message) ? e.message : 'Error desconocido';
+    if(e && e.code === 'functions/permission-denied') msg = 'Tu sesión no tiene permisos de administrador.';
+    showAlert('a-gr-alert', 'err', msg);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = prev;
+  }
+});
+
+g('a-gr-add').addEventListener('click', function(){
+  GR_MANUAL.push({author:'', rating:5, text:''});
+  renderManualReviews();
+});
+
+g('a-gr-manual').addEventListener('input', function(e){
+  var el = e.target;
+  var i = el.getAttribute('data-gr-i');
+  if(i === null) return;
+  var k = el.getAttribute('data-gr-k');
+  GR_MANUAL[Number(i)][k] = (k === 'rating') ? Number(el.value) : el.value;
+});
+g('a-gr-manual').addEventListener('change', function(e){
+  var el = e.target;
+  var i = el.getAttribute('data-gr-i');
+  if(i === null || el.getAttribute('data-gr-k') !== 'rating') return;
+  GR_MANUAL[Number(i)].rating = Number(el.value);
+});
+g('a-gr-manual').addEventListener('click', function(e){
+  var del = e.target.getAttribute && e.target.getAttribute('data-gr-del');
+  if(del === null || del === undefined) return;
+  GR_MANUAL.splice(Number(del), 1);
+  renderManualReviews();
+});
+
+g('a-gr-save').addEventListener('click', async function(){
+  // Una reseña sin texto no se puede dibujar: se descartan al guardar en vez
+  // de dejar filas vacías que el sitio tendría que filtrar de nuevo.
+  var clean = GR_MANUAL
+    .map(function(r){
+      return {
+        author: (r.author || '').trim(),
+        rating: Number(r.rating) || 5,
+        text: (r.text || '').trim(),
+        publishTime: r.publishTime || new Date().toISOString(),
+      };
+    })
+    .filter(function(r){ return r.text; });
+  try{
+    await window.SWData.saveManualReviews(clean);
+    GR_MANUAL = clean;
+    renderManualReviews();
+    showAlert('a-gr-alert', 'ok', clean.length + ' reseñas de respaldo guardadas.');
+    await log('Editó reseñas de respaldo', clean.length + ' reseñas');
+  }catch(e){
+    showAlert('a-gr-alert', 'err', 'No se pudieron guardar. Reintentá.');
+  }
 });
 
 // ═══ SITE IMAGES ═══

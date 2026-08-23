@@ -2,6 +2,7 @@
 'use strict';
 const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const { initializeApp } = require('firebase-admin/app');
@@ -11,11 +12,25 @@ const { buildPatientUpsert, countClubVisits } = require('./patients.js');
 const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./availability.js');
 const { resolveCreateBooking } = require('./createBooking.js');
 const { resolveBusinessTz, resolveBufferMin } = require('./timezone.js');
+const { searchPlaceId, fetchPlaceDetails, isFresh } = require('./googleReviews.js');
 
 const app = initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const FROM_EMAIL = defineSecret('FROM_EMAIL');
 const SHOP_EMAIL = defineSecret('SHOP_EMAIL');
+const GOOGLE_PLACES_API_KEY = defineSecret('GOOGLE_PLACES_API_KEY');
+
+// Mismo criterio de admin que isAdmin() en firestore.rules — custom claim
+// preferido, UID como respaldo. Está duplicado a propósito y NO por descuido:
+// las reglas son CEL y no pueden importar JS. Cuando se retire el fallback de
+// UID hay que tocar los cuatro sitios juntos (firestore.rules, storage.rules
+// ×2 y este) — está anotado como pendiente de Fase 3.
+const ADMIN_UID_FALLBACK = 'VUm858rENuNVzB4MAMtzLnGb1A63';
+function assertAdmin(request) {
+  const auth = request.auth;
+  const isAdmin = !!auth && (auth.token.admin === true || auth.uid === ADMIN_UID_FALLBACK);
+  if (!isAdmin) throw new HttpsError('permission-denied', 'Solo el panel de administración puede hacer esto.');
+}
 
 exports.onBookingCreated = onDocumentCreated(
   { document: 'bookings/{id}', region: 'southamerica-east1', secrets: [RESEND_API_KEY, FROM_EMAIL, SHOP_EMAIL] },
@@ -321,5 +336,110 @@ exports.onScheduleBlockWritten = onDocumentWritten(
     if (!dates.size) return;
     const db = getFirestore(app);
     await Promise.all([...dates].map(dk => recomputeAvailabilityForDate(db, dk)));
+  }
+);
+
+// ══ RESEÑAS DE GOOGLE ══
+// Espeja el perfil de Google Business del negocio en `googleReviews/main`,
+// que el landing lee como cualquier otro doc público (mismo patrón que la
+// vista `availability`): el visitante nunca habla con Google, así que la
+// sección pinta al instante y una API key facturable jamás toca el navegador.
+//
+// La escritura es siempre `merge: true` — el panel admin guarda su propia
+// lista curada en el campo `manualReviews` del MISMO doc, y una sincronización
+// no debe borrarla: es el respaldo que mantiene la sección viva si el perfil
+// de Google se cae, se queda sin API key o todavía no tiene reseñas.
+const REVIEWS_DOC = 'main';
+// Ventana anti-rebote del botón "Sincronizar ahora" del panel. El schedule
+// diario ya cubre la actualización real; esto solo evita que diez clics
+// seguidos se traduzcan en diez llamadas facturadas a Places.
+const REVIEWS_MIN_AGE_MINUTES = 10;
+
+async function syncGoogleReviewsToFirestore(db, apiKey, { force = false, now = new Date() } = {}) {
+  const reviewsRef = db.collection('googleReviews').doc(REVIEWS_DOC);
+  const [reviewsSnap, infoSnap] = await Promise.all([
+    reviewsRef.get(),
+    db.collection('businessInfo').doc('main').get(),
+  ]);
+  const current = reviewsSnap.exists ? reviewsSnap.data() : null;
+  if (!force && isFresh(current, now, REVIEWS_MIN_AGE_MINUTES)) {
+    return { ok: true, skipped: 'fresh', fetchedAt: current.fetchedAt };
+  }
+
+  const info = infoSnap.exists ? infoSnap.data() : {};
+  // Orden de resolución del placeId: el configurado a mano en el panel gana
+  // (permite apuntar a la ficha correcta si Google devuelve otra), después el
+  // ya resuelto y guardado, y recién entonces se gasta una búsqueda por texto.
+  let placeId = (info.googlePlaceId || '').trim() || (current && current.placeId) || '';
+  let resolvedNow = false;
+  if (!placeId) {
+    placeId = await searchPlaceId(info, { apiKey });
+    resolvedNow = true;
+    if (!placeId) {
+      // No es un error: un negocio sin nombre/dirección cargados en el panel,
+      // o sin ficha de Google todavía, simplemente no tiene qué espejar.
+      logger.warn('googleReviews: no se pudo resolver el placeId desde businessInfo', {
+        name: info.name || '', addr: info.addr || '',
+      });
+      return { ok: false, reason: 'place-not-found' };
+    }
+  }
+
+  const doc = await fetchPlaceDetails(placeId, { apiKey, now });
+  await reviewsRef.set({ ...doc, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  // El placeId resuelto por búsqueda se persiste en businessInfo para que la
+  // próxima corrida no vuelva a pagar un searchText: es el único dato de
+  // Places que los términos permiten cachear sin límite de tiempo.
+  if (resolvedNow) {
+    await db.collection('businessInfo').doc('main').set({ googlePlaceId: placeId }, { merge: true });
+  }
+  return { ok: true, placeId, rating: doc.rating, userRatingCount: doc.userRatingCount, reviews: doc.reviews.length };
+}
+
+// Actualización desatendida. Una vez al día sobra: el contenido de un place
+// se puede cachear hasta 30 días según los términos de Places, y una barbería
+// no recibe reseñas al minuto. Cron en la zona del negocio, a una hora en que
+// nadie está mirando la web.
+exports.refreshGoogleReviews = onSchedule(
+  {
+    schedule: '0 6 * * *',
+    timeZone: 'America/Santiago',
+    region: 'southamerica-east1',
+    secrets: [GOOGLE_PLACES_API_KEY],
+  },
+  async () => {
+    try {
+      const result = await syncGoogleReviewsToFirestore(getFirestore(app), GOOGLE_PLACES_API_KEY.value(), { force: true });
+      logger.info('googleReviews: sincronización programada', result);
+    } catch (err) {
+      // No se relanza: que Places falle un día no debe dejar la función en
+      // estado de error ni disparar reintentos que gasten cuota. El doc
+      // anterior sigue publicado y la sección se ve igual — exactamente lo que
+      // se espera de un espejo cacheado.
+      logger.error('googleReviews: falló la sincronización programada', err);
+    }
+  }
+);
+
+// Botón "Sincronizar ahora" del panel: sirve para ver el resultado al toque
+// después de configurar el placeId o de pedirle una reseña a un cliente, sin
+// esperar al cron. Admin-only — es una llamada facturable.
+exports.syncGoogleReviews = onCall(
+  { region: 'southamerica-east1', secrets: [GOOGLE_PLACES_API_KEY] },
+  async (request) => {
+    assertAdmin(request);
+    try {
+      return await syncGoogleReviewsToFirestore(
+        getFirestore(app),
+        GOOGLE_PLACES_API_KEY.value(),
+        { force: Boolean(request.data && request.data.force) }
+      );
+    } catch (err) {
+      logger.error('googleReviews: falló la sincronización manual', err);
+      // El mensaje de Places ('API key not valid', 'Places API has not been
+      // used in project...') es justo lo que necesita ver quien está
+      // configurando esto, así que viaja al panel en vez de un genérico.
+      throw new HttpsError('unavailable', err.message || 'No se pudo consultar Google.');
+    }
   }
 );

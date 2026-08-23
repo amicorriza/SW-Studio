@@ -102,7 +102,7 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 .an-item.an-on{background:rgba(255,255,255,.12);color:#fff}
 .an-item.an-on svg{opacity:1}
 .an-badge{position:absolute;top:2px;right:3px;background:rgba(255,255,255,.18);color:#fff;font-size:8px;font-weight:700;padding:1px 5px;border-radius:6px;font-family:'Inter',sans-serif;line-height:1.3}
-#adm-lgout{
+#adm-back,#adm-lgout{
   flex:0 0 auto;
   margin:0;padding:8px 12px;border-radius:0;
   border:none;border-left:1px solid rgba(255,255,255,.1);
@@ -111,8 +111,12 @@ html,body{height:100%;font-family:'Inter',sans-serif}
   position:sticky;right:0;z-index:5;
   display:flex;flex-direction:column;align-items:center;gap:3px;
   font-family:'Inter',sans-serif;font-size:10px;font-weight:500;
-  color:rgba(255,255,255,.35);transition:all .18s;white-space:nowrap
+  color:rgba(255,255,255,.35);transition:all .18s;white-space:nowrap;
+  text-decoration:none
 }
+#adm-back{color:rgba(255,255,255,.62)}
+#adm-back:hover,#adm-back:active{background:rgba(255,255,255,.1);color:#fff}
+#adm-back svg{width:16px;height:16px}
 #adm-lgout{color:rgba(255,255,255,.62)}
 #adm-lgout:hover,#adm-lgout:active{background:rgba(220,80,80,.22);color:#E57373}
 #adm-lgout svg{width:16px;height:16px}
@@ -563,13 +567,14 @@ html,body{height:100%;font-family:'Inter',sans-serif}
   .an-item svg{width:15px;height:15px}
   .an-item span:not(.an-badge){font-size:12.5px}
   .an-badge{position:static;margin-left:auto}
-  #adm-lgout{
+  #adm-back,#adm-lgout{
     flex-direction:row;justify-content:flex-start;align-items:center;
     margin:8px;padding:9px 10px;font-size:12px;gap:7px;
     border-top:1px solid rgba(255,255,255,.05);border-left:none;border-radius:0;
     position:static;align-self:auto;background:transparent
   }
-  #adm-lgout svg{width:14px;height:14px}
+  #adm-back{margin-bottom:0}
+  #adm-back svg,#adm-lgout svg{width:14px;height:14px}
   /* MAIN gets some breathing room */
   #adm-scroll{padding:24px 28px}
   .a-tw{margin-bottom:18px}
@@ -927,6 +932,10 @@ html,body{height:100%;font-family:'Inter',sans-serif}
           <span>Imágenes</span>
         </button>
       </div>
+      <a id="adm-back" href="/" target="_blank" rel="noopener">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M11 3.5L5 9l6 5.5M5 9h9"/></svg>
+        <span>Ver sitio</span>
+      </a>
       <button id="adm-lgout">
         <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3h2a2 2 0 012 2v8a2 2 0 01-2 2h-2M8 6l-3 3 3 3M5 9h9"/></svg>
         <span>Salir</span>

@@ -241,7 +241,7 @@ async function getClubStatus(email) {
 // firestore.rules), así que esta consulta pasa por getAvailability, que
 // corre con el Admin SDK y solo devuelve datos derivados (barberId+rangos).
 // Contrato completo y responsabilidades del llamador documentadas en
-// functions/availability.js.
+// functions/shared/availability.js.
 async function getAvailability(date, barberId) {
   const call = httpsCallable(functions, 'getAvailability');
   const { data } = await call({ date, barberId });
@@ -251,7 +251,7 @@ async function getAvailability(date, barberId) {
 // Disponibilidad real en tiempo real, vía la vista materializada
 // `availability/{YYYY-MM-DD}` que mantiene la Cloud Function
 // onBookingWritten (nunca contiene PII, solo rangos ocupados derivados —
-// ver functions/availability.js). `dateKey` no exista todavía = sin
+// ver functions/shared/availability.js). `dateKey` no exista todavía = sin
 // reservas ese día = plena disponibilidad, se resuelve igual que
 // `barberBusy` vacío.
 function subscribeAvailability(dateKey, onChange, onError) {

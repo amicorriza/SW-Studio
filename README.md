@@ -87,7 +87,7 @@ scissor-white/
 ├── functions/            # Cloud Functions v2 (ver arriba)
 │   ├── email.js          # render del template de email + envío vía Resend
 │   ├── patients.js       # upsert de clientes + conteo Club SW
-│   ├── availability.js   # cálculo de disponibilidad (reservas + colación + bloqueos)
+│   ├── shared/           # availability.js, timezone.js, validate.js, status.js
 │   ├── scripts/          # reconcileCatalog, backfillAvailability, setAdminClaim
 │   └── test/             # node --test (sin emulador)
 ├── seed/                 # carga inicial a Firestore

@@ -51,7 +51,7 @@ function dateKeyOf(dateStr) {
 // calendario -- comparación lexicográfica de strings preserva el orden
 // cronológico. A propósito SIN hora ni 'Z': Fase 2 guarda `date` como fecha
 // pura (la hora vive solo en `time`; qué instante real representa esa hora
-// lo resuelve la zona del negocio -- ver timezone.js -- nunca UTC).
+// lo resuelve la zona del negocio -- ver ./timezone.js -- nunca UTC).
 //
 // Documentos viejos (formato ISO con hora, ej. "2026-06-15T03:00:00.000Z")
 // siguen cayendo correctamente acá SIN NINGUNA MIGRACIÓN: comparado

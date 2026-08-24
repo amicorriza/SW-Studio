@@ -1,6 +1,6 @@
 // functions/createBooking.js — lógica pura de resolución del callable
 // transaccional `createBooking` (Fase A). Sin dependencia de firebase-admin:
-// igual que availability.js/patients.js, se testea con node --test sin
+// igual que shared/availability.js y patients.js, se testea con node --test sin
 // emulador. index.js hace TODO el I/O (lecturas dentro de la transacción) y
 // le pasa a resolveCreateBooking() datos ya leídos; esta función solo decide.
 'use strict';
@@ -25,7 +25,7 @@ function orderCandidateBarbers(activeBarberIds) {
 // `barberBusy` ya viene calculado (una sola vez, para todos los barberos
 // activos) por el llamador -- ver resolveCreateBooking. `bufferMin` (default
 // 0) solo afecta el margen contra otras reservas -- ver isRangeFree en
-// availability.js.
+// shared/availability.js.
 function resolveBarber({ barberId, activeStaff, dow, time, endTime, barberBusy, bufferMin = 0 }) {
   const wantsAny = !barberId || barberId === 'any';
 
@@ -106,7 +106,7 @@ function buildBookingDoc({ payload, service, barber, now, businessTz }) {
 // pierde en alguna ruta, esta función falla ruidosamente (excepción, no
 // devuelve {ok:false,...}) en vez de agendar en una zona equivocada sin que
 // nadie se entere. El único lugar con un default es resolveBusinessTz()
-// (timezone.js), y vive en el llamador (index.js), no acá.
+// (shared/timezone.js), y vive en el llamador (index.js), no acá.
 function resolveCreateBooking({ payload, now, service, staff, bookingsForDay, scheduleBlocksForDay, businessTz, bufferMin = 0 }) {
   if (!businessTz) {
     throw new Error('resolveCreateBooking: businessTz es obligatorio -- resolver con resolveBusinessTz() en el llamador.');
@@ -134,7 +134,7 @@ function resolveCreateBooking({ payload, now, service, staff, bookingsForDay, sc
   const endTime = addMinutesToTime(payload.time, dur);
 
   // La hora candidata SIEMPRE sale de `time`, nunca del contenido horario de
-  // `date` -- ver dateKeyOf en availability.js. El instante real que esa
+  // `date` -- ver dateKeyOf en shared/availability.js. El instante real que esa
   // hora representa lo resuelve la zona del NEGOCIO (zonedInstant), nunca
   // UTC -- acá vivía el hardcodeo de 'Z' que Fase 2 vino a corregir.
   const candidateInstant = zonedInstant(dayKey, payload.time, businessTz);

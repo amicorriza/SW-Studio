@@ -2816,11 +2816,14 @@ function renderSchedule(){
 }
 
 // ═══ INFO ═══
-// Copia parcial de DEFAULT_TZ (functions/timezone.js) -- solo la constante,
-// no el resto del módulo: este commit se limita al selector de zona, la
-// Agenda todavía no se rige por zona del negocio (queda para un commit
-// aparte). Mismo motivo de siempre para la duplicación: <script> plano, sin
-// bundler, no puede importar.
+// Copia parcial de DEFAULT_TZ (functions/shared/timezone.js) -- solo la
+// constante, no el resto del módulo. checkConflict()/checkScheduleBlock()
+// (la Agenda) ya no dependen de la zona del navegador -- ver el comentario
+// junto a esas funciones -- pero siguen sin necesitar zonedInstant() ni el
+// resto de este módulo: la comparación de solape es zona-invariante por
+// construcción (minutos-desde-medianoche dentro del mismo día calendario).
+// Mismo motivo de siempre para la duplicación de esta constante:
+// <script> plano, sin bundler, no puede importar.
 const DEFAULT_TZ = 'America/Santiago';
 const DEFAULT_BUFFER_MIN = 0;
 // Copia deliberada de DEFAULT_BOOKING_STATUS en functions/shared/status.js

@@ -2755,8 +2755,8 @@ const HOURS = {1:[10,20],2:[10,20],3:[10,20],4:[10,20],5:[10,20],6:[10,17],0:nul
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 // 'HH:MM' -> minutos desde medianoche. Mismo criterio que
-// functions/availability.js#toMinutes (no se puede importar acá: este
-// <script> es plano, sin bundler).
+// functions/shared/availability.js#toMinutes (no se puede importar acá:
+// este <script> es plano, sin bundler).
 function toMin(hhmm){
   const parts=String(hhmm||'0:0').split(':');
   return (parseInt(parts[0],10)||0)*60+(parseInt(parts[1],10)||0);
@@ -2780,11 +2780,12 @@ function hoursRangeFor(dow, barber){
 }
 
 // ══ ZONA HORARIA DEL NEGOCIO ══
-// Copia deliberada de dateKeyInZone()/DEFAULT_TZ en functions/timezone.js --
-// este <script> es plano, sin bundler, no puede importar ese módulo (mismo
-// motivo ya documentado para overlaps()/isRangeFree() en availability.js).
-// Misma copia también en public/admin/index.html. Cambiar la lógica en
-// cualquiera de los tres sin revisar los otros dos es el tipo de divergencia
+// Copia deliberada de dateKeyInZone()/DEFAULT_TZ en
+// functions/shared/timezone.js -- este <script> es plano, sin bundler, no
+// puede importar ese módulo (mismo motivo ya documentado para
+// overlaps()/isRangeFree() en functions/shared/availability.js). Misma
+// copia también en public/admin/index.html. Cambiar la lógica en cualquiera
+// de los tres sin revisar los otros dos es el tipo de divergencia
 // silenciosa que ya nos mordió con isValidBooking()/isValidBookingPayload().
 //
 // PRINCIPIO (Fase 2): la zona del NEGOCIO gobierna todo -- el reloj/zona del
@@ -2811,7 +2812,7 @@ function dateKeyToDate(dateKey){
   return new Date(y, m-1, d);
 }
 // Instante real -> 'HH:MM' de pared en `tz`. Copia deliberada de
-// timeKeyInZone() en functions/timezone.js -- mismo motivo que las de
+// timeKeyInZone() en functions/shared/timezone.js -- mismo motivo que las de
 // arriba. Existe por un hallazgo concreto: el widget decidía qué horarios de
 // "hoy" ya pasaron con la hora del NAVEGADOR de quien reserva, no la del
 // negocio -- alguien reservando desde otra zona veía disponibilidad

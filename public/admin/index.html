@@ -1655,51 +1655,73 @@ function deleteScheduleBlockLocal(id){
 // bufferMin (D.info.bufferMin, default 0) es el margen de limpieza contra
 // OTRAS RESERVAS -- checkScheduleBlock (colación/bloqueos) no lo usa, son
 // límites duros e independientes del buffer.
+//
+// Aritmética en minutos-desde-medianoche (toMin), NUNCA objetos Date -- así
+// evita depender del huso horario del NAVEGADOR de quien administra. Mismo
+// criterio que overlaps()/isRangeFree() en functions/shared/availability.js
+// e isBarberFreeAt() en public/index.html (ver esos archivos para el
+// razonamiento completo). Antes de este cambio, checkConflict() armaba
+// objetos Date vía parseDt()/parseYmd() en hora local del navegador -- una
+// divergencia real con el invariante "la zona del negocio gobierna, nunca
+// el navegador", no solo código duplicado.
+//
+// Al pasar de Date absolutos a minutos-del-día, el filtro por fecha que
+// antes quedaba implícito en la resta de timestamps (dos reservas en días
+// distintos caen naturalmente lejos en el tiempo) hay que hacerlo explícito
+// acá: sin el `continue` de fecha, dos reservas a la misma hora en días
+// distintos se marcarían como conflicto entre sí.
 function checkConflict(barberId, dateStr, timeStr, durMin, ignoreId, bufferMin){
+  if(!dateStr || !timeStr) return null;
   bufferMin = bufferMin || 0;
   var bookings = getBookings();
-  var newStart = parseDt(dateStr, timeStr);
-  if(!newStart) return null;
-  var newEnd = new Date(newStart.getTime() + durMin*60000);
+  var candStart = toMin(timeStr);
+  var candEnd = candStart + (durMin||0);
   for(var i=0; i<bookings.length; i++){
     var b = bookings[i];
     if(ignoreId && b.code === ignoreId) continue;
     if(b.barberId !== barberId) continue;
-    var bStart = parseDt(b.date ? b.date.substring(0,10) : '', b.time);
-    if(!bStart) continue;
-    var bEnd = new Date(bStart.getTime() + (b.dur||30)*60000);
-    var bStartBuf = new Date(bStart.getTime() - bufferMin*60000);
-    var bEndBuf = new Date(bEnd.getTime() + bufferMin*60000);
-    if(newStart < bEndBuf && newEnd > bStartBuf){
+    if((b.date ? b.date.substring(0,10) : '') !== dateStr) continue;
+    var bStart = toMin(b.time);
+    var bEnd = bStart + (b.dur||30);
+    if(candStart < bEnd+bufferMin && candEnd > bStart-bufferMin){
       return b;
     }
   }
   return null;
 }
-function parseDt(dateStr, timeStr){
-  if(!dateStr || !timeStr) return null;
-  var d = dateStr.length > 10 ? new Date(dateStr) : parseYmd(dateStr);
-  if(isNaN(d.getTime())) return null;
-  var p = timeStr.split(':');
-  d.setHours(parseInt(p[0]||0), parseInt(p[1]||0), 0, 0);
-  return d;
+// 'HH:MM' -> minutos desde medianoche. Copia deliberada de toMin() en
+// public/index.html (que a su vez documenta el mismo motivo que
+// functions/shared/availability.js#toMinutes) -- este <script> es plano,
+// sin bundler, no puede importar ningún módulo de functions/shared/.
+function toMin(hhmm){
+  var parts=String(hhmm||'0:0').split(':');
+  return (parseInt(parts[0],10)||0)*60+(parseInt(parts[1],10)||0);
+}
+// 'YYYY-MM-DD' -> día de la semana (0=Dom..6=Sáb), para indexar
+// staff.schedule[dow]. Zona-independiente a propósito, igual que
+// dowOfDateKey() en public/index.html y el cálculo de `dow` en
+// functions/createBooking.js: el día de la semana de una fecha calendario
+// es el mismo mirado desde cualquier huso horario.
+function dowOfDateKey(dateKey){
+  return new Date(dateKey+'T00:00:00Z').getUTCDay();
 }
 // Igual que checkConflict, pero contra colación recurrente + bloqueos
 // puntuales en vez de otras reservas. Devuelve null (sin bloqueo) o
-// {type, label} para armar el mensaje de advertencia.
+// {type, label} para armar el mensaje de advertencia. Mismo cambio que
+// checkConflict(): minutos-del-día en vez de Date en hora del navegador.
 function checkScheduleBlock(barberId, dateStr, timeStr, durMin){
-  var newStart = parseDt(dateStr, timeStr);
-  if(!newStart) return null;
-  var newEnd = new Date(newStart.getTime() + durMin*60000);
+  if(!dateStr || !timeStr) return null;
+  var candStart = toMin(timeStr);
+  var candEnd = candStart + (durMin||0);
 
   var barber = D.staff.find(function(s){return s.id===barberId});
   if(barber && Array.isArray(barber.schedule)){
-    var dow = newStart.getDay();
+    var dow = dowOfDateKey(dateStr);
     var day = barber.schedule[dow];
     if(day && day.break && day.break.start && day.break.end){
-      var brkStart = parseDt(dateStr, day.break.start);
-      var brkEnd = parseDt(dateStr, day.break.end);
-      if(brkStart && brkEnd && newStart < brkEnd && newEnd > brkStart){
+      var brkStart = toMin(day.break.start);
+      var brkEnd = toMin(day.break.end);
+      if(candStart<brkEnd && candEnd>brkStart){
         return {type:'break', label:'la colación de '+(barber.name||'')};
       }
     }
@@ -1708,13 +1730,26 @@ function checkScheduleBlock(barberId, dateStr, timeStr, durMin){
   var blocks = getScheduleBlocksForDate(dateStr).filter(function(b){ return b.barberId === barberId; });
   for(var i=0; i<blocks.length; i++){
     var b = blocks[i];
-    var bStart = parseDt(dateStr, b.start);
-    var bEnd = parseDt(dateStr, b.end);
-    if(bStart && bEnd && newStart < bEnd && newEnd > bStart){
+    var bStart = toMin(b.start);
+    var bEnd = toMin(b.end);
+    if(candStart<bEnd && candEnd>bStart){
       return {type:'block', label: b.reason ? ('un bloqueo de horario ("'+b.reason+'")') : 'un bloqueo de horario'};
     }
   }
   return null;
+}
+// Sigue existiendo: checkConflict()/checkScheduleBlock() ya no la usan
+// (ver comentario arriba), pero renderBookingList() sí -- filtra la lista
+// de reservas por un RANGO de fechas que puede abarcar muchos días, donde
+// comparar objetos Date reales es lo correcto (no es aritmética de solape
+// dentro de un mismo día calendario).
+function parseDt(dateStr, timeStr){
+  if(!dateStr || !timeStr) return null;
+  var d = dateStr.length > 10 ? new Date(dateStr) : parseYmd(dateStr);
+  if(isNaN(d.getTime())) return null;
+  var p = timeStr.split(':');
+  d.setHours(parseInt(p[0]||0), parseInt(p[1]||0), 0, 0);
+  return d;
 }
 
 // ═══ CALENDAR / AGENDA PANEL ═══

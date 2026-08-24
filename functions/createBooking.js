@@ -8,30 +8,7 @@ const {
   addMinutesToTime, computeAvailability, dateKeyOf, isRangeFree, isWithinOpenHours,
 } = require('./shared/availability.js');
 const { zonedInstant } = require('./shared/timezone.js');
-
-// Mismo regex que isValidBooking() en firestore.rules.
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-
-// Réplica EXACTA (mismo criterio, campo a campo) de isValidBooking() en
-// firestore.rules -- no se puede compartir código entre CEL (reglas) y JS,
-// así que esto es deuda de sincronización manual desde el minuto uno.
-// tests/rules/createBooking.crosscheck.test.js prueba el mismo set de
-// payloads contra ambos caminos para detectar divergencia. A propósito NO
-// exige que svcId/barberId/date/time/code sean no-vacíos -- la regla
-// tampoco lo exige (`is string` acepta ''); ver el guard de svcId vacío en
-// index.js, que evita que eso llegue a un .doc('') de Firestore.
-function isValidBookingPayload(payload) {
-  const p = payload || {};
-  return typeof p.name === 'string' && p.name.length > 1
-    && typeof p.email === 'string' && EMAIL_RE.test(p.email)
-    && typeof p.phone === 'string' && p.phone.length >= 7
-    && typeof p.svcId === 'string'
-    && typeof p.barberId === 'string'
-    && typeof p.date === 'string'
-    && typeof p.time === 'string'
-    && typeof p.code === 'string'
-    && typeof p.club === 'string' && (p.club === 'member' || p.club === 'guest');
-}
+const { isValidBookingPayload } = require('./shared/validate.js');
 
 // Único punto de la política de asignación cuando el cliente pide 'any' (o
 // no manda barberId). Hoy: orden alfabético por id. Con un solo barbero

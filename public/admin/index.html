@@ -2332,7 +2332,7 @@ g('a-bkm-save').addEventListener('click', function(){
     // payload del panel no los enviaba nunca, y como en las reglas una clave
     // ausente lanza error de evaluación (no `false`), crear una cita desde el
     // admin fallaba siempre con permission-denied.
-    status: prev.status || 'pending',
+    status: prev.status || DEFAULT_BOOKING_STATUS,
     club: prev.club || 'guest',
     createdAt: prev.createdAt || new Date().toISOString()
   };
@@ -2823,6 +2823,12 @@ function renderSchedule(){
 // bundler, no puede importar.
 const DEFAULT_TZ = 'America/Santiago';
 const DEFAULT_BUFFER_MIN = 0;
+// Copia deliberada de DEFAULT_BOOKING_STATUS en functions/shared/status.js
+// -- mismo motivo que DEFAULT_TZ arriba: <script> plano, sin bundler, no
+// puede importar. No hay ninguna transición de estado en este panel (ni en
+// ningún otro lugar del repo) que reconciliar -- ver el comentario de
+// functions/shared/status.js.
+const DEFAULT_BOOKING_STATUS = 'pending';
 // Verificadas con Intl.supportedValuesOf('timeZone') antes de ofrecerlas
 // (2026-08 -- las tres existen en el runtime probado). El .filter() repite
 // esa verificación en el navegador real de quien abra el panel: si alguna

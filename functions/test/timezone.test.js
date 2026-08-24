@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { DEFAULT_TZ, resolveBusinessTz, zonedInstant, dateKeyInZone, timeKeyInZone } = require('../timezone.js');
+const { DEFAULT_TZ, resolveBusinessTz, zonedInstant, dateKeyInZone, timeKeyInZone } = require('../shared/timezone.js');
 
 test('DEFAULT_TZ es America/Santiago', () => {
   assert.strictEqual(DEFAULT_TZ, 'America/Santiago');

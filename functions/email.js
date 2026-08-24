@@ -1,8 +1,8 @@
 // functions/email.js — render + envío de emails vía Resend.
 'use strict';
 const { Resend } = require('resend');
-const { DEFAULT_TZ, zonedInstant } = require('./timezone.js');
-const { dateKeyOf } = require('./availability.js');
+const { DEFAULT_TZ, zonedInstant } = require('./shared/timezone.js');
+const { dateKeyOf } = require('./shared/availability.js');
 
 const SITE_URL = 'https://scissorwhite.cl';
 const ASSETS_URL = SITE_URL + '/assets/email'; // logo.png / salon.png (Gmail bloquea data-URIs)

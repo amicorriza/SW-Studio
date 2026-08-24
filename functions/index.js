@@ -8,9 +8,9 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { sendBookingEmails } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
-const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./availability.js');
+const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./shared/availability.js');
 const { resolveCreateBooking } = require('./createBooking.js');
-const { resolveBusinessTz, resolveBufferMin } = require('./timezone.js');
+const { resolveBusinessTz, resolveBufferMin } = require('./shared/timezone.js');
 
 const app = initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');

@@ -31,7 +31,7 @@
 const { initializeApp, applicationDefault } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const readline = require('readline');
-const { computeAvailability, dateKeyOf } = require('../availability.js');
+const { computeAvailability, dateKeyOf } = require('../shared/availability.js');
 
 const DEFAULT_PROJECT = 'scissor-white';
 const BATCH_SIZE = 400; // margen bajo el límite de 500 ops/batch de Firestore

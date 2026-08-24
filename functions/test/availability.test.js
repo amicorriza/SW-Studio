@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const {
   toMinutes, addMinutesToTime, computeAvailability, dateKeyOf, dayBoundsOf,
   overlaps, isRangeFree, isWithinOpenHours,
-} = require('../availability.js');
+} = require('../shared/availability.js');
 
 test('toMinutes convierte HH:MM a minutos desde medianoche', () => {
   assert.strictEqual(toMinutes('09:00'), 540);

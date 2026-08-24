@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { resolveCreateBooking, isValidBookingPayload, orderCandidateBarbers } = require('../createBooking.js');
-const { dateKeyOf } = require('../availability.js');
+const { dateKeyOf } = require('../shared/availability.js');
 
 // `now` fijo -- estos tests nunca deben depender de la fecha real del
 // sistema que los corre.

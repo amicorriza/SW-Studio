@@ -6,8 +6,8 @@
 'use strict';
 const {
   addMinutesToTime, computeAvailability, dateKeyOf, isRangeFree, isWithinOpenHours,
-} = require('./availability.js');
-const { zonedInstant } = require('./timezone.js');
+} = require('./shared/availability.js');
+const { zonedInstant } = require('./shared/timezone.js');
 
 // Mismo regex que isValidBooking() en firestore.rules.
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;

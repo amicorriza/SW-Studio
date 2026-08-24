@@ -9,6 +9,7 @@ const {
 } = require('./shared/availability.js');
 const { zonedInstant } = require('./shared/timezone.js');
 const { isValidBookingPayload } = require('./shared/validate.js');
+const { DEFAULT_BOOKING_STATUS } = require('./shared/status.js');
 
 // Único punto de la política de asignación cuando el cliente pide 'any' (o
 // no manda barberId). Hoy: orden alfabético por id. Con un solo barbero
@@ -85,7 +86,7 @@ function buildBookingDoc({ payload, service, barber, now, businessTz }) {
     date: payload.date,
     time: payload.time,
     club: payload.club,
-    status: 'pending',
+    status: DEFAULT_BOOKING_STATUS,
     emailStatus: 'pending',
     tz: businessTz,
     // Marca de origen: permite verificar en Firestore que el 100% de los

@@ -2,11 +2,11 @@
 // horarios. Módulo único: functions/createBooking.js, functions/index.js y
 // functions/email.js lo importan de acá. public/index.html mantiene una
 // copia deliberada de isBarberFreeAt() (mismo criterio, documentado ahí) por
-// ser <script> plano sin bundler. public/admin/index.html TODAVÍA diverge:
-// checkConflict()/checkScheduleBlock() arman objetos Date en hora del
-// navegador del admin, no minutos-desde-medianoche como acá -- pendiente de
-// corregir (ver Task 4 del plan en
-// docs/superpowers/plans/2026-08-24-shared-modules-plan.md).
+// ser <script> plano sin bundler. public/admin/index.html YA NO diverge:
+// checkConflict()/checkScheduleBlock() usan el mismo criterio de
+// minutos-desde-medianoche que acá (antes armaban objetos Date en hora del
+// navegador del admin -- ver el comentario junto a esas funciones para el
+// detalle de la corrección).
 // Sin dependencias de Firebase Admin: fácil de testear, se usa desde index.js.
 // PRIVACIDAD: esta lógica solo debe manejar/devolver datos derivados
 // (barberId, start, end). Nunca debe tocar name/email/phone/otro PII de una

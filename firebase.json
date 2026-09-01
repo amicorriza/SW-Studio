@@ -3,7 +3,9 @@
     "public": "public",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "headers": [
-      { "source": "/js/**", "headers": [{ "key": "Cache-Control", "value": "max-age=3600" }] }
+      { "source": "**/*.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+      { "source": "/js/**", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+      { "source": "/assets/**", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }] }
     ]
   },
   "firestore": {

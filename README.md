@@ -7,6 +7,9 @@ Concepción, Chile): landing, sistema de reservas online y panel de administraci
 - Los clientes agendan 24/7 y reciben **confirmación por email** (template SW Studio, vía Resend).
 - El staff administra reservas, servicios, barberos y clientes desde un panel protegido por **Firebase Auth**.
 - **Club SW**: programa de fidelización (servicio premium gratis a las 10 visitas, asesoría con visagismo a las 20).
+- **Reseñas de Google en vivo**: el puntaje y las opiniones del perfil de
+  Google Business se espejan a diario en la sección *"La voz de quienes
+  vuelven"* del landing, sin scripts de terceros ni API keys en el navegador.
 - **Disponibilidad real por barbero**: horario semanal, colación recurrente y
   bloqueos puntuales (trámites, imprevistos) se reflejan al instante en el
   widget público de reservas.
@@ -17,9 +20,10 @@ Concepción, Chile): landing, sistema de reservas online y panel de administraci
 | Pieza | Detalle |
 |---|---|
 | Hosting | Firebase Hosting (`public/`), proyecto `scissor-white` |
-| Datos | Firestore (`bookings`, `patients`, `services`, `staff`, `businessInfo`, `scheduleBlocks`, `availability`, `adminLog`) |
+| Datos | Firestore (`bookings`, `patients`, `services`, `staff`, `businessInfo`, `scheduleBlocks`, `availability`, `googleReviews`, `adminLog`) |
 | Funciones | Cloud Functions v2 Node 22, región `southamerica-east1` |
 | Emails | Resend (secretos `RESEND_API_KEY`, `FROM_EMAIL`, `SHOP_EMAIL`) |
+| Reseñas | Google Places API (New), secreto `GOOGLE_PLACES_API_KEY` |
 | Auth | Firebase Auth (email/contraseña) para el panel admin |
 
 ### Cloud Functions
@@ -37,6 +41,13 @@ Concepción, Chile): landing, sistema de reservas online y panel de administraci
   `bookings/{id}` y `scheduleBlocks/{id}`): recalculan la vista materializada
   `availability/{fecha}` (sin PII) que el widget público lee directo, en vez
   de llamar a `getAvailability` en cada render.
+
+- **`refreshGoogleReviews`** (schedule diario, 06:00 America/Santiago) y
+  **`syncGoogleReviews`** (callable admin-only, botón "Sincronizar ahora" del
+  panel): traen puntaje, total de opiniones y reseñas del perfil de Google
+  Business vía Places API (New) y las escriben en `googleReviews/main`, que el
+  landing lee como cualquier doc público. La API key vive en Secret Manager y
+  nunca baja al navegador — ver [Reseñas de Google](#reseñas-de-google).
 
 > ⚠️ El proyecto `scissor-white` también tiene desplegada una función `api`
 > (https, `us-central1`, Node 20) que **no pertenece a este codebase** — es de
@@ -141,15 +152,81 @@ cd functions && node --test
 # (nombres explícitos: evita que el CLI ofrezca borrar `api`, ver nota arriba)
 firebase deploy --project scissor-white --only \
   hosting,firestore:rules,firestore:indexes,\
-functions:onBookingCreated,functions:getClubStatus,functions:getAvailability,\
-functions:onBookingWritten,functions:onScheduleBlockWritten
+functions:onBookingCreated,functions:createBooking,functions:getClubStatus,\
+functions:getAvailability,functions:onBookingWritten,functions:onScheduleBlockWritten,\
+functions:refreshGoogleReviews,functions:syncGoogleReviews
 ```
+
+Son **8 nombres — uno por cada `exports.` de `functions/index.js`**. Antes de
+deployar, verificar que no falte ninguno:
+
+```bash
+grep -oE "^exports\.[a-zA-Z]+" functions/index.js
+```
+
+> ⚠️ `createBooking` **faltaba en esta lista** hasta 2026-08-23: se agregó en
+> Fase A y el comando documentado nunca se actualizó. Un deploy con la lista
+> vieja no rompe nada de forma visible — las funciones ausentes simplemente no
+> se actualizan — pero deja `createBooking` congelado en la versión desplegada,
+> en silencio. Es exactamente el tipo de deriva que este comando explícito
+> existe para evitar, así que conviene correr el `grep` de arriba cada vez.
+
+`refreshGoogleReviews` es la primera función programada del proyecto: su primer
+deploy habilita Cloud Scheduler en el proyecto de GCP.
 
 Los secretos de Resend se administran con `firebase functions:secrets:set` (ver
 runbook en `docs/`). El template de email vive en `functions/email.js`
 (`renderClientEmail`); sus imágenes deben existir publicadas en
 `https://scissorwhite.cl/assets/email/` — los clientes de correo bloquean
 imágenes embebidas (data-URI).
+
+## Reseñas de Google
+
+La sección *"La voz de quienes vuelven"* del landing (`#resenas`, entre
+Productos y Agenda) muestra el puntaje real del perfil de Google Business y las
+reseñas que devuelve la API, en una marquesina que se pausa al pasar el mouse.
+
+**Cómo funciona.** Nada de esto ocurre en el navegador del visitante: una
+Cloud Function consulta Places una vez al día y deja el resultado en
+`googleReviews/main` (lectura pública, escritura solo admin). El landing lee
+ese doc y listo. Eso mantiene la API key fuera del cliente — una key de Places
+expuesta en el front se puede usar desde cualquier origen y la factura la paga
+el cliente —, evita sumarle a la página la latencia de Google, y deja el costo
+en una llamada diaria en vez de una por visita.
+
+**Puesta en marcha** (una sola vez):
+
+1. En Google Cloud, sobre el proyecto `scissor-white`, habilitar **Places API
+   (New)** y crear una API key restringida a esa API.
+2. Cargarla como secreto y desplegar:
+   ```bash
+   firebase functions:secrets:set GOOGLE_PLACES_API_KEY --project scissor-white
+   ```
+3. En el panel, *Info & Contacto → Reseñas de Google*, apretar **Sincronizar
+   ahora**. El Place ID se resuelve solo a partir del nombre y la dirección del
+   negocio y queda guardado en `businessInfo.googlePlaceId`; solo hay que
+   pegarlo a mano si Google devuelve otro local.
+
+**Mientras tanto** (y como red de seguridad): el mismo panel permite cargar
+*reseñas de respaldo*, que se guardan en `googleReviews/main.manualReviews` y
+que ninguna sincronización pisa. Se muestran **solo** si Google todavía no
+devuelve ninguna reseña con texto, y se ocultan solas apenas haya reales. Nunca
+se mezclan con las verificadas: las de respaldo no llevan la marca de Google.
+
+**Límites y política.**
+
+- Place Details (New) devuelve **como máximo 5 reseñas** — no hay parámetro
+  para pedir más. El promedio y el total (`4,9 sobre 137 opiniones`) sí
+  resumen el perfil completo, y así se comunican en la sección.
+- Las reseñas se guardan y muestran **en el orden que las devuelve Google, sin
+  filtrar por puntaje**: la política de Places prohíbe alterarlas o mostrarlas
+  selectivamente. Aparte, una barbería que solo exhibe 5★ elegidas a dedo
+  genera menos confianza, no más.
+- La sección incluye la atribución que exige Google: logo, nombre y foto del
+  autor, enlace al perfil y al listado completo.
+- **No se agrega `aggregateRating` al JSON-LD** del sitio a propósito: marcar
+  como propias reseñas recolectadas en otra plataforma va contra las
+  directrices de datos estructurados de Google y arriesga una acción manual.
 
 ## Documentación
 

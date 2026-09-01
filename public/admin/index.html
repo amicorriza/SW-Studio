@@ -102,7 +102,7 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 .an-item.an-on{background:rgba(255,255,255,.12);color:#fff}
 .an-item.an-on svg{opacity:1}
 .an-badge{position:absolute;top:2px;right:3px;background:rgba(255,255,255,.18);color:#fff;font-size:8px;font-weight:700;padding:1px 5px;border-radius:6px;font-family:'Inter',sans-serif;line-height:1.3}
-#adm-lgout{
+#adm-back,#adm-lgout{
   flex:0 0 auto;
   margin:0;padding:8px 12px;border-radius:0;
   border:none;border-left:1px solid rgba(255,255,255,.1);
@@ -111,8 +111,12 @@ html,body{height:100%;font-family:'Inter',sans-serif}
   position:sticky;right:0;z-index:5;
   display:flex;flex-direction:column;align-items:center;gap:3px;
   font-family:'Inter',sans-serif;font-size:10px;font-weight:500;
-  color:rgba(255,255,255,.35);transition:all .18s;white-space:nowrap
+  color:rgba(255,255,255,.35);transition:all .18s;white-space:nowrap;
+  text-decoration:none
 }
+#adm-back{color:rgba(255,255,255,.62)}
+#adm-back:hover,#adm-back:active{background:rgba(255,255,255,.1);color:#fff}
+#adm-back svg{width:16px;height:16px}
 #adm-lgout{color:rgba(255,255,255,.62)}
 #adm-lgout:hover,#adm-lgout:active{background:rgba(220,80,80,.22);color:#E57373}
 #adm-lgout svg{width:16px;height:16px}
@@ -218,6 +222,45 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 .a-cft{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;padding:5px 11px;border-radius:6px;border:1.5px solid var(--a-g2);background:#fff;color:var(--a-meta);cursor:pointer;transition:all .15s}
 .a-cft:hover{border-color:var(--a-ink);color:var(--a-ink)}
 .a-cft.a-cft-on{background:var(--a-ink);color:#fff;border-color:var(--a-ink)}
+
+/* ═══ SERVICIOS — auditoría, selección múltiple y orden ═══ */
+.a-svc-tb{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:#fff;border:1.5px solid var(--a-ink);border-radius:9px;padding:8px 12px;margin-bottom:11px}
+.a-svc-tb-n{font-family:'Orbitron',sans-serif;font-size:11.5px;font-weight:600;color:var(--a-txt)}
+.a-svc-tb-sp{flex:1}
+.a-svc-hint{font-size:11px;color:var(--a-meta);margin:-2px 0 11px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.a-svc-hint .a-btn{padding:5px 9px;font-size:9px}
+.a-svc-drag{cursor:grab;color:var(--a-g3);font-size:13px;line-height:1;user-select:none}
+.a-svc-drag:active{cursor:grabbing}
+.a-t tr.a-svc-dragging{opacity:.35}
+.a-t tr.a-svc-dropbefore td{box-shadow:inset 0 2px 0 0 var(--a-ink)}
+.a-t tr.a-svc-dropafter td{box-shadow:inset 0 -2px 0 0 var(--a-ink)}
+.a-svc-ord{display:inline-flex;flex-direction:column;gap:2px;vertical-align:middle}
+.a-svc-ord button{width:19px;height:15px;border:1px solid var(--a-g2);background:#fff;border-radius:4px;cursor:pointer;color:var(--a-meta);font-size:8px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
+.a-svc-ord button:hover:not(:disabled){border-color:var(--a-ink);color:var(--a-ink)}
+.a-svc-ord button:disabled{opacity:.3;cursor:not-allowed}
+.a-svc-chk{width:15px;height:15px;accent-color:var(--a-ink);cursor:pointer;margin:0;vertical-align:middle}
+th.a-svc-cc,td.a-svc-cc{width:1%;padding-right:4px}
+th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
+.a-svc-pph{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--a-meta);white-space:nowrap}
+.a-svc-when{font-size:11px;color:var(--a-meta);white-space:nowrap}
+.a-bulk-prev{max-height:220px;overflow-y:auto;border:1px solid var(--a-g2);border-radius:8px}
+.a-bulk-prev table{width:100%;border-collapse:collapse;font-size:12px}
+.a-bulk-prev td{padding:6px 11px;border-bottom:1px solid var(--a-g1);color:var(--a-body)}
+.a-bulk-prev tr:last-child td{border-bottom:none}
+.a-bulk-prev td:last-child{text-align:right;font-family:'Orbitron',sans-serif;font-size:11px;color:var(--a-txt)}
+.a-bulk-prev .a-bp-old{color:var(--a-meta);text-decoration:line-through;margin-right:6px;font-family:'Inter',sans-serif;font-size:11px}
+.a-dz{margin-top:6px;border-top:1px dashed var(--a-g2);padding-top:10px}
+.a-dz>summary{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--a-err);cursor:pointer;list-style:none}
+.a-dz>summary::-webkit-details-marker{display:none}
+.a-dz>summary::before{content:'▸ ';font-size:9px}
+.a-dz[open]>summary::before{content:'▾ '}
+.a-dz-body{margin-top:9px;display:flex;flex-direction:column;gap:8px}
+.a-dz-note{font-size:11.5px;color:var(--a-meta);line-height:1.5}
+@media(max-width:560px){
+  th.a-svc-dc,td.a-svc-dc{display:none}
+  #a-sb .a-tacts{flex-wrap:wrap}
+  #a-sb .a-svc-ord{flex-direction:row}
+}
 
 /* STAFF GRID */
 #a-sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:11px;margin-bottom:16px}
@@ -563,13 +606,14 @@ html,body{height:100%;font-family:'Inter',sans-serif}
   .an-item svg{width:15px;height:15px}
   .an-item span:not(.an-badge){font-size:12.5px}
   .an-badge{position:static;margin-left:auto}
-  #adm-lgout{
+  #adm-back,#adm-lgout{
     flex-direction:row;justify-content:flex-start;align-items:center;
     margin:8px;padding:9px 10px;font-size:12px;gap:7px;
     border-top:1px solid rgba(255,255,255,.05);border-left:none;border-radius:0;
     position:static;align-self:auto;background:transparent
   }
-  #adm-lgout svg{width:14px;height:14px}
+  #adm-back{margin-bottom:0}
+  #adm-back svg,#adm-lgout svg{width:14px;height:14px}
   /* MAIN gets some breathing room */
   #adm-scroll{padding:24px 28px}
   .a-tw{margin-bottom:18px}
@@ -927,6 +971,10 @@ html,body{height:100%;font-family:'Inter',sans-serif}
           <span>Imágenes</span>
         </button>
       </div>
+      <a id="adm-back" href="/" target="_blank" rel="noopener">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M11 3.5L5 9l6 5.5M5 9h9"/></svg>
+        <span>Ver sitio</span>
+      </a>
       <button id="adm-lgout">
         <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3h2a2 2 0 012 2v8a2 2 0 01-2 2h-2M8 6l-3 3 3 3M5 9h9"/></svg>
         <span>Salir</span>
@@ -1058,11 +1106,33 @@ html,body{height:100%;font-family:'Inter',sans-serif}
         <div class="a-panel" id="adm-p-services">
           <div id="a-svc-alert" class="a-alert"></div>
           <div class="a-sh">
-            <div><div class="a-st">Servicios</div><div class="a-ss">Catálogo completo</div></div>
+            <div><div class="a-st">Servicios</div><div class="a-ss">Catálogo completo — precio, duración, estado y orden</div></div>
             <button class="a-btn a-btn-p" id="a-svc-new">+ Nuevo servicio</button>
           </div>
           <div id="a-cf"></div>
-          <div class="a-tw"><table class="a-t"><thead><tr><th>Servicio</th><th>Cat.</th><th>Min.</th><th>Precio</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="a-sb"></tbody></table></div>
+          <div id="a-svc-bulk" class="a-svc-tb" style="display:none">
+            <span class="a-svc-tb-n" id="a-svc-bulk-n">0 seleccionados</span>
+            <span class="a-svc-tb-sp"></span>
+            <button class="a-btn a-btn-g" id="a-svc-bulk-price">Ajustar precio</button>
+            <button class="a-btn a-btn-g" id="a-svc-bulk-retire">Retirar</button>
+            <button class="a-btn a-btn-g" id="a-svc-bulk-clear">Limpiar selección</button>
+          </div>
+          <div id="a-svc-hint" class="a-svc-hint" style="display:none"></div>
+          <div class="a-tw"><table class="a-t">
+            <thead><tr>
+              <th class="a-svc-dc a-sortable" data-svcsort="order" title="Orden manual">#</th>
+              <th class="a-svc-cc"><input type="checkbox" class="a-svc-chk" id="a-svc-all" aria-label="Seleccionar todos"></th>
+              <th class="a-sortable" data-svcsort="name">Servicio<span class="a-sort-arrow" data-sarrow="name"></span></th>
+              <th class="a-sortable" data-svcsort="cat">Cat.<span class="a-sort-arrow" data-sarrow="cat"></span></th>
+              <th class="a-sortable" data-svcsort="dur">Min.<span class="a-sort-arrow" data-sarrow="dur"></span></th>
+              <th class="a-sortable" data-svcsort="price">Precio<span class="a-sort-arrow" data-sarrow="price"></span></th>
+              <th class="a-sortable" data-svcsort="pph">$/hora<span class="a-sort-arrow" data-sarrow="pph"></span></th>
+              <th class="a-sortable" data-svcsort="status">Estado<span class="a-sort-arrow" data-sarrow="status"></span></th>
+              <th class="a-sortable" data-svcsort="updatedAt">Editado<span class="a-sort-arrow" data-sarrow="updatedAt"></span></th>
+              <th>Acciones</th>
+            </tr></thead>
+            <tbody id="a-sb"></tbody>
+          </table></div>
         </div>
 
         <!-- ─ STAFF ─ -->
@@ -1106,6 +1176,34 @@ html,body{height:100%;font-family:'Inter',sans-serif}
             </div>
             <button class="a-btn a-btn-p" id="ai-save" style="align-self:flex-start;margin-top:4px">Guardar información</button>
           </div>
+
+          <!-- ─ RESEÑAS DE GOOGLE ─ -->
+          <div class="a-sh" style="margin-top:38px">
+            <div>
+              <div class="a-st">Reseñas de Google</div>
+              <div class="a-ss">Lo que se muestra en la sección "La voz de quienes vuelven" del sitio público. Se actualiza sola todos los días a las 6:00.</div>
+            </div>
+            <button class="a-btn a-btn-g" id="a-gr-sync">Sincronizar ahora</button>
+          </div>
+          <div id="a-gr-alert" class="a-alert"></div>
+          <div class="a-fc">
+            <div id="a-gr-state" style="font-size:12.5px;color:var(--a-meta);line-height:1.7"></div>
+            <div class="a-f">
+              <label class="a-lbl" for="ai-googlePlaceId">ID del lugar en Google (Place ID)</label>
+              <input class="a-in" id="ai-googlePlaceId" placeholder="Se resuelve solo desde el nombre y la dirección">
+              <span style="font-size:11px;color:var(--a-meta)">Déjalo vacío y el sistema lo busca solo con el nombre y la dirección de arriba. Complétalo a mano solo si Google apunta a otro local. Se guarda con el botón "Guardar información".</span>
+            </div>
+
+            <div class="a-sh" style="margin-top:14px;padding-bottom:0;border:0">
+              <div>
+                <div class="a-st" style="font-size:14px">Reseñas de respaldo</div>
+                <div class="a-ss">Solo se muestran si Google todavía no devuelve ninguna reseña con texto. Apenas haya reseñas reales, estas se ocultan solas.</div>
+              </div>
+              <button class="a-btn a-btn-g" id="a-gr-add">+ Agregar</button>
+            </div>
+            <div id="a-gr-manual"></div>
+            <button class="a-btn a-btn-p" id="a-gr-save" style="align-self:flex-start">Guardar reseñas de respaldo</button>
+          </div>
         </div>
 
         <!-- ─ SITE IMAGES ─ -->
@@ -1139,8 +1237,50 @@ html,body{height:100%;font-family:'Inter',sans-serif}
         <div class="a-f"><label class="a-lbl" for="a-sf-tag">Etiqueta</label><select class="a-in" id="a-sf-tag"><option value="">Sin etiqueta</option><option value="Promo">Promo</option><option value="Premium">Premium</option><option value="Nuevo">Nuevo</option></select></div>
         <div class="a-f"><label class="a-lbl" for="a-sp-file">Foto</label><div class="a-pu"><input type="file" accept="image/*" id="a-sp-file"><img id="a-sp-prev" style="display:none;width:48px;height:48px;border-radius:6px;object-fit:cover"><span id="a-sp-lbl">📷 Subir</span></div></div>
       </div>
+      <div id="a-sf-meta" class="a-dz-note" style="display:none"></div>
+      <details class="a-dz" id="a-sf-dz" style="display:none">
+        <summary>Eliminar definitivamente</summary>
+        <div class="a-dz-body">
+          <div class="a-dz-note" id="a-sf-dz-note"></div>
+          <div id="a-sf-dz-confirm" style="display:none">
+            <div class="a-f"><label class="a-lbl" for="a-sf-dz-name">Escribí el nombre exacto para habilitar el borrado</label><input class="a-in" id="a-sf-dz-name" autocomplete="off"></div>
+            <button class="a-btn a-btn-danger" id="a-sf-dz-btn" style="align-self:flex-start;margin-top:8px" disabled>Eliminar para siempre</button>
+          </div>
+        </div>
+      </details>
     </div>
     <div class="a-mf"><button class="a-btn a-btn-g" data-close="a-sm">Cancelar</button><button class="a-btn a-btn-p" id="a-svc-save">Guardar</button></div>
+  </div>
+</div>
+
+<!-- ─ MODAL: AJUSTE MASIVO DE PRECIOS ─ -->
+<div id="a-spm" class="a-mb" role="dialog" aria-modal="true">
+  <div class="a-mo">
+    <div class="a-mh"><div class="a-mt">Ajustar precios</div><button class="a-mc" data-close="a-spm">✕</button></div>
+    <div class="a-mb2">
+      <div class="a-fr">
+        <div class="a-f"><label class="a-lbl" for="a-spm-op">Operación</label>
+          <select class="a-in" id="a-spm-op">
+            <option value="pct+">Aumentar %</option>
+            <option value="pct-">Descontar %</option>
+            <option value="amt+">Sumar monto</option>
+            <option value="amt-">Restar monto</option>
+            <option value="set">Fijar en monto</option>
+          </select>
+        </div>
+        <div class="a-f"><label class="a-lbl" for="a-spm-val">Valor</label><input class="a-in" id="a-spm-val" type="number" min="0" step="100"></div>
+      </div>
+      <div class="a-f"><label class="a-lbl" for="a-spm-round">Redondear resultado</label>
+        <select class="a-in" id="a-spm-round">
+          <option value="0">Sin redondeo</option>
+          <option value="100">Al múltiplo de $100 más cercano</option>
+          <option value="500">Al múltiplo de $500 más cercano</option>
+          <option value="1000">Al múltiplo de $1.000 más cercano</option>
+        </select>
+      </div>
+      <div class="a-bulk-prev" id="a-spm-prev"></div>
+    </div>
+    <div class="a-mf"><button class="a-btn a-btn-g" data-close="a-spm">Cancelar</button><button class="a-btn a-btn-p" id="a-spm-apply">Aplicar</button></div>
   </div>
 </div>
 
@@ -1309,6 +1449,14 @@ var bkView = 'day';
 var bkListSearch = '';
 var bkListSortKey = 'day';
 var bkListSortDir = 'asc';
+// Estado de la tabla de Servicios (solo en memoria de la sesión). key='order'
+// es el orden manual del catálogo (arrastrar / botones ↑↓) y el único con el
+// que se puede reordenar; cualquier otra key es una vista ordenada de solo
+// lectura. svcSel = ids marcados para acciones masivas.
+var svcSort = { key:'order', dir:'asc' };
+var svcSel = [];
+var svcDragId = null;
+var svcSaveT = null;
 // Alcance temporal de la Lista: 'upcoming' (solo próximas, por defecto),
 // 'all' (historial completo) o 'custom' (entre dos fechas). Igual que el
 // resto del estado de la Lista, vive solo en memoria de la sesión.
@@ -1374,6 +1522,30 @@ function defaults(){
     log: [],
     info: JSON.parse(JSON.stringify(DI))
   };
+  normalizeSvcOrder();
+}
+
+// El catálogo se ordena por el entero `order`. A los servicios sin él
+// (creados antes de que el panel tuviera reordenamiento) se les asigna su
+// posición actual; se persiste al primer guardado. Después compacta a
+// 0..n-1 para que arrastrar/↑↓ siempre trabajen con enteros contiguos.
+function normalizeSvcOrder(){
+  var arr = D.services || [];
+  arr.forEach(function(s, i){ if(typeof s.order !== 'number' || isNaN(s.order)) s.order = i; });
+  arr.slice().sort(function(a,b){ return a.order - b.order; })
+     .forEach(function(s, i){ s.order = i; });
+}
+
+// 'order' del catálogo -> copia de D.services ordenada asc.
+function svcOrdered(){
+  return (D.services || []).slice().sort(function(a,b){ return (a.order||0) - (b.order||0); });
+}
+
+// admSave() con debounce -- reordenar con ↑↓ o arrastrando puede disparar
+// muchos cambios seguidos; sin esto sería una ráfaga de escrituras a Firestore.
+function svcSaveSoon(){
+  clearTimeout(svcSaveT);
+  svcSaveT = setTimeout(function(){ admSave(); }, 650);
 }
 
 // ═══ OPEN/CLOSE OVERLAY ═══
@@ -1399,6 +1571,7 @@ async function loadFromCloud(){
     if(!D.staff) D.staff = [];
     if(!D.log) D.log = [];
     if(!D.info) D.info = {};
+    normalizeSvcOrder();
     D.staff.forEach(function(s){
       if(!s.schedule){ s.schedule = JSON.parse(JSON.stringify(DT[0].schedule)); }
     });
@@ -1512,6 +1685,11 @@ function renderAll(){
   renderDash(); renderStats(); renderSvcs(); renderStaff();
   renderSchedule(); renderCalendar(); loadInfo(); updateBadges();
   renderPatients(); updatePatBadge();
+  // Sin await: es una lectura suelta de `googleReviews/main` que solo alimenta
+  // la tarjeta de Info & Contacto -- no debe demorar el render del panel. Se
+  // cachea sola, así que los renderAll() posteriores a cada guardado no
+  // vuelven a leer (ver GR_LOADED).
+  loadGoogleReviewsAdmin();
 }
 
 // Subconjunto de renderAll() que depende solo de BK -- callback de la
@@ -2517,6 +2695,32 @@ function renderStats(){
 }
 
 // ═══ SERVICES ═══
+// Precio por hora -- métrica de auditoría. dur 0/ausente => '—' (no divide).
+function svcPPH(s){
+  var d = s.dur || 0;
+  return d > 0 ? Math.round((s.price || 0) / (d / 60)) : 0;
+}
+function svcWhen(s){
+  if(!s.updatedAt) return '—';
+  var d = new Date(s.updatedAt);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es-CL');
+}
+// Comparadores para la vista ordenada (solo lectura). 'order' no está acá:
+// es el orden manual del catálogo y se maneja aparte (svcOrdered / moveSvc).
+var SVC_CMP = {
+  name: function(a,b){ return (a.name||'').localeCompare(b.name||'', 'es'); },
+  cat: function(a,b){ return (CN[a.cat]||a.cat||'').localeCompare(CN[b.cat]||b.cat||'', 'es'); },
+  dur: function(a,b){ return (a.dur||0) - (b.dur||0); },
+  price: function(a,b){ return (a.price||0) - (b.price||0); },
+  pph: function(a,b){ return svcPPH(a) - svcPPH(b); },
+  status: function(a,b){ return (a.status||'').localeCompare(b.status||''); },
+  updatedAt: function(a,b){ return (a.updatedAt||'').localeCompare(b.updatedAt||''); }
+};
+// Reordenar a mano (arrastrar / ↑↓) solo tiene sentido sobre la lista completa
+// en su orden natural: con filtro de categoría o columna ordenada, mover una
+// fila sería ambiguo.
+function svcReorderable(){ return svcSort.key === 'order' && sCat === 'all'; }
+
 function renderSvcs(){
   var cf = g('a-cf');
   cf.innerHTML = '<button class="a-cft '+(sCat==='all'?'a-cft-on':'')+'" data-c="all">Todos</button>' +
@@ -2526,40 +2730,219 @@ function renderSvcs(){
   cf.querySelectorAll('.a-cft').forEach(function(b){
     b.addEventListener('click', function(){ sCat = b.dataset.c; renderSvcs(); });
   });
-  var fl = sCat === 'all' ? D.services : D.services.filter(function(s){return s.cat===sCat});
+
+  var rows = sCat === 'all' ? D.services.slice() : D.services.filter(function(s){ return s.cat === sCat; });
+  if(svcSort.key === 'order'){
+    rows.sort(function(a,b){ return (a.order||0) - (b.order||0); });
+  } else {
+    var cmp = SVC_CMP[svcSort.key] || SVC_CMP.name;
+    rows.sort(function(a,b){
+      var r = cmp(a,b);
+      if(svcSort.dir === 'desc') r = -r;
+      if(r !== 0) return r;
+      return (a.order||0) - (b.order||0);
+    });
+  }
+
+  document.querySelectorAll('#adm-p-services .a-sort-arrow').forEach(function(sp){
+    sp.classList.remove('a-sort-active'); sp.textContent = '';
+  });
+  var ar = document.querySelector('#adm-p-services .a-sort-arrow[data-sarrow="'+svcSort.key+'"]');
+  if(ar){ ar.classList.add('a-sort-active'); ar.textContent = svcSort.dir === 'asc' ? '▲' : '▼'; }
+  var oh = document.querySelector('#adm-p-services th[data-svcsort="order"]');
+  if(oh) oh.style.color = svcSort.key === 'order' ? 'var(--a-txt)' : '';
+
+  var present = {};
+  D.services.forEach(function(s){ present[s.id] = true; });
+  svcSel = svcSel.filter(function(id){ return present[id]; });
+
   var body = g('a-sb');
-  if(!fl.length){
-    body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#888;padding:24px">No hay servicios.</td></tr>';
+  if(!rows.length){
+    body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#888;padding:24px">No hay servicios'+(sCat==='all'?'.':' en esta categoría.')+'</td></tr>';
+    renderSvcBulkBar(); renderSvcHint(); syncSvcAllChk(rows);
     return;
   }
-  body.innerHTML = fl.map(function(s){
-    return '<tr>'+
-      '<td data-label="Servicio"><div class="a-tn">'+esc(s.name)+'</div>'+(s.tag?'<span class="a-tag a-t'+(s.ts==='s'?'premium':'promo')+'">'+esc(s.tag)+'</span>':'')+'</td>'+
-      '<td data-label="Categoría"><span class="a-tcat">'+esc(CN[s.cat]||s.cat)+'</span></td>'+
-      '<td data-label="Duración"><span class="a-tdur">'+s.dur+'m</span></td>'+
+
+  var canReorder = svcReorderable();
+  body.innerHTML = rows.map(function(s, idx){
+    var sel = svcSel.indexOf(s.id) !== -1;
+    var isActive = s.status === 'active';
+    var tagHtml = s.tag ? ' <span class="a-tag a-t'+(s.ts==='s'?'premium':'promo')+'">'+esc(s.tag)+'</span>' : '';
+    return '<tr data-svc="'+esc(s.id)+'"'+(canReorder?' draggable="true"':'')+'>'+
+      '<td class="a-svc-dc">'+(canReorder?'<span class="a-svc-drag" title="Arrastrar para reordenar">⠿</span>':'')+'</td>'+
+      '<td class="a-svc-cc" data-label="Sel."><input type="checkbox" class="a-svc-chk" data-svcsel="'+esc(s.id)+'"'+(sel?' checked':'')+' aria-label="Seleccionar '+esc(s.name)+'"></td>'+
+      '<td data-label="Servicio"><div class="a-tn">'+esc(s.name)+'</div>'+tagHtml+'</td>'+
+      '<td data-label="Cat."><span class="a-tcat">'+esc(CN[s.cat]||s.cat)+'</span></td>'+
+      '<td data-label="Min."><span class="a-tdur">'+(s.dur||0)+'m</span></td>'+
       '<td data-label="Precio"><span class="a-tp">'+fmtCLP(s.price)+'</span></td>'+
-      '<td data-label="Estado"><span class="a-tag a-t'+(s.status==='active'?'ok':'no')+'">'+(s.status==='active'?'Activo':'Inactivo')+'</span></td>'+
+      '<td data-label="$/hora"><span class="a-svc-pph">'+(s.dur > 0 ? fmtCLP(svcPPH(s)) : '—')+'</span></td>'+
+      '<td data-label="Estado"><span class="a-tag a-t'+(isActive?'ok':'no')+'">'+(isActive?'Activo':'Inactivo')+'</span></td>'+
+      '<td data-label="Editado"><span class="a-svc-when">'+esc(svcWhen(s))+'</span></td>'+
       '<td><div class="a-tacts">'+
-        '<button class="a-btn a-btn-g" data-edit-svc="'+esc(s.id)+'">Editar</button>'+
-        '<button class="a-btn a-btn-danger" data-del-svc="'+esc(s.id)+'">✕<span class="a-bl">Eliminar</span></button>'+
+        '<span class="a-svc-ord">'+
+          '<button data-svcup="'+esc(s.id)+'" title="Subir" aria-label="Subir"'+((canReorder && idx > 0)?'':' disabled')+'>▲</button>'+
+          '<button data-svcdown="'+esc(s.id)+'" title="Bajar" aria-label="Bajar"'+((canReorder && idx < rows.length-1)?'':' disabled')+'>▼</button>'+
+        '</span>'+
+        '<button class="a-btn a-btn-g" data-edit-svc="'+esc(s.id)+'">✎<span class="a-bl"> Editar</span></button>'+
+        '<button class="a-btn a-btn-g" data-dup-svc="'+esc(s.id)+'">⧉<span class="a-bl"> Duplicar</span></button>'+
+        (isActive
+          ? '<button class="a-btn a-btn-danger" data-retire-svc="'+esc(s.id)+'">Retirar</button>'
+          : '<button class="a-btn a-btn-g" data-react-svc="'+esc(s.id)+'">Reactivar</button>')+
       '</div></td>'+
     '</tr>';
   }).join('');
+
   body.querySelectorAll('[data-edit-svc]').forEach(function(b){
     b.addEventListener('click', function(){ openSvcModal(D.services.find(function(s){return s.id===b.dataset.editSvc})); });
   });
-  body.querySelectorAll('[data-del-svc]').forEach(function(b){
-    b.addEventListener('click', function(){
-      var s = D.services.find(function(x){return x.id===b.dataset.delSvc});
-      if(!s) return;
-      openDel('¿Eliminar el servicio "<strong>'+esc(s.name)+'</strong>"?', function(){
-        D.services = D.services.filter(function(x){return x.id!==s.id});
-        log('Eliminó servicio', s.name);
-        renderSvcs(); renderDash(); updateBadges();
-        showAlert('a-svc-alert','ok','Servicio eliminado.');
-      });
+  body.querySelectorAll('[data-dup-svc]').forEach(function(b){
+    b.addEventListener('click', function(){ dupSvc(b.dataset.dupSvc); });
+  });
+  body.querySelectorAll('[data-retire-svc]').forEach(function(b){
+    b.addEventListener('click', function(){ setSvcStatus(b.dataset.retireSvc, 'inactive'); });
+  });
+  body.querySelectorAll('[data-react-svc]').forEach(function(b){
+    b.addEventListener('click', function(){ setSvcStatus(b.dataset.reactSvc, 'active'); });
+  });
+  body.querySelectorAll('[data-svcup]').forEach(function(b){
+    b.addEventListener('click', function(){ moveSvc(b.dataset.svcup, -1); });
+  });
+  body.querySelectorAll('[data-svcdown]').forEach(function(b){
+    b.addEventListener('click', function(){ moveSvc(b.dataset.svcdown, 1); });
+  });
+  body.querySelectorAll('[data-svcsel]').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      var id = cb.dataset.svcsel, i = svcSel.indexOf(id);
+      if(cb.checked && i === -1) svcSel.push(id);
+      else if(!cb.checked && i !== -1) svcSel.splice(i, 1);
+      renderSvcBulkBar(); syncSvcAllChk(rows);
     });
   });
+  if(canReorder) wireSvcDrag(body);
+
+  renderSvcBulkBar();
+  renderSvcHint();
+  syncSvcAllChk(rows);
+}
+
+function syncSvcAllChk(rows){
+  var all = g('a-svc-all');
+  if(!all) return;
+  var picked = rows.filter(function(s){ return svcSel.indexOf(s.id) !== -1; }).length;
+  all.checked = rows.length > 0 && picked === rows.length;
+  all.indeterminate = picked > 0 && picked < rows.length;
+}
+
+function renderSvcHint(){
+  var h = g('a-svc-hint');
+  if(!h) return;
+  if(svcSort.key === 'order' && sCat === 'all'){ h.style.display = 'none'; h.innerHTML = ''; return; }
+  h.style.display = 'flex';
+  var why = svcSort.key !== 'order' ? 'quita el orden por columna' : 'pon el filtro en «Todos»';
+  h.innerHTML = 'Para reordenar el catálogo a mano, '+why+'. '+
+    '<button class="a-btn a-btn-g" id="a-svc-hint-reset">↕ Volver al orden manual</button>';
+  var rb = g('a-svc-hint-reset');
+  if(rb) rb.addEventListener('click', function(){ svcSort = {key:'order', dir:'asc'}; sCat = 'all'; renderSvcs(); });
+}
+
+function renderSvcBulkBar(){
+  var bar = g('a-svc-bulk');
+  if(!bar) return;
+  var n = svcSel.length;
+  if(!n){ bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  g('a-svc-bulk-n').textContent = n + (n === 1 ? ' servicio seleccionado' : ' servicios seleccionados');
+}
+
+// ↑ / ↓ : intercambia el `order` con el vecino y recompacta 0..n-1.
+function moveSvc(id, dir){
+  if(!svcReorderable()) return;
+  var ord = svcOrdered();
+  var i = ord.findIndex(function(s){ return s.id === id; });
+  var j = i + dir;
+  if(i < 0 || j < 0 || j >= ord.length) return;
+  var t = ord[i].order; ord[i].order = ord[j].order; ord[j].order = t;
+  normalizeSvcOrder();
+  renderSvcs();
+  svcSaveSoon();
+}
+
+function wireSvcDrag(body){
+  body.querySelectorAll('tr[data-svc]').forEach(function(tr){
+    tr.addEventListener('dragstart', function(e){
+      svcDragId = tr.dataset.svc;
+      tr.classList.add('a-svc-dragging');
+      if(e.dataTransfer){ e.dataTransfer.effectAllowed = 'move'; try{ e.dataTransfer.setData('text/plain', svcDragId); }catch(_){} }
+    });
+    tr.addEventListener('dragend', function(){
+      svcDragId = null;
+      body.querySelectorAll('tr').forEach(function(r){ r.classList.remove('a-svc-dragging','a-svc-dropbefore','a-svc-dropafter'); });
+    });
+    tr.addEventListener('dragover', function(e){
+      if(!svcDragId || tr.dataset.svc === svcDragId) return;
+      e.preventDefault();
+      var rect = tr.getBoundingClientRect();
+      var after = (e.clientY - rect.top) > rect.height / 2;
+      tr.classList.toggle('a-svc-dropbefore', !after);
+      tr.classList.toggle('a-svc-dropafter', after);
+    });
+    tr.addEventListener('dragleave', function(){
+      tr.classList.remove('a-svc-dropbefore','a-svc-dropafter');
+    });
+    tr.addEventListener('drop', function(e){
+      e.preventDefault();
+      if(!svcDragId || tr.dataset.svc === svcDragId) return;
+      var rect = tr.getBoundingClientRect();
+      var after = (e.clientY - rect.top) > rect.height / 2;
+      dropSvc(svcDragId, tr.dataset.svc, after);
+    });
+  });
+}
+
+// Reubica `dragId` antes/después de `targetId` en el orden global y recompacta.
+// Solo se llama con la lista completa visible (svcReorderable()).
+function dropSvc(dragId, targetId, after){
+  var ord = svcOrdered();
+  var ids = ord.map(function(s){ return s.id; }).filter(function(x){ return x !== dragId; });
+  var ti = ids.indexOf(targetId);
+  if(ti < 0) return;
+  ids.splice(after ? ti + 1 : ti, 0, dragId);
+  var pos = {};
+  ids.forEach(function(id, i){ pos[id] = i; });
+  D.services.forEach(function(s){ if(pos[s.id] != null) s.order = pos[s.id]; });
+  normalizeSvcOrder();
+  renderSvcs();
+  svcSaveSoon();
+}
+
+function setSvcStatus(id, status){
+  var s = D.services.find(function(x){ return x.id === id; });
+  if(!s || s.status === status) return;
+  s.status = status;
+  s.updatedAt = new Date().toISOString();
+  renderSvcs(); renderDash(); updateBadges();
+  log(status === 'inactive' ? 'Retiró servicio' : 'Reactivó servicio', s.name);
+  showAlert('a-svc-alert', 'ok', status === 'inactive'
+    ? '"'+s.name+'" retirado. Ya no aparece en el widget de reservas.'
+    : '"'+s.name+'" reactivado.');
+}
+
+function dupSvc(id){
+  var s = D.services.find(function(x){ return x.id === id; });
+  if(!s) return;
+  var clone = JSON.parse(JSON.stringify(s));
+  clone.id = 'sv_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  clone.name = s.name + ' (copia)';
+  clone.status = 'inactive';
+  clone.updatedAt = new Date().toISOString();
+  var base = (typeof s.order === 'number') ? s.order : 0;
+  D.services.forEach(function(x){ if(typeof x.order === 'number' && x.order > base) x.order += 1; });
+  clone.order = base + 1;
+  D.services.push(clone);
+  normalizeSvcOrder();
+  renderSvcs(); renderDash(); updateBadges();
+  openSvcModal(clone);
+  log('Duplicó servicio', s.name);
 }
 
 function openSvcModal(s){
@@ -2569,14 +2952,45 @@ function openSvcModal(s){
   g('a-sf-c').value = s ? s.cat : 'c';
   g('a-sf-p').value = s ? s.price : '';
   g('a-sf-d').value = s ? s.dur : '';
-  g('a-sf-desc').value = s ? s.desc : '';
-  g('a-sf-tag').value = s ? s.tag : '';
+  g('a-sf-desc').value = s ? (s.desc || '') : '';
+  g('a-sf-tag').value = s ? (s.tag || '') : '';
   g('a-sf-st').value = s ? s.status : 'active';
   svcPh = s && s.photo ? s.photo : '';
   var prev = g('a-sp-prev'), lbl = g('a-sp-lbl');
   if(svcPh){ prev.src = svcPh; prev.style.display='block'; lbl.style.display='none'; }
   else { prev.style.display='none'; lbl.style.display='block'; }
   document.querySelectorAll('#a-sm .a-f').forEach(function(f){f.classList.remove('a-err')});
+
+  var meta = g('a-sf-meta'), dz = g('a-sf-dz');
+  if(s && s.updatedAt){ meta.style.display = 'block'; meta.textContent = 'Última modificación: ' + svcWhen(s); }
+  else { meta.style.display = 'none'; }
+
+  if(s){
+    dz.style.display = 'block';
+    dz.open = false;
+    var note = g('a-sf-dz-note'), confirmBox = g('a-sf-dz-confirm'), nameIn = g('a-sf-dz-name'), btn = g('a-sf-dz-btn');
+    nameIn.value = ''; btn.disabled = true;
+    if(s.status === 'active'){
+      note.textContent = 'Primero retirá el servicio (queda inactivo y sale del widget). Solo un servicio ya retirado se puede eliminar definitivamente.';
+      confirmBox.style.display = 'none';
+    } else {
+      note.textContent = 'Esto borra el servicio del catálogo para siempre. El historial de reservas conserva el nombre y el precio con que se agendó, pero el servicio no se podrá recuperar.';
+      confirmBox.style.display = 'block';
+      nameIn.oninput = function(){ btn.disabled = nameIn.value.trim() !== s.name; };
+      btn.onclick = function(){
+        if(nameIn.value.trim() !== s.name) return;
+        openDel('¿Eliminar para siempre el servicio "<strong>'+esc(s.name)+'</strong>"? No se puede deshacer.', function(){
+          D.services = D.services.filter(function(x){ return x.id !== s.id; });
+          normalizeSvcOrder();
+          closeModal('a-sm');
+          renderSvcs(); renderDash(); updateBadges();
+          log('Eliminó servicio (definitivo)', s.name);
+          showAlert('a-svc-alert', 'ok', '"'+s.name+'" eliminado definitivamente.');
+        });
+      };
+    }
+  } else { dz.style.display = 'none'; }
+
   openModal('a-sm');
 }
 g('a-svc-new').addEventListener('click', function(){ openSvcModal(null); });
@@ -2584,11 +2998,12 @@ g('a-svc-save').addEventListener('click', async function(){
   var ne = g('a-sf-n'), pe = g('a-sf-p'), de = g('a-sf-d'), ok = true;
   [ne,pe,de].forEach(function(el){el.parentElement.classList.remove('a-err')});
   if(!ne.value.trim()){ ne.parentElement.classList.add('a-err'); ok=false; }
-  if(!pe.value || isNaN(pe.value)){ pe.parentElement.classList.add('a-err'); ok=false; }
-  if(!de.value || isNaN(de.value)){ de.parentElement.classList.add('a-err'); ok=false; }
+  if(!pe.value || isNaN(pe.value) || parseInt(pe.value) < 0){ pe.parentElement.classList.add('a-err'); ok=false; }
+  if(!de.value || isNaN(de.value) || parseInt(de.value) < 5){ de.parentElement.classList.add('a-err'); ok=false; }
   if(!ok) return;
   var eid = g('a-se-id').value;
   var tag = g('a-sf-tag').value;
+  var prevSvc = eid ? D.services.find(function(x){ return x.id === eid; }) : null;
   var s = {
     id: eid || 'sv_'+Date.now(),
     name: ne.value.trim(), cat: g('a-sf-c').value,
@@ -2596,7 +3011,9 @@ g('a-svc-save').addEventListener('click', async function(){
     desc: g('a-sf-desc').value.trim(),
     tag: tag, ts: tag==='Premium'?'s':'p',
     status: g('a-sf-st').value,
-    photo: svcPh
+    photo: svcPh,
+    order: prevSvc && typeof prevSvc.order === 'number' ? prevSvc.order : D.services.length,
+    updatedAt: new Date().toISOString()
   };
   if(eid){
     var i = D.services.findIndex(function(x){return x.id===eid});
@@ -2604,6 +3021,7 @@ g('a-svc-save').addEventListener('click', async function(){
   } else {
     D.services.push(s);
   }
+  normalizeSvcOrder();
   closeModal('a-sm');
   renderSvcs(); renderDash(); updateBadges();
   var res = await log(eid ? 'Editó servicio' : 'Creó servicio', s.name);
@@ -2618,6 +3036,101 @@ g('a-sp-file').addEventListener('change', function(e){
     g('a-sp-lbl').style.display = 'none';
   };
   r.readAsDataURL(f);
+});
+
+// — encabezados ordenables de la tabla de Servicios —
+document.querySelectorAll('#adm-p-services th[data-svcsort]').forEach(function(th){
+  th.addEventListener('click', function(){
+    var key = th.dataset.svcsort;
+    if(key === 'order') svcSort = { key:'order', dir:'asc' };
+    else if(svcSort.key === key) svcSort.dir = svcSort.dir === 'asc' ? 'desc' : 'asc';
+    else svcSort = { key:key, dir:'asc' };
+    renderSvcs();
+  });
+});
+
+// — "seleccionar todos" (los visibles) —
+g('a-svc-all').addEventListener('change', function(){
+  var rows = sCat === 'all' ? D.services : D.services.filter(function(s){ return s.cat === sCat; });
+  if(this.checked){
+    rows.forEach(function(s){ if(svcSel.indexOf(s.id) === -1) svcSel.push(s.id); });
+  } else {
+    var vis = {}; rows.forEach(function(s){ vis[s.id] = true; });
+    svcSel = svcSel.filter(function(id){ return !vis[id]; });
+  }
+  renderSvcs();
+});
+
+// — barra de acciones masivas —
+g('a-svc-bulk-clear').addEventListener('click', function(){ svcSel = []; renderSvcs(); });
+g('a-svc-bulk-retire').addEventListener('click', function(){
+  var ids = svcSel.slice();
+  var names = ids.map(function(id){ var s = D.services.find(function(x){return x.id===id;}); return s ? s.name : null; }).filter(Boolean);
+  if(!names.length) return;
+  openDel('¿Retirar '+names.length+(names.length===1?' servicio':' servicios')+'? Quedan inactivos y salen del widget de reservas; se pueden reactivar.', function(){
+    var now = new Date().toISOString();
+    ids.forEach(function(id){
+      var s = D.services.find(function(x){ return x.id === id; });
+      if(s && s.status !== 'inactive'){ s.status = 'inactive'; s.updatedAt = now; }
+    });
+    svcSel = [];
+    renderSvcs(); renderDash(); updateBadges();
+    log('Retiró servicios', names.length + ' servicio(s)');
+    showAlert('a-svc-alert', 'ok', names.length + ' servicio(s) retirado(s).');
+  });
+});
+
+// — ajuste masivo de precios —
+function svcNewPrice(old, op, val, round){
+  var n = old || 0;
+  val = val || 0;
+  if(op === 'pct+') n = n * (1 + val/100);
+  else if(op === 'pct-') n = n * (1 - val/100);
+  else if(op === 'amt+') n = n + val;
+  else if(op === 'amt-') n = n - val;
+  else if(op === 'set') n = val;
+  n = Math.round(n);
+  if(round > 0) n = Math.round(n / round) * round;
+  return Math.max(0, n);
+}
+function svcBulkTargets(){
+  return svcSel.map(function(id){ return D.services.find(function(x){ return x.id === id; }); }).filter(Boolean);
+}
+function renderBulkPreview(){
+  var op = g('a-spm-op').value, val = parseFloat(g('a-spm-val').value) || 0, round = parseInt(g('a-spm-round').value) || 0;
+  var rows = svcBulkTargets().map(function(s){
+    var np = svcNewPrice(s.price, op, val, round);
+    return '<tr><td>'+esc(s.name)+'</td><td><span class="a-bp-old">'+fmtCLP(s.price)+'</span>'+fmtCLP(np)+'</td></tr>';
+  }).join('');
+  g('a-spm-prev').innerHTML = '<table><tbody>'+(rows || '<tr><td>Sin servicios seleccionados.</td><td></td></tr>')+'</tbody></table>';
+}
+g('a-svc-bulk-price').addEventListener('click', function(){
+  if(!svcSel.length) return;
+  g('a-spm-val').value = '';
+  g('a-spm-op').value = 'pct+';
+  g('a-spm-round').value = '0';
+  renderBulkPreview();
+  openModal('a-spm');
+});
+['a-spm-op','a-spm-val','a-spm-round'].forEach(function(id){
+  g(id).addEventListener('input', renderBulkPreview);
+  g(id).addEventListener('change', renderBulkPreview);
+});
+g('a-spm-apply').addEventListener('click', async function(){
+  var op = g('a-spm-op').value, val = parseFloat(g('a-spm-val').value) || 0, round = parseInt(g('a-spm-round').value) || 0;
+  var targets = svcBulkTargets();
+  if(!targets.length){ closeModal('a-spm'); return; }
+  var now = new Date().toISOString();
+  var changed = 0;
+  targets.forEach(function(s){
+    var np = svcNewPrice(s.price, op, val, round);
+    if(np !== s.price){ s.price = np; s.updatedAt = now; changed++; }
+  });
+  closeModal('a-spm');
+  renderSvcs(); renderDash(); updateBadges();
+  if(!changed){ showAlert('a-svc-alert', 'ok', 'Sin cambios de precio.'); return; }
+  var res = await log('Ajuste masivo de precios', changed + ' servicio(s)');
+  showAlert('a-svc-alert', res.ok ? 'ok' : 'err', res.ok ? changed + ' precio(s) actualizado(s).' : 'No se pudo guardar. Reintentá.');
 });
 
 // ═══ STAFF ═══
@@ -2847,7 +3360,7 @@ const TZ_OPTIONS = [
 
 function loadInfo(){
   var f = D.info || {};
-  ['name','addr','phone','ig','slogan','desc'].forEach(function(k){
+  ['name','addr','phone','ig','slogan','desc','googlePlaceId'].forEach(function(k){
     var el = g('ai-'+k); if(el && f[k]) el.value = f[k];
   });
   var tzSel = g('ai-tz');
@@ -2874,9 +3387,171 @@ g('ai-save').addEventListener('click', async function(){
     slogan: g('ai-slogan').value, desc: g('ai-desc').value,
     tz: g('ai-tz').value,
     bufferMin: parseInt(g('ai-bufferMin').value, 10) || 0,
+    // Vacío es un valor válido y significa "resolvelo solo": la Cloud
+    // Function busca la ficha por nombre + dirección y persiste acá el id que
+    // encuentre, así que si este guardado lo borra, la próxima sincronización
+    // lo vuelve a dejar puesto.
+    googlePlaceId: g('ai-googlePlaceId').value.trim(),
   };
   var res = await log('Actualizó info', 'Datos del negocio');
   showAlert('a-bk-alert', res.ok ? 'ok' : 'err', res.ok ? 'Información guardada.' : 'No se pudo guardar. Reintentá.');
+});
+
+// ═══ RESEÑAS DE GOOGLE ═══
+// El doc `googleReviews/main` lo escribe la Cloud Function (Places API); acá
+// solo se lee para mostrar el estado, y se escribe el campo `manualReviews`,
+// que ninguna sincronización pisa (ver saveManualReviews en js/data.js).
+var GR = null;        // última lectura del doc
+var GR_MANUAL = [];   // borrador editable de las reseñas de respaldo
+var GR_LOADED = false;
+
+function grFmtDate(iso){
+  var t = Date.parse(iso || '');
+  return isFinite(t) ? new Date(t).toLocaleString('es-CL') : '—';
+}
+
+function renderGrState(){
+  var el = g('a-gr-state'); if(!el) return;
+  if(!GR){
+    el.innerHTML = '<strong>Todavía no se ha sincronizado.</strong><br>' +
+      'Apretá "Sincronizar ahora" para traer las reseñas del perfil de Google. ' +
+      'Si aún no está configurada la clave de Google Places, usá las reseñas de respaldo de más abajo.';
+    return;
+  }
+  var n = (GR.reviews || []).length;
+  el.innerHTML =
+    '<strong>' + esc(GR.name || 'Perfil de Google') + '</strong> — ' +
+    (Number(GR.rating) || 0).toLocaleString('es-CL', {minimumFractionDigits:1, maximumFractionDigits:1}) +
+    ' ★ sobre ' + (Number(GR.userRatingCount) || 0).toLocaleString('es-CL') + ' opiniones<br>' +
+    n + (n === 1 ? ' reseña con texto publicada' : ' reseñas con texto publicadas') + ' en el sitio · ' +
+    'Última sincronización: ' + esc(grFmtDate(GR.fetchedAt)) +
+    (GR.placeId ? '<br>Place ID: <code>' + esc(GR.placeId) + '</code>' : '');
+}
+
+function renderManualReviews(){
+  var box = g('a-gr-manual'); if(!box) return;
+  if(!GR_MANUAL.length){
+    box.innerHTML = '<div style="font-size:12.5px;color:var(--a-meta);padding:10px 0">' +
+      'Sin reseñas de respaldo. Mientras Google no devuelva ninguna, la sección de reseñas no se muestra en el sitio.</div>';
+    return;
+  }
+  box.innerHTML = GR_MANUAL.map(function(r, i){
+    var stars = [1,2,3,4,5].map(function(v){
+      return '<option value="' + v + '"' + (Number(r.rating) === v ? ' selected' : '') + '>' + v + ' ★</option>';
+    }).join('');
+    return '<div class="a-f" style="border:1px solid var(--a-g200);border-radius:8px;padding:12px;margin-bottom:10px">' +
+      '<div class="a-fr">' +
+        '<div class="a-f"><label class="a-lbl">Nombre</label>' +
+          '<input class="a-in" data-gr-i="' + i + '" data-gr-k="author" value="' + esc(r.author || '') + '"></div>' +
+        '<div class="a-f"><label class="a-lbl">Puntaje</label>' +
+          '<select class="a-in" data-gr-i="' + i + '" data-gr-k="rating">' + stars + '</select></div>' +
+      '</div>' +
+      '<label class="a-lbl">Reseña</label>' +
+      '<textarea class="a-in a-ta" rows="3" data-gr-i="' + i + '" data-gr-k="text">' + esc(r.text || '') + '</textarea>' +
+      '<button class="a-btn a-btn-g" data-gr-del="' + i + '" style="align-self:flex-start;margin-top:8px">Eliminar</button>' +
+    '</div>';
+  }).join('');
+}
+
+async function loadGoogleReviewsAdmin(force){
+  // Una sola lectura por sesión salvo que se pida de nuevo: renderAll() corre
+  // después de cada guardado y no tiene sentido releer este doc cada vez.
+  if(GR_LOADED && !force) return;
+  if(!window.SWData || !window.SWData.loadGoogleReviews) return;
+  try{
+    GR = await window.SWData.loadGoogleReviews();
+    GR_LOADED = true;
+    GR_MANUAL = (GR && Array.isArray(GR.manualReviews)) ? GR.manualReviews.slice() : [];
+    renderGrState();
+    renderManualReviews();
+  }catch(e){
+    console.error('No se pudieron leer las reseñas de Google', e);
+  }
+}
+
+g('a-gr-sync').addEventListener('click', async function(){
+  var btn = this;
+  btn.disabled = true;
+  var prev = btn.textContent;
+  btn.textContent = 'Sincronizando…';
+  try{
+    // Sin `force`: deja actuar el guard de frescura de la Cloud Function. Cada
+    // llamada a Places se factura, y el cron diario ya mantiene esto al día --
+    // el botón es para ver un cambio recién publicado, no para repetirse.
+    var res = await window.SWData.syncGoogleReviews(false);
+    if(res && res.skipped === 'fresh'){
+      // No es un error ni un fallo silencioso: se dice cuándo fue la última
+      // sincronización para que se note que el dato ya está al día.
+      showAlert('a-gr-alert', 'ok', 'Ya estaba al día (última sincronización: ' + grFmtDate(res.fetchedAt) + '). Se puede volver a intentar en unos minutos.');
+    }else if(res && res.ok){
+      await loadGoogleReviewsAdmin(true);
+      showAlert('a-gr-alert', 'ok', 'Listo: ' + (res.reviews || 0) + ' reseñas traídas desde Google.');
+      await log('Sincronizó reseñas', 'Google Business');
+    }else if(res && res.reason === 'place-not-found'){
+      showAlert('a-gr-alert', 'err', 'No se encontró la ficha en Google. Revisá el nombre y la dirección, o pegá el Place ID a mano.');
+    }else{
+      showAlert('a-gr-alert', 'err', 'No se pudo sincronizar. Reintentá.');
+    }
+  }catch(e){
+    // El mensaje de Places ('API key not valid', 'Places API has not been
+    // used in project...') es justo lo que necesita ver quien está
+    // configurando esto por primera vez.
+    var msg = (e && e.message) ? e.message : 'Error desconocido';
+    if(e && e.code === 'functions/permission-denied') msg = 'Tu sesión no tiene permisos de administrador.';
+    showAlert('a-gr-alert', 'err', msg);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = prev;
+  }
+});
+
+g('a-gr-add').addEventListener('click', function(){
+  GR_MANUAL.push({author:'', rating:5, text:''});
+  renderManualReviews();
+});
+
+g('a-gr-manual').addEventListener('input', function(e){
+  var el = e.target;
+  var i = el.getAttribute('data-gr-i');
+  if(i === null) return;
+  var k = el.getAttribute('data-gr-k');
+  GR_MANUAL[Number(i)][k] = (k === 'rating') ? Number(el.value) : el.value;
+});
+g('a-gr-manual').addEventListener('change', function(e){
+  var el = e.target;
+  var i = el.getAttribute('data-gr-i');
+  if(i === null || el.getAttribute('data-gr-k') !== 'rating') return;
+  GR_MANUAL[Number(i)].rating = Number(el.value);
+});
+g('a-gr-manual').addEventListener('click', function(e){
+  var del = e.target.getAttribute && e.target.getAttribute('data-gr-del');
+  if(del === null || del === undefined) return;
+  GR_MANUAL.splice(Number(del), 1);
+  renderManualReviews();
+});
+
+g('a-gr-save').addEventListener('click', async function(){
+  // Una reseña sin texto no se puede dibujar: se descartan al guardar en vez
+  // de dejar filas vacías que el sitio tendría que filtrar de nuevo.
+  var clean = GR_MANUAL
+    .map(function(r){
+      return {
+        author: (r.author || '').trim(),
+        rating: Number(r.rating) || 5,
+        text: (r.text || '').trim(),
+        publishTime: r.publishTime || new Date().toISOString(),
+      };
+    })
+    .filter(function(r){ return r.text; });
+  try{
+    await window.SWData.saveManualReviews(clean);
+    GR_MANUAL = clean;
+    renderManualReviews();
+    showAlert('a-gr-alert', 'ok', clean.length + ' reseñas de respaldo guardadas.');
+    await log('Editó reseñas de respaldo', clean.length + ' reseñas');
+  }catch(e){
+    showAlert('a-gr-alert', 'err', 'No se pudieron guardar. Reintentá.');
+  }
 });
 
 // ═══ SITE IMAGES ═══
@@ -3010,7 +3685,7 @@ function closeModal(id){
 document.querySelectorAll('[data-close]').forEach(function(b){
   b.addEventListener('click', function(){ closeModal(b.dataset.close); });
 });
-['a-sm','a-stm','a-bkm','a-blkm','a-rm','a-dm'].forEach(function(id){
+['a-sm','a-stm','a-bkm','a-blkm','a-rm','a-dm','a-spm'].forEach(function(id){
   g(id).addEventListener('click', function(e){ if(e.target === g(id)) closeModal(id); });
 });
 

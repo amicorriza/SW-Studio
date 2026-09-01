@@ -40,3 +40,6 @@ graphify-out/
 # Nunca versionar, y nunca mover a public/ -- esa carpeta se publica entera en
 # Firebase Hosting y quedarían accesibles desde internet.
 *auditoria*.html
+
+# Capturas de los scripts de verificación en navegador (tests/browser/)
+.tmp-screenshots/

@@ -263,12 +263,46 @@ function subscribeAvailability(dateKey, onChange, onError) {
   });
 }
 
+// ══ RESEÑAS DE GOOGLE ══
+// `googleReviews/main` es el espejo del perfil de Google Business que
+// mantienen las Cloud Functions refreshGoogleReviews (diaria) y
+// syncGoogleReviews (botón del panel). Lectura pública, igual que
+// availability: el visitante nunca habla con Google ni ve una API key.
+//
+// El doc trae DOS listas y no una por accidente: `reviews` son las que
+// devuelve Places, y `manualReviews` es la lista curada que el panel guarda
+// en el mismo doc y que ninguna sincronización pisa. Cuál se muestra lo
+// decide el landing (ver pickReviews en public/index.html), no esta capa --
+// acá solo se devuelve lo que hay en Firestore.
+async function loadGoogleReviews() {
+  const snap = await getDoc(doc(db, 'googleReviews', 'main'));
+  return snap.exists() ? snap.data() : null;
+}
+
+// Guarda solo la lista curada del panel. `merge: true` es obligatorio, no
+// una optimización: sin él este set borraría rating/userRatingCount/reviews
+// que escribió la Cloud Function, y la sección quedaría sin el total real
+// del perfil hasta la próxima corrida del cron.
+async function saveManualReviews(manualReviews) {
+  await setDoc(doc(db, 'googleReviews', 'main'), { manualReviews }, { merge: true });
+}
+
+// Dispara la sincronización con Google a pedido (botón del panel). Es
+// callable y admin-only porque cada llamada se factura contra la cuenta de
+// Places del cliente.
+async function syncGoogleReviews(force = false) {
+  const call = httpsCallable(functions, 'syncGoogleReviews');
+  const { data } = await call({ force });
+  return data;
+}
+
 window.SWData = {
   loadAdmin, saveAdmin, loadCatalog, getBookings, saveBooking, deleteBooking, subscribeBookings, createBooking,
   getPatients, savePatients, deletePatient,
   uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability, subscribeAvailability,
   loadSiteImages, saveSiteImage, deleteSiteImage,
   getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
+  loadGoogleReviews, saveManualReviews, syncGoogleReviews,
 };
 export {
   loadAdmin, saveAdmin, loadCatalog, getBookings, saveBooking, deleteBooking, subscribeBookings, createBooking,
@@ -276,4 +310,5 @@ export {
   uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability, subscribeAvailability,
   loadSiteImages, saveSiteImage, deleteSiteImage,
   getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
+  loadGoogleReviews, saveManualReviews, syncGoogleReviews,
 };

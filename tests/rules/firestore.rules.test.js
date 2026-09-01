@@ -126,3 +126,32 @@ test('admin SÍ puede crear una reserva con email válido', async () => {
   const db = env.authenticatedContext('admin1', { admin: true }).firestore();
   await assertSucceeds(setDoc(doc(db, 'bookings/adm3'), { code: 'SW-ADM3', name: 'Cliente', email: 'cliente@test.cl' }));
 });
+
+// ── Reseñas de Google ──
+// Espejo público del perfil de Google Business: el landing lo lee para TODOS
+// los visitantes, así que la lectura anónima es el caso normal, no una fuga.
+test('cualquiera puede leer googleReviews (la sección de reseñas del landing la pinta para todos)', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertSucceeds(getDoc(doc(db, 'googleReviews/main')));
+});
+
+test('anónimo NO puede escribir googleReviews', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertFails(setDoc(doc(db, 'googleReviews/main'), { rating: 5, userRatingCount: 999 }));
+});
+
+// Sin esta regla, cualquiera con una cuenta creada por el registro público de
+// Auth podría inflar el puntaje que muestra la portada.
+test('autenticado sin claim admin NO puede escribir googleReviews', async () => {
+  const db = env.authenticatedContext('staff1').firestore();
+  await assertFails(setDoc(doc(db, 'googleReviews/main'), { rating: 5 }));
+});
+
+// El admin escribe solo `manualReviews` (las reseñas de respaldo del panel);
+// el resto del doc lo mantiene la Cloud Function con Admin SDK.
+test('admin SÍ puede escribir googleReviews (reseñas de respaldo del panel)', async () => {
+  const db = env.authenticatedContext('admin1', { admin: true }).firestore();
+  await assertSucceeds(setDoc(doc(db, 'googleReviews/main'), {
+    manualReviews: [{ author: 'Cliente', rating: 5, text: 'Excelente.' }],
+  }, { merge: true }));
+});

@@ -26,6 +26,8 @@
     "description":"Barbería premium en Concepción especializada en asesoría de imagen con visagismo, corte de cabello, corte con tijeras (mullet, moicano, mod cut, shaggy, warrior cut), corte con perfilado de barba, lavado premium Reuzel y undercut mujer. Productos Slick Gorilla disponibles.",
     "slogan":"Más que cortes, creamos identidad",
     "url":"https://scissorwhite.cl",
+    "telephone":"+56982514114",
+    "image":"https://scissorwhite.cl/assets/og-image.jpg",
     "priceRange":"$8.000 - $65.000",
     "currenciesAccepted":"CLP",
     "paymentAccepted":"Efectivo, Tarjeta de Crédito, Tarjeta de Débito, Transferencia",
@@ -138,6 +140,11 @@
     html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
     body{background:var(--white);color:var(--text-primary);font-family:'Inter',sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
     img{max-width:100%}
+    /* El atributo `hidden` lo pone la UA con especificidad (0,1,0), así que
+       cualquier regla de autor como `.mob a{display:block}` lo pisa y el
+       elemento reaparece. Los enlaces a #resenas viven ocultos hasta que la
+       sección confirma que tiene datos, así que esto no es cosmético. */
+    [hidden]{display:none!important}
     ::-webkit-scrollbar{width:3px}
     ::-webkit-scrollbar-thumb{background:var(--steel-mid)}
 
@@ -1064,6 +1071,224 @@
     .rev{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s ease}
     .rev.vis{opacity:1;transform:translateY(0)}
 
+    /* ══ RESEÑAS DE GOOGLE ══
+       Sección oscura entre `.partner` (off-white) y `.book` (blanco): el
+       contraste la aísla como "un momento" y pone la prueba social justo
+       antes del CTA de agendar, que es donde decide el visitante.
+
+       `section#resenas` y no `#resenas` a secas: el bloque RESPONSIVE de más
+       abajo redefine `section{padding:80px 32px}` y, con la misma
+       especificidad, ganaría por orden de aparición. El padding lateral acá
+       es 0 porque el carrusel sangra de borde a borde -- el contenido con
+       ancho de lectura lo limita `.gr-inner`. */
+    section#resenas{
+      background:var(--ink);color:#fff;
+      padding:120px 0;position:relative;overflow:hidden
+    }
+    /* Resplandor de acero: da profundidad al negro plano sin cargar una
+       imagen más. `pointer-events:none` para que nunca coma clics. */
+    .gr-glow{
+      position:absolute;top:-30%;left:50%;transform:translateX(-50%);
+      width:min(1100px,120%);height:70%;pointer-events:none;
+      background:radial-gradient(ellipse at center,rgba(154,170,187,.16) 0%,rgba(154,170,187,.05) 42%,transparent 70%)
+    }
+    .gr-inner{max-width:1200px;margin:0 auto;padding:0 60px;position:relative;z-index:1}
+    .gr-head{max-width:640px}
+    /* `.s-ey`/`.s-ti`/`.s-rule` traen los colores del fondo CLARO (#4E5A68,
+       #111). Sobre el negro de esta sección, el texto plano del título queda
+       casi invisible -- solo el <em> se ve, porque ese pinta con el gradiente
+       de acero. Las otras dos secciones oscuras del sitio hacen exactamente
+       este mismo override (`.ab-dark`, `.svc`); esta necesita el suyo. */
+    section#resenas .s-ey{color:var(--steel-light)}
+    section#resenas .s-ti{color:#fff}
+    section#resenas .s-rule{background:var(--steel-mid)}
+
+    /* ── Panel de puntaje ── */
+    .gr-score{
+      margin-top:38px;display:flex;align-items:center;gap:34px;flex-wrap:wrap;
+      padding:26px 32px;border-radius:16px;position:relative;
+      background:linear-gradient(135deg,rgba(255,255,255,.058),rgba(255,255,255,.018));
+      border:1px solid rgba(255,255,255,.10);
+      backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)
+    }
+    /* Filete de acero superior — la misma firma visual que `.sf` le pone a
+       las fotos del sitio, para que el panel se lea como parte del sistema. */
+    .gr-score::before{
+      content:'';position:absolute;top:0;left:22px;right:22px;height:1px;
+      background:var(--steel-border);opacity:.65
+    }
+    .gr-score-main{display:flex;align-items:center;gap:16px}
+    .gr-score-num{
+      font-family:'Orbitron',sans-serif;font-size:clamp(42px,5.4vw,60px);
+      font-weight:500;line-height:1;letter-spacing:-.01em;
+      background:linear-gradient(115deg,#7A8494 0%,#C8D0DA 38%,#F2F5F8 52%,#A8B2BE 68%,#5C6878 100%);
+      background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+      /* Reserva el ancho de "5,0" para que el contador no empuje el layout
+         mientras sube de 0,0 al valor real. */
+      min-width:2.1ch;font-variant-numeric:tabular-nums
+    }
+    .gr-score-lbl{
+      font-size:13.5px;color:rgba(255,255,255,.72);margin-top:7px;line-height:1.45
+    }
+    .gr-score-lbl strong{color:#fff;font-weight:600;font-variant-numeric:tabular-nums}
+    .gr-score-div{width:1px;align-self:stretch;background:rgba(255,255,255,.13);margin:2px 0}
+    .gr-badge{display:flex;align-items:center;gap:12px}
+    .gr-badge-t{
+      font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+      letter-spacing:.14em;text-transform:uppercase;color:#fff
+    }
+    .gr-badge-s{font-size:12px;color:rgba(255,255,255,.55);margin-top:3px}
+    .gr-actions{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap}
+    .gr-btn{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:11px 19px;border-radius:9px;text-decoration:none;
+      font-family:'Barlow Condensed',sans-serif;font-size:13.5px;font-weight:700;
+      letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;
+      transition:transform .25s ease,box-shadow .25s ease,background .25s ease,border-color .25s ease
+    }
+    .gr-btn-p{background:var(--steel-shine);color:var(--ink);border:1px solid transparent}
+    .gr-btn-p:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(200,208,218,.22)}
+    .gr-btn-g{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.22)}
+    .gr-btn-g:hover{transform:translateY(-2px);border-color:var(--steel-light);background:rgba(255,255,255,.05)}
+
+    /* ── Estrellas ──
+       Dos capas del mismo icono repetido: la de abajo apagada, la de arriba
+       dorada y recortada por ancho. Resuelve el medio punto (4,9 -> 98%) sin
+       generar un gradiente con id único por estrella. */
+    .gr-stars{
+      position:relative;display:block;width:112px;height:20px;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' fill-opacity='.17' d='M12 2.2l2.9 6.05 6.65.95-4.8 4.7 1.13 6.6L12 18.15 6.12 21.5l1.13-6.6-4.8-4.7 6.65-.95z'/%3E%3C/svg%3E");
+      background-size:22.4px 20px;background-repeat:repeat-x
+    }
+    .gr-stars-fill{
+      position:absolute;top:0;left:0;bottom:0;max-width:100%;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23D8B26A' d='M12 2.2l2.9 6.05 6.65.95-4.8 4.7 1.13 6.6L12 18.15 6.12 21.5l1.13-6.6-4.8-4.7 6.65-.95z'/%3E%3C/svg%3E");
+      background-size:22.4px 20px;background-repeat:repeat-x;
+      transition:width .9s cubic-bezier(.22,1,.36,1)
+    }
+    .gr-stars.sm{width:80px;height:14.3px;background-size:16px 14.3px}
+    .gr-stars.sm .gr-stars-fill{background-size:16px 14.3px}
+
+    /* ── Carrusel ──
+       Marquesina continua: se mueve sola (dinámica sin pedirle nada al
+       visitante) y se detiene al pasar el mouse o al enfocar con teclado,
+       para que se pueda leer. */
+    .gr-rail{
+      margin-top:52px;position:relative;overflow:hidden;
+      -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 13%,#000 87%,transparent 100%);
+      mask-image:linear-gradient(90deg,transparent 0,#000 13%,#000 87%,transparent 100%)
+    }
+    .gr-track{display:flex;gap:22px;width:max-content;padding:8px 0;animation:gr-marq var(--gr-dur,64s) linear infinite}
+    .gr-half{display:flex;gap:22px}
+    /* La pista son dos copias idénticas separadas por el mismo gap, así que
+       el punto de reinicio no es -50% sino -50% menos medio gap: ahí la
+       segunda copia cae exactamente donde arrancó la primera y el salto es
+       invisible. Con gap:22px, medio gap = 11px. */
+    @keyframes gr-marq{
+      from{transform:translate3d(0,0,0)}
+      to{transform:translate3d(calc(-50% - 11px),0,0)}
+    }
+    .gr-rail:hover .gr-track,
+    .gr-rail:focus-within .gr-track,
+    .gr-rail.is-paused .gr-track{animation-play-state:paused}
+    /* Una o dos reseñas no llenan el ancho: la marquesina se vería como un
+       hueco que se desplaza. Se congelan y se centran (lo aplica el render
+       cuando hay menos de tres tarjetas). */
+    .gr-static{-webkit-mask-image:none;mask-image:none}
+    .gr-static .gr-track{animation:none;margin:0 auto;padding:8px 60px}
+    .gr-static .gr-half.gr-dup{display:none}
+
+    .gr-card{
+      flex:0 0 340px;box-sizing:border-box;padding:26px 26px 22px;
+      border-radius:14px;position:relative;overflow:hidden;
+      background:linear-gradient(150deg,rgba(255,255,255,.055),rgba(255,255,255,.022));
+      border:1px solid rgba(255,255,255,.09);
+      transition:transform .35s cubic-bezier(.22,1,.36,1),border-color .35s ease,box-shadow .35s ease
+    }
+    /* Comilla tipográfica en serif, no la recta de Orbitron: la curva se lee
+       como marca de cita y no como un artefacto del render. */
+    .gr-card::before{
+      content:'\201C';position:absolute;top:-18px;right:10px;
+      font-family:Georgia,'Times New Roman',serif;font-size:150px;line-height:1;
+      color:rgba(255,255,255,.05);pointer-events:none
+    }
+    .gr-card:hover{
+      transform:translateY(-5px);border-color:rgba(200,208,218,.34);
+      box-shadow:0 18px 44px rgba(0,0,0,.45)
+    }
+    .gr-card-top{display:flex;align-items:center;gap:12px;margin-bottom:14px;position:relative;z-index:1}
+    .gr-av{
+      width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0;
+      border:1px solid rgba(255,255,255,.18);background:var(--steel-dark)
+    }
+    /* Fallback cuando Google no expone foto: inicial sobre acero. Mejor que
+       un avatar genérico repetido cinco veces. */
+    .gr-av-ini{
+      width:42px;height:42px;border-radius:50%;flex-shrink:0;
+      display:flex;align-items:center;justify-content:center;
+      background:var(--steel-shine);color:var(--ink);
+      font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700
+    }
+    .gr-who{min-width:0}
+    .gr-name{
+      display:block;font-size:14.5px;font-weight:600;color:#fff;text-decoration:none;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+    }
+    a.gr-name:hover{color:var(--steel-light);text-decoration:underline}
+    .gr-when{display:block;font-size:11.5px;color:rgba(255,255,255,.5);margin-top:2px}
+    .gr-src{margin-left:auto;flex-shrink:0;opacity:.9}
+    .gr-card .gr-stars{margin-bottom:12px;position:relative;z-index:1}
+    .gr-text{
+      font-size:14.5px;line-height:1.68;color:rgba(255,255,255,.84);
+      position:relative;z-index:1;
+      display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden
+    }
+    .gr-card.open .gr-text{-webkit-line-clamp:unset;display:block}
+    .gr-more{
+      margin-top:10px;background:none;border:0;padding:0;cursor:pointer;position:relative;z-index:1;
+      font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;
+      letter-spacing:.14em;text-transform:uppercase;color:var(--steel-light)
+    }
+    .gr-more:hover{color:#fff}
+    .gr-orig{
+      margin-top:10px;font-size:12px;line-height:1.6;color:rgba(255,255,255,.55);
+      border-left:1px solid rgba(255,255,255,.16);padding-left:10px;position:relative;z-index:1
+    }
+    .gr-foot{margin-top:34px}
+    /* `display:block` y el icono en el flujo del texto: como flex, al envolver
+       en móvil el escudo quedaba solo en una línea sobre la frase. */
+    .gr-note{font-size:11.5px;color:rgba(255,255,255,.42);line-height:1.6}
+    .gr-note svg{vertical-align:-2px;margin-right:6px}
+    .gr-note a{color:rgba(255,255,255,.62)}
+
+    @media(max-width:1024px){
+      section#resenas{padding:80px 0}
+      .gr-inner{padding:0 32px}
+      .gr-actions{margin-left:0;width:100%}
+      .gr-score-div{display:none}
+    }
+    /* En táctil la marquesina y el scroll nativo se pelean por el gesto: bajo
+       900px se apaga la animación, se esconde la copia duplicada y el riel
+       pasa a ser un carrusel que se desliza con el dedo. Mismo trato para
+       quien pidió menos movimiento en su sistema. */
+    @media(max-width:900px),(prefers-reduced-motion:reduce){
+      .gr-rail{
+        overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;
+        -webkit-overflow-scrolling:touch;
+        -webkit-mask-image:none;mask-image:none
+      }
+      .gr-rail::-webkit-scrollbar{display:none}
+      .gr-track{animation:none;width:max-content;padding:8px 32px}
+      .gr-half.gr-dup{display:none}
+      .gr-card{scroll-snap-align:center}
+    }
+    @media(max-width:640px){
+      .gr-score{padding:22px;gap:22px}
+      .gr-btn{flex:1;justify-content:center}
+      .gr-card{flex:0 0 min(84vw,330px)}
+      .gr-track{padding:8px 20px}
+    }
+
     /* ══ RESPONSIVE ══ */
     @media(max-width:1024px){
       nav{padding:0 max(28px,env(safe-area-inset-right)) 0 max(28px,env(safe-area-inset-left))}
@@ -1467,6 +1692,10 @@ body.sw-intro-lock{overflow:hidden;height:100vh;height:100dvh}
     <li><a href="#servicios">Servicios</a></li>
     <li><a href="#galeria">Galería</a></li>
     <li><a href="#partner">Productos</a></li>
+    <!-- Oculto hasta que la sección de reseñas confirme que tiene datos: un
+         enlace de menú que salta a una sección inexistente es peor que no
+         tenerlo. Lo revela render() en el script de reseñas. -->
+    <li class="gr-nav" hidden><a href="#resenas">Reseñas</a></li>
     <li><a href="#ubicacion">Ubicación</a></li>
   </ul>
   <a href="#reservar" target="_blank" rel="noopener" class="nav-cta">Agendar</a>
@@ -1479,6 +1708,7 @@ body.sw-intro-lock{overflow:hidden;height:100vh;height:100dvh}
   <a href="#servicios" onclick="cm()">Servicios</a>
   <a href="#galeria" onclick="cm()">Galería</a>
   <a href="#partner" onclick="cm()">Productos</a>
+  <a href="#resenas" class="gr-nav" hidden onclick="cm()">Reseñas</a>
   <a href="#ubicacion" onclick="cm()">Ubicación</a>
   <a href="#reservar" target="_blank" class="mob-cta">Reservar Cita →</a>
 </div>
@@ -1650,6 +1880,69 @@ body.sw-intro-lock{overflow:hidden;height:100vh;height:100dvh}
   </div>
 </section>
 
+<!-- RESEÑAS DE GOOGLE -->
+<!-- Arranca con `hidden` a propósito: si Firestore no responde, si el perfil
+     todavía no tiene reseñas o si nunca se configuró el placeId, la sección
+     no existe para el visitante en vez de mostrarse vacía o con placeholders.
+     Falla cerrada -- mismo criterio que applySiteImageOverrides(). -->
+<section id="resenas" hidden aria-labelledby="gr-title">
+  <div class="gr-glow" aria-hidden="true"></div>
+
+  <div class="gr-inner">
+    <div class="gr-head rev">
+      <p class="s-ey">Reseñas verificadas</p>
+      <h2 class="s-ti" id="gr-title">La voz de<br><em>quienes vuelven</em></h2>
+      <div class="s-rule"></div>
+    </div>
+
+    <div class="gr-score rev" style="transition-delay:.1s">
+      <div class="gr-score-main">
+        <div class="gr-score-num" id="gr-rating">0,0</div>
+        <div>
+          <span class="gr-stars" id="gr-stars" role="img" aria-label="Puntaje del perfil de Google">
+            <span class="gr-stars-fill" id="gr-stars-fill" style="width:0"></span>
+          </span>
+          <p class="gr-score-lbl">sobre <strong id="gr-count">0</strong> opiniones en Google</p>
+        </div>
+      </div>
+
+      <div class="gr-score-div" aria-hidden="true"></div>
+
+      <div class="gr-badge">
+        <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+          <path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/>
+          <path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/>
+          <path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z"/>
+          <path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"/>
+        </svg>
+        <div>
+          <div class="gr-badge-t">Perfil verificado</div>
+          <div class="gr-badge-s" id="gr-updated">Google Business</div>
+        </div>
+      </div>
+
+      <div class="gr-actions">
+        <a class="gr-btn gr-btn-p" id="gr-see" href="#" target="_blank" rel="noopener">
+          Ver en Google
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8h11M8.5 3l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+        <a class="gr-btn gr-btn-g" id="gr-write" href="#" target="_blank" rel="noopener">Escribir reseña</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="gr-rail" id="gr-rail">
+    <div class="gr-track" id="gr-track"></div>
+  </div>
+
+  <div class="gr-inner gr-foot">
+    <p class="gr-note">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 22s8-4.5 8-11V5l-8-3-8 3v6c0 6.5 8 11 8 11z"/><path d="M9 12l2 2 4-4"/></svg>
+      Reseñas publicadas por clientes reales en el perfil de Google de SW Studio. Se actualizan solas cada día.
+    </p>
+  </div>
+</section>
+
 <!-- BOOKING -->
 <section class="book" id="agenda">
   <div class="book-inner">
@@ -1742,6 +2035,7 @@ body.sw-intro-lock{overflow:hidden;height:100vh;height:100dvh}
         <li><a href="#servicios">Servicios</a></li>
         <li><a href="#galeria">Galería</a></li>
         <li><a href="#partner">Productos</a></li>
+        <li class="gr-nav" hidden><a href="#resenas">Reseñas</a></li>
         <li><a href="#ubicacion">Ubicación</a></li>
       </ul>
     </div>
@@ -2724,7 +3018,13 @@ async function refreshCatalog(){
   TODAY_KEY = dateKeyInZone(new Date(), BUSINESS_TZ);
   TODAY = dateKeyToDate(TODAY_KEY);
   MAX_DATE = new Date(TODAY); MAX_DATE.setMonth(MAX_DATE.getMonth()+2);
-  const activeSvcs = (services||[]).filter(s=>s.status==='active');
+  // El panel admin fija el orden del catálogo en el entero `s.order` (arrastrar
+  // / ↑↓ en Servicios). Se respeta acá para que el widget muestre los servicios
+  // en el mismo orden que ve el negocio; los que no traigan `order` (catálogo
+  // viejo) caen al final conservando su orden relativo (sort estable).
+  const activeSvcs = (services||[]).filter(s=>s.status==='active')
+    .slice()
+    .sort((a,b)=>(a.order==null?1e9:a.order)-(b.order==null?1e9:b.order));
   if(activeSvcs.length){
     CATS = Object.keys(CAT_NAMES).map(cid=>({
       id: cid, name: CAT_NAMES[cid],
@@ -2973,6 +3273,236 @@ async function applySiteImageOverrides(){
   }
 }
 document.addEventListener('DOMContentLoaded', applySiteImageOverrides);
+
+// ══ RESEÑAS DE GOOGLE ══
+// Lee el espejo `googleReviews/main` que mantienen las Cloud Functions
+// (refreshGoogleReviews diaria + syncGoogleReviews desde el panel) y dibuja la
+// sección. El navegador NUNCA habla con Google acá: sin API key en el front,
+// sin script de terceros, sin iframe — la sección pinta a velocidad de
+// Firestore y no arrastra el tiempo de carga de la página.
+//
+// Falla cerrada: cualquier problema (offline, doc inexistente, perfil sin
+// reseñas) deja la sección oculta. Una sección de confianza a medio dibujar
+// genera exactamente lo contrario de lo que busca.
+(function(){
+  var MAX_CARDS = 12;
+
+  function esc(s){
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function fmtRating(n){
+    return (Number(n) || 0).toLocaleString('es-CL', {minimumFractionDigits:1, maximumFractionDigits:1});
+  }
+
+  // Places manda `relativePublishTimeDescription` ya localizado ("hace 2
+  // semanas"), así que esto es solo el respaldo para las reseñas curadas a
+  // mano desde el panel, que traen fecha ISO pelada.
+  function relTime(iso){
+    var t = Date.parse(iso || '');
+    if(!isFinite(t)) return '';
+    var days = Math.floor((Date.now() - t) / 86400000);
+    if(days < 1) return 'hoy';
+    if(days < 7) return 'hace ' + days + (days === 1 ? ' día' : ' días');
+    if(days < 31){ var w = Math.floor(days/7); return 'hace ' + w + (w === 1 ? ' semana' : ' semanas'); }
+    if(days < 365){ var m = Math.floor(days/30); return 'hace ' + m + (m === 1 ? ' mes' : ' meses'); }
+    var y = Math.floor(days/365);
+    return 'hace ' + y + (y === 1 ? ' año' : ' años');
+  }
+
+  // El doc trae dos listas: las que devolvió Places y las curadas a mano.
+  // Las de Google mandan siempre; `manualReviews` es la red de seguridad para
+  // cuando el perfil todavía no tiene reseñas con texto, no hay API key
+  // configurada o Google devolvió vacío. Nunca se mezclan: mostrar juntas unas
+  // verificadas y otras escritas por el negocio es justamente el tipo de cosa
+  // que destruye la confianza que la sección busca construir.
+  function pickReviews(d){
+    var api = Array.isArray(d.reviews) ? d.reviews : [];
+    if(api.length) return {list: api, verified: true};
+    var manual = Array.isArray(d.manualReviews) ? d.manualReviews : [];
+    return {list: manual, verified: false};
+  }
+
+  function starsHtml(rating, small){
+    var pct = Math.max(0, Math.min(100, (Number(rating) || 0) / 5 * 100));
+    return '<span class="gr-stars' + (small ? ' sm' : '') + '" role="img" aria-label="' +
+      fmtRating(rating) + ' de 5">' +
+      '<span class="gr-stars-fill" style="width:' + pct.toFixed(2) + '%"></span></span>';
+  }
+
+  function avatarHtml(r){
+    var ini = (r.author || '?').trim().charAt(0).toUpperCase();
+    if(!r.photo) return '<span class="gr-av-ini" aria-hidden="true">' + esc(ini) + '</span>';
+    // referrerpolicy no-referrer: las fotos de perfil viven en
+    // lh3.googleusercontent.com y responden 403 a algunos referers. El onerror
+    // cambia a la inicial en vez de dejar el icono de imagen rota.
+    return '<img class="gr-av" src="' + esc(r.photo) + '" alt="" loading="lazy" decoding="async"' +
+      ' referrerpolicy="no-referrer"' +
+      ' onerror="this.outerHTML=\'<span class=&quot;gr-av-ini&quot; aria-hidden=&quot;true&quot;>' + esc(ini) + '</span>\'">';
+  }
+
+  var G_MARK = '<svg class="gr-src" width="15" height="15" viewBox="0 0 48 48" aria-hidden="true" focusable="false">' +
+    '<path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/>' +
+    '<path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/>' +
+    '<path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z"/>' +
+    '<path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"/></svg>';
+
+  // `dup` marca la copia de la marquesina: se esconde de lectores de pantalla
+  // y se saca del orden de tabulación, para que las mismas cinco reseñas no se
+  // anuncien ni se recorran dos veces.
+  function cardHtml(r, verified, dup){
+    var when = r.relativeTime || relTime(r.publishTime);
+    var name = esc(r.author || 'Cliente de Google');
+    var nameHtml = (r.profileUri && !dup)
+      ? '<a class="gr-name" href="' + esc(r.profileUri) + '" target="_blank" rel="noopener nofollow">' + name + '</a>'
+      : '<span class="gr-name">' + name + '</span>';
+    var text = esc(r.text || '');
+    return '<article class="gr-card"' + (dup ? ' aria-hidden="true"' : '') + '>' +
+      '<div class="gr-card-top">' + avatarHtml(r) +
+        '<div class="gr-who">' + nameHtml +
+          (when ? '<span class="gr-when">' + esc(when) + '</span>' : '') +
+        '</div>' + (verified ? G_MARK : '') +
+      '</div>' +
+      starsHtml(r.rating, true) +
+      '<p class="gr-text">' + text + '</p>' +
+      // El botón solo aparece si el texto probablemente se corta (5 líneas ~
+      // 320 caracteres). Ponerlo siempre dejaría "Leer más" bajo reseñas de
+      // dos líneas, que ya se leen enteras.
+      (text.length > 320 ? '<button class="gr-more" type="button"' + (dup ? ' tabindex="-1"' : '') + '>Leer más</button>' : '') +
+      (r.translated && r.originalText
+        ? '<p class="gr-orig">Original: ' + esc(r.originalText) + '</p>' : '') +
+    '</article>';
+  }
+
+  // Sube un número de 0 al valor real cuando la sección entra en pantalla.
+  // Es el único movimiento "gratis" de la sección: cuesta nada y hace que el
+  // puntaje se lea como un dato que se está calculando, no como texto fijo.
+  function countUp(el, target, format){
+    var reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    if(reduce){ el.textContent = format(target); return; }
+    var start = performance.now(), dur = 1100;
+    function step(now){
+      var p = Math.min(1, (now - start) / dur);
+      var eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = format(target * eased);
+      if(p < 1) requestAnimationFrame(step);
+      else el.textContent = format(target);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function render(d){
+    var picked = pickReviews(d);
+    var list = picked.list.slice(0, MAX_CARDS);
+    var rating = Number(d.rating) || 0;
+    var count = Number(d.userRatingCount) || 0;
+
+    // Sin puntaje Y sin reseñas no hay nada que probar: la sección no se
+    // muestra. Con puntaje pero sin texto (perfil con estrellas y ningún
+    // comentario) sí vale la pena: el panel de puntaje solo ya es prueba.
+    if(!rating && !list.length) return;
+
+    var sec = document.getElementById('resenas');
+    if(!sec) return;
+
+    var see = document.getElementById('gr-see');
+    var write = document.getElementById('gr-write');
+    var mapsUri = d.googleMapsUri || 'https://maps.google.com/?q=Cochrane+635+Torre+B+Concepci%C3%B3n+Chile';
+    see.href = mapsUri;
+    see.setAttribute('aria-label', 'Ver el perfil de Google de SW Studio con las ' + count + ' opiniones');
+    if(d.writeReviewUri) write.href = d.writeReviewUri;
+    else write.hidden = true;
+
+    var starsFill = document.getElementById('gr-stars-fill');
+    var starsBox = document.getElementById('gr-stars');
+    starsBox.setAttribute('aria-label', fmtRating(rating) + ' de 5 estrellas en Google');
+
+    // El total de opiniones del perfil (`count`) es un número distinto de la
+    // cantidad de tarjetas: Places entrega como máximo 5 reseñas con texto,
+    // pero el promedio resume todas. Se comunica así a propósito.
+    var countEl = document.getElementById('gr-count');
+    var ratingEl = document.getElementById('gr-rating');
+    if(!count) document.querySelector('.gr-score-lbl').innerHTML = 'de puntaje en Google';
+
+    // Modo respaldo: las tarjetas son las reseñas curadas en el panel, no las
+    // que devolvió Google. Decir "4,9 sobre 137 opiniones en Google" mientras
+    // se muestran reseñas escritas desde el panel sería exactamente la clase
+    // de afirmación que destruye la confianza que la sección busca construir.
+    // Sin puntaje real se esconde el bloque numérico entero (quedan el sello y
+    // los botones al perfil), y el pie deja de prometer una actualización
+    // diaria que en este modo no existe.
+    if(!picked.verified){
+      if(!rating){
+        document.querySelector('.gr-score-main').hidden = true;
+        // El separador solo tiene sentido entre el puntaje y el sello; sin
+        // puntaje quedaría una línea suelta al inicio del panel.
+        document.querySelector('.gr-score-div').hidden = true;
+      }
+      document.querySelector('.gr-note').innerHTML =
+        'Opiniones de clientes de SW Studio. Mirá el perfil completo y dejá la tuya en Google.';
+    }
+
+    var track = document.getElementById('gr-track');
+    var rail = document.getElementById('gr-rail');
+    if(list.length){
+      var cards = function(dup){
+        return list.map(function(r){ return cardHtml(r, picked.verified, dup); }).join('');
+      };
+      track.innerHTML = '<div class="gr-half">' + cards(false) + '</div>' +
+                        '<div class="gr-half gr-dup" aria-hidden="true">' + cards(true) + '</div>';
+      // Velocidad proporcional al contenido: pocas reseñas no deben pasar
+      // volando ni muchas arrastrarse. ~7s por tarjeta, acotado.
+      track.style.setProperty('--gr-dur', Math.min(90, Math.max(34, list.length * 7)) + 's');
+      // Con una o dos tarjetas la marquesina se ve como un hueco que se
+      // desplaza: mejor dejarlas quietas y centradas.
+      if(list.length < 3) rail.classList.add('gr-static');
+    } else {
+      rail.hidden = true;
+    }
+
+    sec.hidden = false;
+    document.querySelectorAll('.gr-nav').forEach(function(el){ el.hidden = false; });
+
+    // Los contadores arrancan al entrar en pantalla, no al cargar el doc: si
+    // se animaran ahora, la sección está a tres pantallas de distancia y nadie
+    // vería el movimiento.
+    var seen = false;
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(!e.isIntersecting || seen) return;
+        seen = true; io.disconnect();
+        countUp(ratingEl, rating, fmtRating);
+        if(count) countUp(countEl, count, function(v){ return Math.round(v).toLocaleString('es-CL'); });
+        starsFill.style.width = Math.max(0, Math.min(100, rating / 5 * 100)).toFixed(2) + '%';
+      });
+    }, {threshold:.25});
+    io.observe(document.querySelector('.gr-score'));
+
+    // "Leer más": expande la tarjeta y congela la marquesina mientras se lee,
+    // porque un texto que se abre y se sigue moviendo es ilegible.
+    track.addEventListener('click', function(e){
+      var btn = e.target.closest('.gr-more');
+      if(!btn) return;
+      var card = btn.closest('.gr-card');
+      var open = card.classList.toggle('open');
+      btn.textContent = open ? 'Leer menos' : 'Leer más';
+      rail.classList.toggle('is-paused', !!track.querySelector('.gr-card.open'));
+    });
+  }
+
+  async function loadGoogleReviewsSection(){
+    if(!window.SWData || !window.SWData.loadGoogleReviews) return;
+    try{
+      var d = await window.SWData.loadGoogleReviews();
+      if(d) render(d);
+    }catch(e){
+      console.error('No se pudieron cargar las reseñas de Google', e);
+    }
+  }
+  document.addEventListener('DOMContentLoaded', loadGoogleReviewsSection);
+})();
 
 // ══ STEP NAVIGATION ══
 function bkGoTo(n){

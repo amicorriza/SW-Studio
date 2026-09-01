@@ -29,6 +29,15 @@ service cloud.firestore {
     // Lectura pública para el widget de reservas; nunca escritura de cliente.
     match /availability/{date} { allow read: if true; allow write: if false; }
 
+    // Espejo del perfil de Google Business (puntaje, total de opiniones y las
+    // reseñas que devuelve Places), mantenido por refreshGoogleReviews /
+    // syncGoogleReviews con Admin SDK. Lectura pública porque la sección de
+    // reseñas del landing la pinta para TODOS los visitantes -- mismo patrón
+    // que availability/siteImages. La escritura admin existe solo para el
+    // campo `manualReviews` que cura el panel: la API key de Places jamás
+    // baja al navegador, así que nadie puede "sincronizar" desde el cliente.
+    match /googleReviews/{id} { allow read: if true; allow write: if isAdmin(); }
+
     // Reservas: solo admin lee/crea/edita/borra. La creación pública ya NO
     // pasa por acá -- el widget (public/index.html) llama al callable
     // transaccional `createBooking` (functions/createBooking.js, Admin SDK,

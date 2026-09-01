@@ -32,6 +32,15 @@ Estado conocido, a verificar antes de tocar nada:
 - deleteBooking() hace deleteDoc: cancelar destruye el registro.
 - log() escribe en memoria; saveAdmin() solo persiste services, staff y businessInfo.
   adminLog nunca se escribe desde el panel.
+- Panel de Servicios: la acción por defecto es "Retirar" (status:'inactive'),
+  no borrar. El borrado duro sigue existiendo pero solo sobre servicios ya
+  inactivos y tras doble confirmación (escribir el nombre exacto + modal).
+  Cada servicio tiene `order` (entero) que gobierna el orden en el panel Y en
+  el widget de reservas (public/index.html refreshCatalog lo respeta); a los
+  servicios sin `order` se les asigna su índice al cargar (normalizeSvcOrder)
+  y se persiste al primer guardado. `updatedAt` (ISO) se setea en cada
+  alta/edición/duplicado/ajuste masivo. Reordenar a mano (arrastrar / ↑↓)
+  solo con filtro "Todos" + orden manual.
 - computeAvailability no filtra por status.
 - Despliegue manual con ocho nombres de función a mano; createBooking ya quedó
   fuera de esa lista una vez y se congeló en silencio.

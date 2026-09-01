@@ -3018,7 +3018,13 @@ async function refreshCatalog(){
   TODAY_KEY = dateKeyInZone(new Date(), BUSINESS_TZ);
   TODAY = dateKeyToDate(TODAY_KEY);
   MAX_DATE = new Date(TODAY); MAX_DATE.setMonth(MAX_DATE.getMonth()+2);
-  const activeSvcs = (services||[]).filter(s=>s.status==='active');
+  // El panel admin fija el orden del catálogo en el entero `s.order` (arrastrar
+  // / ↑↓ en Servicios). Se respeta acá para que el widget muestre los servicios
+  // en el mismo orden que ve el negocio; los que no traigan `order` (catálogo
+  // viejo) caen al final conservando su orden relativo (sort estable).
+  const activeSvcs = (services||[]).filter(s=>s.status==='active')
+    .slice()
+    .sort((a,b)=>(a.order==null?1e9:a.order)-(b.order==null?1e9:b.order));
   if(activeSvcs.length){
     CATS = Object.keys(CAT_NAMES).map(cid=>({
       id: cid, name: CAT_NAMES[cid],

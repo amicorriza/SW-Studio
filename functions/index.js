@@ -341,84 +341,107 @@ exports.onScheduleBlockWritten = onDocumentWritten(
 );
 
 // ══ RECORDATORIO DE CITAS (confirmar/declinar) ══
-// Ventana rodante: se envía exactamente 24h antes de la hora real de cada
-// cita (ver functions/reminders.js). Cada corrida cubre 15 minutos, el
-// mismo ancho que el intervalo del schedule -- sin huecos ni duplicados por
-// diseño; reminderSentAt es el respaldo si una corrida se atrasa o se
-// reintenta. Mismo criterio de resiliencia que refreshGoogleReviews: un
-// fallo individual no debe tirar la función a estado de error ni bloquear
-// el resto de la corrida.
+// "Debido", no ventana de coincidencia única: una reserva se vuelve
+// candidata cuando su instante real queda a 24h (REMINDER_LEAD_MS) o menos de
+// distancia, y sigue siéndolo en TODAS las corridas siguientes -- hasta que
+// el envío tenga éxito (reminderSentAt) o la cita ya haya ocurrido -- ver
+// functions/reminders.js. Esto es lo que hace real el reintento: una
+// ventana de coincidencia única [now+24h, now+24h+15min) descartaría para
+// siempre una reserva cuyo único turno cayó en una corrida que falló (ver
+// el test de regresión en functions/test/reminders.test.js). Mismo criterio
+// de resiliencia que refreshGoogleReviews: toda la función corre dentro de
+// un try/catch, un fallo (de la query, de Resend, de lo que sea) no debe
+// tirarla a estado de error ni impedir que la corrida siguiente reintente.
 exports.sendBookingReminders = onSchedule(
   { schedule: 'every 15 minutes', region: 'southamerica-east1', secrets: [RESEND_API_KEY, FROM_EMAIL] },
   async () => {
-    const db = getFirestore(app);
-    // Se ancla `now` a la grilla fija de 15 min (el mismo ancho que
-    // REMINDER_WINDOW_MS) en vez de usar la hora real de invocación --
-    // onSchedule no garantiza puntualidad al segundo (cold start, hiccup de
-    // GCP), y como la ventana solo avanza hacia adelante entre corridas,
-    // anclar a la hora real de cada invocación podía abrir un hueco
-    // PERMANENTE para una reserva cuyo instante cae justo entre el fin de
-    // una ventana y el inicio (ya corrido por el jitter) de la siguiente.
-    // Con la grilla fija, un jitter de segundos/minutos sigue mapeando al
-    // mismo bloque de 15 min, así que no se pierde cobertura mientras la
-    // función corra al menos una vez por bloque (una corrida completamente
-    // saltada sigue siendo un riesgo residual aceptado, igual que con
-    // refreshGoogleReviews).
-    const rawNow = new Date();
-    const now = new Date(Math.floor(rawNow.getTime() / REMINDER_WINDOW_MS) * REMINDER_WINDOW_MS);
-    const businessInfoSnap = await db.collection('businessInfo').doc('main').get();
-    const businessTz = resolveBusinessTz(businessInfoSnap.exists ? businessInfoSnap.data() : null);
+    try {
+      const db = getFirestore(app);
+      // Se ancla `now` a la grilla fija de 15 min (el mismo ancho que
+      // REMINDER_WINDOW_MS) en vez de usar la hora real de invocación --
+      // onSchedule no garantiza puntualidad al segundo (cold start, hiccup
+      // de GCP). No es indispensable para el reintento en sí (eso ya lo da
+      // el diseño "debido" de reminders.js), pero mantiene la query y los
+      // logs alineados a bloques predecibles.
+      const rawNow = new Date();
+      const now = new Date(Math.floor(rawNow.getTime() / REMINDER_WINDOW_MS) * REMINDER_WINDOW_MS);
+      const businessInfoSnap = await db.collection('businessInfo').doc('main').get();
+      const businessTz = resolveBusinessTz(businessInfoSnap.exists ? businessInfoSnap.data() : null);
 
-    // Ventana amplia por fecha calendario (puede spanear dos días si la
-    // ventana de 15 min cruza medianoche local) -- el filtro fino por
-    // instante real ocurre en findBookingsNeedingReminder(), en JS puro.
-    // Mismo patrón de "query amplia por date + filtro preciso en memoria"
-    // que ya usa createBooking.js.
-    const windowStart = new Date(now.getTime() + REMINDER_LEAD_MS);
-    const windowEnd = new Date(windowStart.getTime() + REMINDER_WINDOW_MS);
-    const startDateKey = dateKeyInZone(windowStart, businessTz);
-    const endDateKey = dateKeyInZone(windowEnd, businessTz);
-    const { end: endBound } = dayBoundsOf(endDateKey);
+      // Ventana amplia por fecha calendario, desde HOY (no desde now+24h:
+      // una reserva "debida" puede tener su cita en cualquier punto entre
+      // ahora y ~mañana a esta hora, incluyendo turnos que ya deberían
+      // haberse recordado y no se recordaron por una falla previa) hasta
+      // el borde superior de "debido" -- el filtro fino por instante real
+      // ocurre en findBookingsNeedingReminder(), en JS puro. Mismo patrón
+      // de "query amplia por date + filtro preciso en memoria" que ya usa
+      // createBooking.js.
+      const startDateKey = dateKeyInZone(now, businessTz);
+      const dueByInstant = new Date(now.getTime() + REMINDER_LEAD_MS + REMINDER_WINDOW_MS);
+      const endDateKey = dateKeyInZone(dueByInstant, businessTz);
+      const { end: endBound } = dayBoundsOf(endDateKey);
 
-    const snap = await db.collection('bookings')
-      .where('status', '==', 'pending')
-      .where('date', '>=', startDateKey)
-      .where('date', '<', endBound)
-      .get();
+      const snap = await db.collection('bookings')
+        .where('status', '==', 'pending')
+        .where('date', '>=', startDateKey)
+        .where('date', '<', endBound)
+        .get();
 
-    const items = snap.docs
-      .map((d) => ({ ref: d.ref, data: d.data() }))
-      .filter((item) => !item.data.reminderSentAt);
-    const toRemindData = findBookingsNeedingReminder(items.map((item) => item.data), now);
-    const toRemind = items.filter((item) => toRemindData.includes(item.data));
+      const items = snap.docs
+        .map((d) => ({ ref: d.ref, data: d.data() }))
+        .filter((item) => !item.data.reminderSentAt);
+      // Se empareja por `code` (clave de negocio estable) en vez de por
+      // identidad de objeto -- más robusto que depender de que
+      // findBookingsNeedingReminder() devuelva las mismas referencias que
+      // recibió, que es un detalle de implementación, no un contrato.
+      const itemsByCode = new Map(items.map((item) => [item.data.code, item]));
+      const toRemindData = findBookingsNeedingReminder(items.map((item) => item.data), now);
+      const toRemind = toRemindData.map((b) => itemsByCode.get(b.code)).filter(Boolean);
 
-    for (const item of toRemind) {
-      const b = item.data;
-      // Sin email no hay a quién recordarle -- mismo criterio que
-      // onBookingCreated (una reserva tomada por teléfono puede no traer
-      // email).
-      if (!b.email) continue;
-      const token = generateReminderToken();
-      try {
-        await sendReminderEmail(b, token, {
-          apiKey: RESEND_API_KEY.value(),
-          fromEmail: FROM_EMAIL.value(),
-        });
-        await item.ref.update({ reminderToken: token, reminderSentAt: new Date().toISOString() });
-        logger.info('Recordatorio enviado', { code: b.code });
-      } catch (err) {
-        logger.error('Fallo al enviar recordatorio', err);
+      for (const item of toRemind) {
+        const b = item.data;
+        // Sin email no hay a quién recordarle -- mismo criterio que
+        // onBookingCreated (una reserva tomada por teléfono puede no traer
+        // email).
+        if (!b.email) continue;
+        const token = generateReminderToken();
         try {
-          await db.collection('adminLog').add({
-            action: 'reminder_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
+          await sendReminderEmail(b, token, {
+            apiKey: RESEND_API_KEY.value(),
+            fromEmail: FROM_EMAIL.value(),
           });
-        } catch (err2) {
-          logger.error('Fallo al registrar adminLog de reminder_failed', err2);
+          await item.ref.update({ reminderToken: token, reminderSentAt: new Date().toISOString() });
+          logger.info('Recordatorio enviado', { code: b.code });
+        } catch (err) {
+          logger.error('Fallo al enviar recordatorio', err);
+          try {
+            await db.collection('adminLog').add({
+              action: 'reminder_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
+            });
+          } catch (err2) {
+            logger.error('Fallo al registrar adminLog de reminder_failed', err2);
+          }
+          // No relanzar: un fallo individual no debe abortar el resto de
+          // la corrida -- y como esta reserva sigue "debida" (no piso
+          // inferior en reminders.js), la corrida siguiente (15 min
+          // después) vuelve a intentarla porque reminderSentAt nunca se
+          // escribió. Riesgo aceptado, no resuelto acá: dos corridas
+          // solapadas (reintento del scheduler sobre una corrida lenta)
+          // podrían ambas generar un token distinto para la misma reserva
+          // antes de que la primera escriba -- el segundo `update` gana y
+          // el primer email queda con un link inválido. Baja probabilidad
+          // dado el volumen de este negocio; no se agrega una transacción
+          // de "reclamo" por ahora, mismo criterio pragmático que ya
+          // aplica a otras corridas de este archivo (ver
+          // recomputeAvailabilityForDate: "se autocorrigen").
         }
-        // No relanzar: un fallo individual no debe abortar el resto de la
-        // corrida -- la reserva queda elegible para reintento en 15 min
-        // porque reminderSentAt nunca se escribió.
       }
+    } catch (err) {
+      // Un fallo antes de llegar al loop (ej. índice compuesto faltante en
+      // la query, businessInfo inaccesible) no debe dejar la función en
+      // estado de error -- la corrida siguiente, 15 min después, vuelve a
+      // intentar desde cero. Mismo criterio que refreshGoogleReviews.
+      logger.error('Fallo la corrida de sendBookingReminders', err);
     }
   }
 );

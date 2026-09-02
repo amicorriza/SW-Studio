@@ -253,8 +253,8 @@ test('findBookingsNeedingReminder excluye una reserva cuya cita ya ocurrió', ()
 
 test('findBookingsNeedingReminder sigue incluyendo una reserva cuyo turno original ya pasó (retry tras una falla previa)', () => {
   // Regresión: con la ventana vieja de coincidencia única [now+24h,
-  // now+24h+15min), una reserva a solo 8h de distancia (su "punto debido",
-  // 24h antes, quedó 16h atrás) habría quedado EXCLUIDA para siempre si el
+  // now+24h+15min), una reserva a solo 12h de distancia (su "punto debido",
+  // 24h antes, quedó 12h atrás) habría quedado EXCLUIDA para siempre si el
   // envío falló en su único turno -- ninguna corrida futura la habría
   // vuelto a seleccionar, porque `now` solo avanza. Con "debido" (sin piso
   // inferior) sigue siendo candidata mientras no tenga reminderSentAt y la
@@ -761,16 +761,20 @@ exports.sendBookingReminders = onSchedule(
         .where('date', '<', endBound)
         .get();
 
+      // `code` es generado en el cliente (Date.now() en base36 + un
+      // aleatorio de 3 dígitos, ver public/index.html) sin unicidad
+      // reforzada del lado del servidor -- no es apto como clave de
+      // emparejamiento: una colisión mandaría el recordatorio de una
+      // reserva a los datos de otra. Se usa el ID real del doc de
+      // Firestore (`d.id`, único por diseño) en su lugar, viajando en un
+      // campo `_docId` que findBookingsNeedingReminder() ignora sin
+      // problema (solo lee status/reminderSentAt/date/time/tz).
       const items = snap.docs
-        .map((d) => ({ ref: d.ref, data: d.data() }))
+        .map((d) => ({ ref: d.ref, data: { ...d.data(), _docId: d.id } }))
         .filter((item) => !item.data.reminderSentAt);
-      // Se empareja por `code` (clave de negocio estable) en vez de por
-      // identidad de objeto -- más robusto que depender de que
-      // findBookingsNeedingReminder() devuelva las mismas referencias que
-      // recibió, que es un detalle de implementación, no un contrato.
-      const itemsByCode = new Map(items.map((item) => [item.data.code, item]));
+      const itemsByDocId = new Map(items.map((item) => [item.data._docId, item]));
       const toRemindData = findBookingsNeedingReminder(items.map((item) => item.data), now);
-      const toRemind = toRemindData.map((b) => itemsByCode.get(b.code)).filter(Boolean);
+      const toRemind = toRemindData.map((b) => itemsByDocId.get(b._docId)).filter(Boolean);
 
       for (const item of toRemind) {
         const b = item.data;

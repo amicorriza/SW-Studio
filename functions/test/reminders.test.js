@@ -48,8 +48,8 @@ test('findBookingsNeedingReminder excluye una reserva cuya cita ya ocurrió', ()
 
 test('findBookingsNeedingReminder sigue incluyendo una reserva cuyo turno original ya pasó (retry tras una falla previa)', () => {
   // Regresión: con la ventana vieja de coincidencia única [now+24h,
-  // now+24h+15min), una reserva a solo 8h de distancia (su "punto debido",
-  // 24h antes, quedó 16h atrás) habría quedado EXCLUIDA para siempre si el
+  // now+24h+15min), una reserva a solo 12h de distancia (su "punto debido",
+  // 24h antes, quedó 12h atrás) habría quedado EXCLUIDA para siempre si el
   // envío falló en su único turno -- ninguna corrida futura la habría
   // vuelto a seleccionar, porque `now` solo avanza. Con "debido" (sin piso
   // inferior) sigue siendo candidata mientras no tenga reminderSentAt y la

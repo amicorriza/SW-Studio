@@ -366,7 +366,22 @@ exports.sendBookingReminders = onSchedule(
       const rawNow = new Date();
       const now = new Date(Math.floor(rawNow.getTime() / REMINDER_WINDOW_MS) * REMINDER_WINDOW_MS);
       const businessInfoSnap = await db.collection('businessInfo').doc('main').get();
-      const businessTz = resolveBusinessTz(businessInfoSnap.exists ? businessInfoSnap.data() : null);
+      const businessInfoData = businessInfoSnap.exists ? businessInfoSnap.data() : null;
+
+      // Interruptor de seguridad: por defecto (campo ausente) la función NO
+      // manda nada -- corta ANTES de tocar `bookings`, así que tampoco
+      // depende todavía del índice compuesto que esa query necesita. Recién
+      // manda emails reales cuando alguien activa `remindersEnabled:true` a
+      // mano en businessInfo/main, después de verificar en staging que el
+      // flujo (recordatorio -> confirmar-cita.html -> Agenda) se ve bien.
+      // Deploy != activación: el primer despliegue de este goal deja el
+      // Cloud Scheduler instalado pero en no-op a propósito.
+      if (!businessInfoData || businessInfoData.remindersEnabled !== true) {
+        logger.info('sendBookingReminders: remindersEnabled no está activado, no se envía nada esta corrida.');
+        return;
+      }
+
+      const businessTz = resolveBusinessTz(businessInfoData);
 
       // Ventana amplia por fecha calendario, desde HOY (no desde now+24h:
       // una reserva "debida" puede tener su cita en cualquier punto entre

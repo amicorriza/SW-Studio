@@ -295,6 +295,35 @@ test('findBookingsNeedingReminder usa DEFAULT_TZ cuando la reserva no trae tz (r
   assert.strictEqual(result.length, 1);
 });
 
+test('findBookingsNeedingReminder omite (no crashea) una reserva con date faltante', () => {
+  const now = new Date('2026-06-10T12:00:00.000Z');
+  const bookings = [
+    { code: 'SW-sin-date', status: 'pending', time: '08:00', tz: 'America/Santiago' },
+  ];
+  assert.doesNotThrow(() => findBookingsNeedingReminder(bookings, now));
+  assert.strictEqual(findBookingsNeedingReminder(bookings, now).length, 0);
+});
+
+test('findBookingsNeedingReminder omite (no crashea) una reserva con time faltante', () => {
+  const now = new Date('2026-06-10T12:00:00.000Z');
+  const bookings = [
+    { code: 'SW-sin-time', status: 'pending', date: '2026-06-11', tz: 'America/Santiago' },
+  ];
+  assert.doesNotThrow(() => findBookingsNeedingReminder(bookings, now));
+  assert.strictEqual(findBookingsNeedingReminder(bookings, now).length, 0);
+});
+
+test('una reserva malformada no bloquea el resto del lote (no propaga la excepción al resto del filter)', () => {
+  const now = new Date('2026-06-10T12:00:00.000Z');
+  const bookings = [
+    { code: 'SW-mala', status: 'pending', date: '2026-06-11', time: undefined, tz: 'America/Santiago' },
+    { code: 'SW-buena', status: 'pending', date: '2026-06-11', time: '08:00', tz: 'America/Santiago' },
+  ];
+  const result = findBookingsNeedingReminder(bookings, now);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].code, 'SW-buena');
+});
+
 test('REMINDER_WINDOW_MS es 15 minutos (mismo ancho que el intervalo de la corrida programada)', () => {
   assert.strictEqual(REMINDER_WINDOW_MS, 15 * 60 * 1000);
 });
@@ -352,10 +381,20 @@ function findBookingsNeedingReminder(bookings, now) {
   return (bookings || []).filter((b) => {
     if (b.status !== 'pending') return false;
     if (b.reminderSentAt) return false;
-    const tz = b.tz || DEFAULT_TZ;
-    const instant = zonedInstant(dateKeyOf(b.date), b.time, tz);
-    const t = instant.getTime();
-    return t >= windowStart && t < windowEnd;
+    // Una reserva con date/time faltante o malformado no debe tirar abajo
+    // el resto del lote -- el admin no pasa por isValidBookingPayload() en
+    // sus escrituras (ver CLAUDE.md), así que un dato corrupto acá es un
+    // caso real, no hipotético. Se trata como "no elegible todavía", igual
+    // que dateParts() en email.js hace con el mismo tipo de fallo.
+    try {
+      const tz = b.tz || DEFAULT_TZ;
+      const instant = zonedInstant(dateKeyOf(b.date), b.time, tz);
+      const t = instant.getTime();
+      if (Number.isNaN(t)) return false;
+      return t >= windowStart && t < windowEnd;
+    } catch {
+      return false;
+    }
   });
 }
 
@@ -367,7 +406,7 @@ module.exports = {
 - [ ] **Step 4: Correr los tests y verificar que pasan**
 
 Run: `cd functions && node --test test/reminders.test.js`
-Expected: PASS (10 tests)
+Expected: PASS (14 tests — 11 originales + 3 de resiliencia agregadas tras el hallazgo Critical del code-quality reviewer sobre date/time malformado, ver commit 8466c0a)
 
 - [ ] **Step 5: Commit**
 
@@ -651,7 +690,20 @@ exports.sendBookingReminders = onSchedule(
   { schedule: 'every 15 minutes', region: 'southamerica-east1', secrets: [RESEND_API_KEY, FROM_EMAIL] },
   async () => {
     const db = getFirestore(app);
-    const now = new Date();
+    // Se ancla `now` a la grilla fija de 15 min (el mismo ancho que
+    // REMINDER_WINDOW_MS) en vez de usar la hora real de invocación --
+    // hallazgo del code-quality reviewer de la Task 3: onSchedule no
+    // garantiza puntualidad al segundo (cold start, hiccup de GCP), y como
+    // la ventana solo avanza hacia adelante entre corridas, anclar a la
+    // hora real de cada invocación podía abrir un hueco PERMANENTE para una
+    // reserva cuyo instante cae justo entre el fin de una ventana y el
+    // inicio (ya corrido por el jitter) de la siguiente. Con la grilla fija,
+    // un jitter de segundos/minutos sigue mapeando al mismo bloque de 15
+    // min, así que no se pierde cobertura mientras la función corra al
+    // menos una vez por bloque (una corrida completamente saltada sigue
+    // siendo un riesgo residual aceptado, igual que con refreshGoogleReviews).
+    const rawNow = new Date();
+    const now = new Date(Math.floor(rawNow.getTime() / REMINDER_WINDOW_MS) * REMINDER_WINDOW_MS);
     const businessInfoSnap = await db.collection('businessInfo').doc('main').get();
     const businessTz = resolveBusinessTz(businessInfoSnap.exists ? businessInfoSnap.data() : null);
 

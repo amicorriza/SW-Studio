@@ -298,6 +298,139 @@ function renderShopEmail(b) {
   return { subject, html };
 }
 
+// Template "SW Studio — Recordatorio de cita": mismo sistema visual que
+// renderClientEmail (hero oscuro + tarjeta de detalle + banda de marca +
+// footer), pero con dos CTA (Confirmar/Declinar) en vez de un solo botón --
+// cierra el flujo de recordatorio 24h antes (ver functions/reminders.js y
+// exports.sendBookingReminders en index.js). Cargar el link NUNCA ejecuta
+// la acción: ambos apuntan a confirmar-cita.html, que exige un tap
+// explícito antes de llamar a respondToBookingReminder -- necesario porque
+// clientes de correo (Gmail, Outlook Safe Links) siguen/prefetchean links
+// automáticamente por seguridad, y un link que ejecutara la acción con un
+// simple GET se dispararía solo.
+function renderReminderEmail(b, token) {
+  const tz = b.tz || DEFAULT_TZ;
+  const subject = `¿Confirmas tu cita de mañana a las ${b.time}? — Scissor White`;
+  const d = dateParts(b.date, b.time, tz);
+  const confirmUrl = `${SITE_URL}/confirmar-cita.html?code=${encodeURIComponent(b.code)}&t=${encodeURIComponent(token)}&r=confirm`;
+  const declineUrl = `${SITE_URL}/confirmar-cita.html?code=${encodeURIComponent(b.code)}&t=${encodeURIComponent(token)}&r=decline`;
+  const rows = [
+    detailRow('PROFESIONAL', esc(b.barberName)),
+    detailRow('SERVICIO', esc(b.svcName)),
+    detailRow('CÓDIGO', esc(b.code), true),
+  ].join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,500&family=Jost:wght@200;300;400;500;600&display=swap');
+  body { margin:0; padding:0; background:#cfccc7; -webkit-font-smoothing:antialiased; }
+  table { border-collapse:collapse; }
+  img { border:0; outline:none; text-decoration:none; }
+  a { color:inherit; text-decoration:none; }
+  @media only screen and (max-width:640px) {
+    .sw-wrap { width:100% !important; }
+    .sw-col { display:block !important; width:100% !important; }
+    .sw-title { font-size:26px !important; letter-spacing:7px !important; }
+    .sw-card { padding:26px 18px 22px !important; }
+    .sw-datecell { padding:0 0 22px 0 !important; }
+    .sw-datebox { width:100% !important; }
+    .sw-cta-col { display:block !important; width:100% !important; padding:0 0 10px 0 !important; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#cfccc7;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#cfccc7;">
+<tr><td align="center" style="padding:32px 10px;">
+
+<table role="presentation" class="sw-wrap" width="640" cellpadding="0" cellspacing="0" style="width:640px;max-width:640px;background:#0e0e0e;border-radius:2px;overflow:hidden;">
+
+  <!-- HERO -->
+  <tr><td style="background:#0e0e0e;padding:38px 32px 40px;">
+    <img src="${ASSETS_URL}/logo.png" alt="SW Studio" width="64" height="64" style="display:block;border-radius:50%;margin-bottom:28px;">
+    <h1 class="sw-title" style="margin:0;font-family:${FONT_SANS};font-weight:300;font-size:33px;letter-spacing:10px;color:#ffffff;line-height:1.4;">TU CITA<br>ES MAÑANA</h1>
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="width:44px;height:1px;background:rgba(255,255,255,.45);font-size:0;line-height:0;padding:0;margin:0;" height="1"></td></tr></table>
+    <p style="margin:20px 0 0;font-family:${FONT_SERIF};font-style:italic;font-weight:500;font-size:20px;color:#f2f2f2;line-height:1.3;">¿Nos confirmas tu asistencia?</p>
+  </td></tr>
+
+  <!-- DETAIL CARD -->
+  <tr><td class="sw-card" style="background:#f3f2f0;padding:34px 30px 30px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td class="sw-col sw-datecell" width="150" valign="top" style="padding:0 22px 0 0;">
+          <table role="presentation" width="150" class="sw-datebox" cellpadding="0" cellspacing="0" style="background:#161616;border-radius:14px;">
+            <tr><td align="center" style="padding:26px 14px;">
+              <div style="font-family:${FONT_SANS};font-weight:400;font-size:12px;letter-spacing:4px;color:#e9e9e9;">${esc(d.weekday)}</div>
+              <div style="font-family:${FONT_SANS};font-weight:200;font-size:72px;letter-spacing:2px;line-height:1;color:#ffffff;margin:8px 0 6px;">${esc(d.day)}</div>
+              <div style="font-family:${FONT_SANS};font-weight:400;font-size:12px;letter-spacing:3px;color:#e9e9e9;">${esc(d.monthYear)}</div>
+              <table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:16px auto;"><tr><td style="width:26px;height:1px;background:rgba(255,255,255,.4);font-size:0;line-height:0;" height="1"></td></tr></table>
+              <div style="font-family:${FONT_SANS};font-weight:500;font-size:15px;letter-spacing:.5px;color:#ffffff;white-space:nowrap;">${esc(b.time)} HRS</div>
+            </td></tr>
+          </table>
+        </td>
+        <td class="sw-col" valign="middle">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <!-- CTA: Confirmar / Declinar -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;">
+      <tr>
+        <td class="sw-cta-col" width="50%" style="padding-right:6px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#161616;border-radius:8px;">
+            <tr><td align="center" style="padding:18px 10px;">
+              <a href="${confirmUrl}" target="_blank" style="font-family:${FONT_SANS};font-weight:500;font-size:13px;letter-spacing:2px;color:#ffffff;">CONFIRMAR ASISTENCIA</a>
+            </td></tr>
+          </table>
+        </td>
+        <td class="sw-cta-col" width="50%" style="padding-left:6px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:transparent;border:1px solid #161616;border-radius:8px;">
+            <tr><td align="center" style="padding:18px 10px;">
+              <a href="${declineUrl}" target="_blank" style="font-family:${FONT_SANS};font-weight:500;font-size:13px;letter-spacing:2px;color:#161616;">NO PODRÉ IR</a>
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+
+  <!-- BANDA OSCURA -->
+  <tr><td style="background:#0e0e0e;padding:30px 32px;">
+    <div style="font-family:${FONT_SANS};font-weight:500;font-size:13px;letter-spacing:4px;color:#ffffff;margin-bottom:8px;">VISAGISMO · ESTILO · CONFIANZA</div>
+    <p style="margin:0;font-family:${FONT_SERIF};font-weight:400;font-size:16px;color:#b9b7b4;line-height:1.5;">Te esperamos en SW Studio. Si necesitas reagendar, escríbenos por <a href="https://wa.me/56982514114" target="_blank" style="color:#ffffff;text-decoration:underline;">WhatsApp</a>.</p>
+  </td></tr>
+
+  <!-- FOOTER -->
+  <tr><td style="background:#f3f2f0;padding:20px 30px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td width="44" valign="middle"><img src="${ASSETS_URL}/logo.png" alt="SW Studio" width="44" height="44" style="display:block;border-radius:50%;"></td>
+        <td valign="middle" style="padding:0 0 0 18px;font-family:${FONT_SERIF};font-weight:400;font-size:16px;color:#4a4a4a;">Más que cortes, creamos identidad</td>
+      </tr>
+    </table>
+  </td></tr>
+
+</table>
+
+</td></tr>
+</table>
+</body>
+</html>`;
+  return { subject, html };
+}
+
+async function sendReminderEmail(b, token, { apiKey, fromEmail }) {
+  const resend = new Resend(apiKey);
+  const { subject, html } = renderReminderEmail(b, token);
+  const result = await resend.emails.send({ from: fromEmail, to: b.email, subject, html });
+  assertResendOk([result]);
+}
+
 // El SDK de Resend no lanza en errores de API: resuelve con {data, error}.
 // Hay que inspeccionar `error` o los envíos rechazados pasarían por exitosos.
 function assertResendOk(results) {
@@ -318,4 +451,7 @@ async function sendBookingEmails(b, { apiKey, fromEmail, shopEmail }) {
   assertResendOk(results);
 }
 
-module.exports = { renderClientEmail, renderShopEmail, sendBookingEmails, parseRecipients, assertResendOk };
+module.exports = {
+  renderClientEmail, renderShopEmail, renderReminderEmail,
+  sendBookingEmails, sendReminderEmail, parseRecipients, assertResendOk,
+};

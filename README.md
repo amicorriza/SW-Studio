@@ -154,10 +154,11 @@ firebase deploy --project scissor-white --only \
   hosting,firestore:rules,firestore:indexes,\
 functions:onBookingCreated,functions:createBooking,functions:getClubStatus,\
 functions:getAvailability,functions:onBookingWritten,functions:onScheduleBlockWritten,\
-functions:refreshGoogleReviews,functions:syncGoogleReviews
+functions:refreshGoogleReviews,functions:syncGoogleReviews,\
+functions:sendBookingReminders,functions:respondToBookingReminder,functions:getBookingForReminderAction
 ```
 
-Son **8 nombres — uno por cada `exports.` de `functions/index.js`**. Antes de
+Son **11 nombres — uno por cada `exports.` de `functions/index.js`**. Antes de
 deployar, verificar que no falte ninguno:
 
 ```bash

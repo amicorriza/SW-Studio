@@ -521,6 +521,12 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
 .a-bk-card-time{font-family:'Orbitron',sans-serif;font-size:9.5px;font-weight:600;color:var(--a-sd);letter-spacing:.02em}
 .a-bk-card-barber{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--a-info);background:#E5F0FB;padding:1px 5px;border-radius:3px}
 .a-bk-card-over-tag{font-family:'Barlow Condensed',sans-serif;font-size:8px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#fff;background:var(--a-warn);padding:1px 5px;border-radius:3px}
+.a-bk-card-status-tag{font-family:'Barlow Condensed',sans-serif;font-size:8px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#fff;padding:1px 5px;border-radius:3px}
+.a-bk-card-status-tag.confirmed{background:var(--a-ok)}
+.a-bk-card-status-tag.declined{background:var(--a-err)}
+.a-bk-card-status-tag.noresponse{background:var(--a-warn)}
+.a-bk-card.declined{opacity:.55}
+.a-bk-card.declined .a-bk-card-name{text-decoration:line-through}
 .a-blk-card{
   position:absolute;left:4px;right:4px;
   background:var(--a-ink);color:#fff;
@@ -1857,6 +1863,7 @@ function checkConflict(barberId, dateStr, timeStr, durMin, ignoreId, bufferMin){
   for(var i=0; i<bookings.length; i++){
     var b = bookings[i];
     if(ignoreId && b.code === ignoreId) continue;
+    if(b.status === 'declined') continue;
     if(b.barberId !== barberId) continue;
     if((b.date ? b.date.substring(0,10) : '') !== dateStr) continue;
     var bStart = toMin(b.time);
@@ -2236,6 +2243,19 @@ function renderCalendar(){
     var dens = height >= 62 ? '' : (height >= 40 ? ' compact' : ' mini');
     var style = 'top:'+top.toFixed(1)+'px;height:'+height.toFixed(1)+'px;'+
                 'left:calc('+left+'% + 4px);width:calc('+w+'% - 8px);';
+    // Badge de status del recordatorio de citas: confirmada/declinada gana
+    // sobre "sin respuesta" -- reminderSentAt queda seteado para siempre
+    // una vez enviado el recordatorio, así que sin este orden de prioridad
+    // una cita ya respondida seguiría mostrando "Sin respuesta" además de
+    // su badge real.
+    var statusTag = '';
+    if(b.status === 'confirmed'){
+      statusTag = '<span class="a-bk-card-status-tag confirmed">✓ Confirmada</span>';
+    } else if(b.status === 'declined'){
+      statusTag = '<span class="a-bk-card-status-tag declined">✗ Declinada</span>';
+    } else if(b.reminderSentAt){
+      statusTag = '<span class="a-bk-card-status-tag noresponse">Sin respuesta</span>';
+    }
     var inner;
     if(dens === ' mini'){
       inner = '<div class="a-bk-card-line">'+
@@ -2247,6 +2267,7 @@ function renderCalendar(){
               '<div class="a-bk-card-line">'+
                 '<span class="a-bk-card-time">'+esc(b.time||'')+' · '+e.dur+'min</span>'+
                 (b.over ? '<span class="a-bk-card-over-tag">!</span>' : '')+
+                statusTag+
               '</div>';
     } else {
       inner = '<div class="a-bk-card-name">'+esc(b.name||'Cliente')+'</div>'+
@@ -2254,9 +2275,10 @@ function renderCalendar(){
               '<div class="a-bk-card-meta">'+
                 '<span class="a-bk-card-time">'+esc(b.time||'')+' · '+e.dur+'min</span>'+
                 (b.over ? '<span class="a-bk-card-over-tag">Sobrecupo</span>' : '')+
+                statusTag+
               '</div>';
     }
-    return '<div class="a-bk-card'+(b.over?' over':'')+dens+'" style="'+style+'" '+
+    return '<div class="a-bk-card'+(b.over?' over':'')+(b.status==='declined'?' declined':'')+dens+'" style="'+style+'" '+
              'data-code="'+esc(b.code)+'" '+
              'title="'+esc((b.time||'')+' · '+(b.name||'Cliente')+' · '+(b.svcName||'')+' · '+bn)+'">'+
              inner+

@@ -7,12 +7,13 @@ const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
-const { sendBookingEmails } = require('./email.js');
+const { sendBookingEmails, sendReminderEmail } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
 const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./shared/availability.js');
 const { resolveCreateBooking } = require('./createBooking.js');
-const { resolveBusinessTz, resolveBufferMin } = require('./shared/timezone.js');
+const { resolveBusinessTz, resolveBufferMin, dateKeyInZone } = require('./shared/timezone.js');
 const { searchPlaceId, fetchPlaceDetails, isFresh } = require('./googleReviews.js');
+const { REMINDER_LEAD_MS, REMINDER_WINDOW_MS, generateReminderToken, findBookingsNeedingReminder } = require('./reminders.js');
 
 const app = initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -336,6 +337,194 @@ exports.onScheduleBlockWritten = onDocumentWritten(
     if (!dates.size) return;
     const db = getFirestore(app);
     await Promise.all([...dates].map(dk => recomputeAvailabilityForDate(db, dk)));
+  }
+);
+
+// ══ RECORDATORIO DE CITAS (confirmar/declinar) ══
+// "Debido", no ventana de coincidencia única: una reserva se vuelve
+// candidata cuando su instante real queda a 24h (REMINDER_LEAD_MS) o menos de
+// distancia, y sigue siéndolo en TODAS las corridas siguientes -- hasta que
+// el envío tenga éxito (reminderSentAt) o la cita ya haya ocurrido -- ver
+// functions/reminders.js. Esto es lo que hace real el reintento: una
+// ventana de coincidencia única [now+24h, now+24h+15min) descartaría para
+// siempre una reserva cuyo único turno cayó en una corrida que falló (ver
+// el test de regresión en functions/test/reminders.test.js). Mismo criterio
+// de resiliencia que refreshGoogleReviews: toda la función corre dentro de
+// un try/catch, un fallo (de la query, de Resend, de lo que sea) no debe
+// tirarla a estado de error ni impedir que la corrida siguiente reintente.
+exports.sendBookingReminders = onSchedule(
+  { schedule: 'every 15 minutes', region: 'southamerica-east1', secrets: [RESEND_API_KEY, FROM_EMAIL] },
+  async () => {
+    try {
+      const db = getFirestore(app);
+      // Se ancla `now` a la grilla fija de 15 min (el mismo ancho que
+      // REMINDER_WINDOW_MS) en vez de usar la hora real de invocación --
+      // onSchedule no garantiza puntualidad al segundo (cold start, hiccup
+      // de GCP). No es indispensable para el reintento en sí (eso ya lo da
+      // el diseño "debido" de reminders.js), pero mantiene la query y los
+      // logs alineados a bloques predecibles.
+      const rawNow = new Date();
+      const now = new Date(Math.floor(rawNow.getTime() / REMINDER_WINDOW_MS) * REMINDER_WINDOW_MS);
+      const businessInfoSnap = await db.collection('businessInfo').doc('main').get();
+      const businessInfoData = businessInfoSnap.exists ? businessInfoSnap.data() : null;
+
+      // Interruptor de seguridad: por defecto (campo ausente) la función NO
+      // manda nada -- corta ANTES de tocar `bookings`, así que tampoco
+      // depende todavía del índice compuesto que esa query necesita. Recién
+      // manda emails reales cuando alguien activa `remindersEnabled:true` a
+      // mano en businessInfo/main, después de verificar en staging que el
+      // flujo (recordatorio -> confirmar-cita.html -> Agenda) se ve bien.
+      // Deploy != activación: el primer despliegue de este goal deja el
+      // Cloud Scheduler instalado pero en no-op a propósito.
+      if (!businessInfoData || businessInfoData.remindersEnabled !== true) {
+        logger.info('sendBookingReminders: remindersEnabled no está activado, no se envía nada esta corrida.');
+        return;
+      }
+
+      const businessTz = resolveBusinessTz(businessInfoData);
+
+      // Ventana amplia por fecha calendario, desde HOY (no desde now+24h:
+      // una reserva "debida" puede tener su cita en cualquier punto entre
+      // ahora y ~mañana a esta hora, incluyendo turnos que ya deberían
+      // haberse recordado y no se recordaron por una falla previa) hasta
+      // el borde superior de "debido" -- el filtro fino por instante real
+      // ocurre en findBookingsNeedingReminder(), en JS puro. Mismo patrón
+      // de "query amplia por date + filtro preciso en memoria" que ya usa
+      // createBooking.js.
+      const startDateKey = dateKeyInZone(now, businessTz);
+      const dueByInstant = new Date(now.getTime() + REMINDER_LEAD_MS + REMINDER_WINDOW_MS);
+      const endDateKey = dateKeyInZone(dueByInstant, businessTz);
+      const { end: endBound } = dayBoundsOf(endDateKey);
+
+      const snap = await db.collection('bookings')
+        .where('status', '==', 'pending')
+        .where('date', '>=', startDateKey)
+        .where('date', '<', endBound)
+        .get();
+
+      // `code` es generado en el cliente (Date.now() en base36 + un
+      // aleatorio de 3 dígitos, ver public/index.html) sin unicidad
+      // reforzada del lado del servidor -- no es apto como clave de
+      // emparejamiento: una colisión mandaría el recordatorio de una
+      // reserva a los datos de otra. Se usa el ID real del doc de
+      // Firestore (`d.id`, único por diseño) en su lugar, viajando en un
+      // campo `_docId` que findBookingsNeedingReminder() ignora sin
+      // problema (solo lee status/reminderSentAt/date/time/tz).
+      const items = snap.docs
+        .map((d) => ({ ref: d.ref, data: { ...d.data(), _docId: d.id } }))
+        .filter((item) => !item.data.reminderSentAt);
+      const itemsByDocId = new Map(items.map((item) => [item.data._docId, item]));
+      const toRemindData = findBookingsNeedingReminder(items.map((item) => item.data), now);
+      const toRemind = toRemindData.map((b) => itemsByDocId.get(b._docId)).filter(Boolean);
+
+      for (const item of toRemind) {
+        const b = item.data;
+        // Sin email no hay a quién recordarle -- mismo criterio que
+        // onBookingCreated (una reserva tomada por teléfono puede no traer
+        // email).
+        if (!b.email) continue;
+        const token = generateReminderToken();
+        try {
+          await sendReminderEmail(b, token, {
+            apiKey: RESEND_API_KEY.value(),
+            fromEmail: FROM_EMAIL.value(),
+          });
+          await item.ref.update({ reminderToken: token, reminderSentAt: new Date().toISOString() });
+          logger.info('Recordatorio enviado', { code: b.code });
+        } catch (err) {
+          logger.error('Fallo al enviar recordatorio', err);
+          try {
+            await db.collection('adminLog').add({
+              action: 'reminder_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
+            });
+          } catch (err2) {
+            logger.error('Fallo al registrar adminLog de reminder_failed', err2);
+          }
+          // No relanzar: un fallo individual no debe abortar el resto de
+          // la corrida -- y como esta reserva sigue "debida" (no piso
+          // inferior en reminders.js), la corrida siguiente (15 min
+          // después) vuelve a intentarla porque reminderSentAt nunca se
+          // escribió. Riesgo aceptado, no resuelto acá: dos corridas
+          // solapadas (reintento del scheduler sobre una corrida lenta)
+          // podrían ambas generar un token distinto para la misma reserva
+          // antes de que la primera escriba -- el segundo `update` gana y
+          // el primer email queda con un link inválido. Baja probabilidad
+          // dado el volumen de este negocio; no se agrega una transacción
+          // de "reclamo" por ahora, mismo criterio pragmático que ya
+          // aplica a otras corridas de este archivo (ver
+          // recomputeAvailabilityForDate: "se autocorrigen").
+        }
+      }
+    } catch (err) {
+      // Un fallo antes de llegar al loop (ej. índice compuesto faltante en
+      // la query, businessInfo inaccesible) no debe dejar la función en
+      // estado de error -- la corrida siguiente, 15 min después, vuelve a
+      // intentar desde cero. Mismo criterio que refreshGoogleReviews.
+      logger.error('Fallo la corrida de sendBookingReminders', err);
+    }
+  }
+);
+
+// respondToBookingReminder: el cliente nunca puede leer ni escribir
+// `bookings` directo (ver firestore.rules) -- esta función valida el
+// reminderToken (búsqueda por el TOKEN, no por `code`: es único por
+// diseño, así la seguridad no depende de que `code` lo sea) y aplica la
+// transición de estado. Idempotente: un segundo tap del mismo link no
+// rompe nada, cae en la rama `already`.
+exports.respondToBookingReminder = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const data = request.data || {};
+    const code = typeof data.code === 'string' ? data.code.trim() : '';
+    const token = typeof data.token === 'string' ? data.token.trim() : '';
+    const action = data.action;
+    if (!token || (action !== 'confirm' && action !== 'decline')) {
+      throw new HttpsError('invalid-argument', 'Datos inválidos.');
+    }
+
+    const db = getFirestore(app);
+    const snap = await db.collection('bookings').where('reminderToken', '==', token).limit(1).get();
+    // Mismo mensaje genérico si el token no existe o si el `code` no calza
+    // con el que sí se encontró -- no revelar cuál de las dos cosas falló.
+    if (snap.empty || snap.docs[0].data().code !== code) {
+      throw new HttpsError('not-found', 'No encontramos esa reserva.');
+    }
+
+    const doc = snap.docs[0];
+    const b = doc.data();
+    if (b.status !== 'pending') {
+      return { ok: true, already: true, status: b.status };
+    }
+
+    const status = action === 'confirm' ? 'confirmed' : 'declined';
+    await doc.ref.update({ status, respondedAt: new Date().toISOString() });
+    return { ok: true, already: false, status };
+  }
+);
+
+// getBookingForReminderAction: lectura de solo lo necesario para pintar
+// confirmar-cita.html antes de que el cliente decida -- nunca devuelve
+// reminderToken de vuelta. Mismo criterio de búsqueda por reminderToken que
+// respondToBookingReminder.
+exports.getBookingForReminderAction = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const data = request.data || {};
+    const code = typeof data.code === 'string' ? data.code.trim() : '';
+    const token = typeof data.token === 'string' ? data.token.trim() : '';
+    if (!token) throw new HttpsError('invalid-argument', 'Datos inválidos.');
+
+    const db = getFirestore(app);
+    const snap = await db.collection('bookings').where('reminderToken', '==', token).limit(1).get();
+    if (snap.empty || snap.docs[0].data().code !== code) {
+      throw new HttpsError('not-found', 'No encontramos esa reserva.');
+    }
+
+    const b = snap.docs[0].data();
+    return {
+      code: b.code, date: b.date, time: b.time, svcName: b.svcName,
+      barberName: b.barberName, status: b.status,
+    };
   }
 );
 

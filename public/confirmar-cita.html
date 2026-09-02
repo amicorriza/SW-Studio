@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confirmar cita — SW Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,500&family=Jost:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#0e0e0e; --card:#f3f2f0; --txt:#161616; --meta:#6b6b6b; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);font-family:'Jost',Arial,sans-serif;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}
+  .card{max-width:420px;width:100%;background:var(--card);color:var(--txt);border-radius:14px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+  .hero{background:var(--bg);color:#fff;padding:32px 28px 26px;text-align:center}
+  .hero h1{margin:0;font-weight:300;font-size:22px;letter-spacing:4px;font-family:'Jost',sans-serif}
+  .body{padding:28px}
+  .row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #e5e4e1;font-family:'Cormorant Garamond',serif;font-size:17px}
+  .row:last-child{border-bottom:none}
+  .row .lbl{font-family:'Jost',sans-serif;font-size:11px;letter-spacing:2px;color:var(--meta);text-transform:uppercase}
+  .actions{margin-top:24px}
+  button{width:100%;padding:16px;border:none;border-radius:8px;font-family:'Jost',sans-serif;font-weight:500;font-size:14px;letter-spacing:2px;cursor:pointer}
+  .btn-confirm{background:var(--bg);color:#fff}
+  .btn-decline{background:transparent;color:var(--bg);border:1px solid var(--bg)}
+  .msg{font-family:'Cormorant Garamond',serif;font-size:19px;text-align:center;padding:12px 0}
+  .err{color:#C44545}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="hero"><h1>SW STUDIO</h1></div>
+  <div class="body">
+    <div id="cc-loading" class="msg">Cargando tu reserva…</div>
+    <div id="cc-error" class="msg err" hidden></div>
+    <div id="cc-summary" hidden>
+      <div class="row"><span class="lbl">Fecha</span><span id="cc-date"></span></div>
+      <div class="row"><span class="lbl">Hora</span><span id="cc-time"></span></div>
+      <div class="row"><span class="lbl">Servicio</span><span id="cc-svc"></span></div>
+      <div class="row"><span class="lbl">Profesional</span><span id="cc-barber"></span></div>
+      <div class="actions">
+        <button id="cc-action-btn"></button>
+      </div>
+    </div>
+    <div id="cc-done" class="msg" hidden></div>
+  </div>
+</div>
+<script type="module">
+  import { getBookingForReminderAction, respondToBookingReminder } from './js/data.js';
+
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code') || '';
+  const token = params.get('t') || '';
+  const r = params.get('r') === 'decline' ? 'decline' : 'confirm';
+
+  const els = {
+    loading: document.getElementById('cc-loading'),
+    error: document.getElementById('cc-error'),
+    summary: document.getElementById('cc-summary'),
+    done: document.getElementById('cc-done'),
+    date: document.getElementById('cc-date'),
+    time: document.getElementById('cc-time'),
+    svc: document.getElementById('cc-svc'),
+    barber: document.getElementById('cc-barber'),
+    btn: document.getElementById('cc-action-btn'),
+  };
+
+  function showError(msg) {
+    els.loading.hidden = true;
+    els.error.hidden = false;
+    els.error.textContent = msg;
+  }
+
+  async function init() {
+    if (!code || !token) {
+      showError('Este link no es válido.');
+      return;
+    }
+    let booking;
+    try {
+      booking = await getBookingForReminderAction(code, token);
+    } catch (e) {
+      showError('No encontramos esa reserva. El link puede haber expirado.');
+      return;
+    }
+
+    els.loading.hidden = true;
+
+    if (booking.status !== 'pending') {
+      els.done.hidden = false;
+      els.done.textContent = booking.status === 'confirmed'
+        ? 'Ya habías confirmado esta cita. ¡Te esperamos!'
+        : booking.status === 'declined'
+          ? 'Ya habías avisado que no podías ir a esta cita.'
+          : 'Esta cita ya no admite cambios desde este link.';
+      return;
+    }
+
+    els.date.textContent = booking.date;
+    els.time.textContent = booking.time + ' hrs';
+    els.svc.textContent = booking.svcName || '';
+    els.barber.textContent = booking.barberName || '';
+    els.summary.hidden = false;
+
+    els.btn.textContent = r === 'confirm' ? 'SÍ, CONFIRMO MI ASISTENCIA' : 'NO PODRÉ IR, DECLINAR CITA';
+    els.btn.className = r === 'confirm' ? 'btn-confirm' : 'btn-decline';
+    els.btn.addEventListener('click', onAct, { once: true });
+  }
+
+  async function onAct() {
+    els.btn.disabled = true;
+    els.btn.textContent = 'Enviando…';
+    try {
+      await respondToBookingReminder(code, token, r);
+      els.summary.hidden = true;
+      els.done.hidden = false;
+      els.done.textContent = r === 'confirm'
+        ? '¡Gracias, te esperamos!'
+        : 'Listo, liberamos tu horario.';
+    } catch (e) {
+      showError('No pudimos registrar tu respuesta. Intenta de nuevo o escríbenos por WhatsApp.');
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>

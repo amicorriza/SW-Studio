@@ -7,7 +7,7 @@ const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
-const { sendBookingEmails, sendReminderEmail } = require('./email.js');
+const { sendBookingEmails, sendReminderEmail, sendReminderResponseEmail } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
 const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./shared/availability.js');
 const { resolveCreateBooking } = require('./createBooking.js');
@@ -470,9 +470,15 @@ exports.sendBookingReminders = onSchedule(
 // reminderToken (búsqueda por el TOKEN, no por `code`: es único por
 // diseño, así la seguridad no depende de que `code` lo sea) y aplica la
 // transición de estado. Idempotente: un segundo tap del mismo link no
-// rompe nada, cae en la rama `already`.
+// rompe nada, cae en la rama `already`. Tras confirmar/declinar (nunca en
+// la rama `already`, que no cambió nada) se avisa por email a los
+// correos del negocio (SHOP_EMAIL) para que el barbero se entere sin
+// depender de revisar la Agenda -- best-effort: si el envío falla, se
+// loguea mismo criterio que onBookingCreated, pero NO revierte la
+// transición ya escrita (el status es la fuente de verdad, el email es
+// respaldo).
 exports.respondToBookingReminder = onCall(
-  { region: 'southamerica-east1' },
+  { region: 'southamerica-east1', secrets: [RESEND_API_KEY, FROM_EMAIL, SHOP_EMAIL] },
   async (request) => {
     const data = request.data || {};
     const code = typeof data.code === 'string' ? data.code.trim() : '';
@@ -498,6 +504,26 @@ exports.respondToBookingReminder = onCall(
 
     const status = action === 'confirm' ? 'confirmed' : 'declined';
     await doc.ref.update({ status, respondedAt: new Date().toISOString() });
+
+    try {
+      await sendReminderResponseEmail(b, action, {
+        apiKey: RESEND_API_KEY.value(),
+        fromEmail: FROM_EMAIL.value(),
+        shopEmail: SHOP_EMAIL.value(),
+      });
+    } catch (err) {
+      logger.error('Fallo al avisar al negocio la respuesta del cliente', err);
+      try {
+        await db.collection('adminLog').add({
+          action: 'reminder_response_notify_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
+        });
+      } catch (err2) {
+        logger.error('Fallo al registrar adminLog de reminder_response_notify_failed', err2);
+      }
+      // No relanzar: la transición de estado ya es válida y real, el aviso
+      // al negocio es respaldo, no la fuente de verdad.
+    }
+
     return { ok: true, already: false, status };
   }
 );

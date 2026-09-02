@@ -431,6 +431,112 @@ async function sendReminderEmail(b, token, { apiKey, fromEmail }) {
   assertResendOk([result]);
 }
 
+// Aviso interno cuando el cliente responde al recordatorio (confirma o
+// declina) -- mismo sistema visual que renderShopEmail (alerta operativa,
+// sin CTA ni banda de marketing): el negocio se entera sin depender de
+// revisar la Agenda a mano. Se dispara desde
+// exports.respondToBookingReminder (functions/index.js), después de que la
+// transición de estado ya se escribió -- este email es respaldo, no la
+// fuente de verdad, mismo criterio que el resto de los avisos del negocio.
+function renderReminderResponseEmail(b, action) {
+  const tz = b.tz || DEFAULT_TZ;
+  const isConfirmed = action === 'confirm';
+  const subject = (isConfirmed ? 'Cliente confirmó su cita' : 'Cliente declinó su cita') + ` — ${b.code}`;
+  const d = dateParts(b.date, b.time, tz);
+  const rows = [
+    detailRow('CLIENTE', esc(b.name)),
+    detailRow('TELÉFONO', `<a href="tel:${esc(b.phone)}" style="color:#161616;text-decoration:none;">${esc(b.phone)}</a>`),
+    detailRow('PROFESIONAL', esc(b.barberName)),
+    detailRow('SERVICIO', esc(b.svcName)),
+    detailRow('CÓDIGO', esc(b.code), true),
+  ].join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,500&family=Jost:wght@200;300;400;500;600&display=swap');
+  body { margin:0; padding:0; background:#cfccc7; -webkit-font-smoothing:antialiased; }
+  table { border-collapse:collapse; }
+  img { border:0; outline:none; text-decoration:none; }
+  a { color:inherit; text-decoration:none; }
+  @media only screen and (max-width:640px) {
+    .sw-wrap { width:100% !important; }
+    .sw-col { display:block !important; width:100% !important; }
+    .sw-title { font-size:26px !important; letter-spacing:7px !important; }
+    .sw-card { padding:26px 18px 22px !important; }
+    .sw-datecell { padding:0 0 22px 0 !important; }
+    .sw-datebox { width:100% !important; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#cfccc7;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#cfccc7;">
+<tr><td align="center" style="padding:32px 10px;">
+
+<table role="presentation" class="sw-wrap" width="640" cellpadding="0" cellspacing="0" style="width:640px;max-width:640px;background:#0e0e0e;border-radius:2px;overflow:hidden;">
+
+  <!-- HERO -->
+  <tr><td style="background:#0e0e0e;padding:38px 32px 40px;">
+    <img src="${ASSETS_URL}/logo.png" alt="SW Studio" width="64" height="64" style="display:block;border-radius:50%;margin-bottom:28px;">
+    <h1 class="sw-title" style="margin:0;font-family:${FONT_SANS};font-weight:300;font-size:33px;letter-spacing:10px;color:#ffffff;line-height:1.4;">${isConfirmed ? 'CITA<br>CONFIRMADA' : 'CITA<br>DECLINADA'}</h1>
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="width:44px;height:1px;background:rgba(255,255,255,.45);font-size:0;line-height:0;padding:0;margin:0;" height="1"></td></tr></table>
+    <p style="margin:20px 0 0;font-family:${FONT_SERIF};font-style:italic;font-weight:500;font-size:20px;color:#f2f2f2;line-height:1.3;">${isConfirmed ? 'El cliente confirmó su asistencia al recordatorio.' : 'El cliente avisó que no podrá asistir — el horario ya quedó libre.'}</p>
+  </td></tr>
+
+  <!-- DETAIL CARD -->
+  <tr><td class="sw-card" style="background:#f3f2f0;padding:34px 30px 30px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <!-- Bloque fecha -->
+        <td class="sw-col sw-datecell" width="150" valign="top" style="padding:0 22px 0 0;">
+          <table role="presentation" width="150" class="sw-datebox" cellpadding="0" cellspacing="0" style="background:#161616;border-radius:14px;">
+            <tr><td align="center" style="padding:26px 14px;">
+              <div style="font-family:${FONT_SANS};font-weight:400;font-size:12px;letter-spacing:4px;color:#e9e9e9;">${esc(d.weekday)}</div>
+              <div style="font-family:${FONT_SANS};font-weight:200;font-size:72px;letter-spacing:2px;line-height:1;color:#ffffff;margin:8px 0 6px;">${esc(d.day)}</div>
+              <div style="font-family:${FONT_SANS};font-weight:400;font-size:12px;letter-spacing:3px;color:#e9e9e9;">${esc(d.monthYear)}</div>
+              <table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:16px auto;"><tr><td style="width:26px;height:1px;background:rgba(255,255,255,.4);font-size:0;line-height:0;" height="1"></td></tr></table>
+              <div style="font-family:${FONT_SANS};font-weight:500;font-size:15px;letter-spacing:.5px;color:#ffffff;white-space:nowrap;">${esc(b.time)} HRS</div>
+            </td></tr>
+          </table>
+        </td>
+        <!-- Campos -->
+        <td class="sw-col" valign="middle">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}
+          </table>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+
+  <!-- FOOTER -->
+  <tr><td style="background:#f3f2f0;padding:20px 30px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td width="44" valign="middle"><img src="${ASSETS_URL}/logo.png" alt="SW Studio" width="44" height="44" style="display:block;border-radius:50%;"></td>
+        <td valign="middle" style="padding:0 0 0 18px;font-family:${FONT_SERIF};font-weight:400;font-size:16px;color:#4a4a4a;">Más que cortes, creamos identidad</td>
+      </tr>
+    </table>
+  </td></tr>
+
+</table>
+
+</td></tr>
+</table>
+</body>
+</html>`;
+  return { subject, html };
+}
+
+async function sendReminderResponseEmail(b, action, { apiKey, fromEmail, shopEmail }) {
+  const resend = new Resend(apiKey);
+  const { subject, html } = renderReminderResponseEmail(b, action);
+  const result = await resend.emails.send({ from: fromEmail, to: parseRecipients(shopEmail), cc: SHOP_EMAIL_CC, subject, html });
+  assertResendOk([result]);
+}
+
 // El SDK de Resend no lanza en errores de API: resuelve con {data, error}.
 // Hay que inspeccionar `error` o los envíos rechazados pasarían por exitosos.
 function assertResendOk(results) {
@@ -452,6 +558,6 @@ async function sendBookingEmails(b, { apiKey, fromEmail, shopEmail }) {
 }
 
 module.exports = {
-  renderClientEmail, renderShopEmail, renderReminderEmail,
-  sendBookingEmails, sendReminderEmail, parseRecipients, assertResendOk,
+  renderClientEmail, renderShopEmail, renderReminderEmail, renderReminderResponseEmail,
+  sendBookingEmails, sendReminderEmail, sendReminderResponseEmail, parseRecipients, assertResendOk,
 };

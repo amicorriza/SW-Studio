@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { renderClientEmail, renderShopEmail, renderReminderEmail, parseRecipients, assertResendOk } = require('../email.js');
+const { renderClientEmail, renderShopEmail, renderReminderEmail, renderReminderResponseEmail, parseRecipients, assertResendOk } = require('../email.js');
 
 const booking = {
   // date = medianoche en Chile (UTC-4) serializada con toISOString(), como hace el frontend.
@@ -167,4 +167,33 @@ test('renderReminderEmail escapa barberName y svcName para evitar inyección de 
   assert.doesNotMatch(html, /<b>bold<\/b>/);
   assert.match(html, /&lt;img src=x onerror/);
   assert.match(html, /&lt;b&gt;bold&lt;\/b&gt;/);
+});
+
+test('renderReminderResponseEmail (confirm) tiene el asunto y el título correctos', () => {
+  const { subject, html } = renderReminderResponseEmail(booking, 'confirm');
+  assert.match(subject, /Cliente confirmó su cita/);
+  assert.match(subject, /SW-AB12345/);
+  assert.match(html, /CITA<br>CONFIRMADA/);
+  assert.match(html, /confirmó su asistencia/);
+});
+
+test('renderReminderResponseEmail (decline) tiene el asunto y el título correctos', () => {
+  const { subject, html } = renderReminderResponseEmail(booking, 'decline');
+  assert.match(subject, /Cliente declinó su cita/);
+  assert.match(html, /CITA<br>DECLINADA/);
+  assert.match(html, /no podrá asistir/);
+});
+
+test('renderReminderResponseEmail incluye datos de contacto del cliente para que el negocio pueda llamarlo', () => {
+  const { html } = renderReminderResponseEmail(booking, 'decline');
+  assert.match(html, /Juan Pérez/);
+  assert.match(html, /tel:\+56912345678/);
+  assert.match(html, /Felipe/);
+  assert.doesNotMatch(html, /VER MI RESERVA/); // sin CTA orientada al cliente, es un aviso interno
+});
+
+test('renderReminderResponseEmail escapa los datos del cliente para evitar inyección de HTML', () => {
+  const { html } = renderReminderResponseEmail({ ...booking, name: 'Juan <script>alert(1)</script>' }, 'confirm');
+  assert.doesNotMatch(html, /<script>alert/);
+  assert.match(html, /Juan &lt;script&gt;/);
 });

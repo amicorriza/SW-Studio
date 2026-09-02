@@ -241,6 +241,16 @@ test('computeAvailability sigue ocupando el slot para status "pending" y "confir
   ]);
 });
 
+test('computeAvailability sigue ocupando el slot de una reserva sin campo status (datos de antes de este goal)', () => {
+  // El filtro es deny-list (b.status !== 'declined'), no allow-list -- a
+  // propósito: una reserva sin `status` (legado) debe seguir ocupando el
+  // horario, igual que antes de este cambio.
+  const bookings = [{ barberId: 'felipe', date: '2026-07-10', time: '10:00', dur: 50 }];
+  const staff = [{ id: 'felipe', status: 'active' }];
+  const result = computeAvailability({ bookings, staff, barberId: 'felipe' });
+  assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:50', kind: 'booking' }]);
+});
+
 test('overlaps: solape exacto, parcial, adyacente y sin relación (bufferMin=0, comportamiento original)', () => {
   assert.strictEqual(overlaps(600, 650, 600, 650), true); // exacto
   assert.strictEqual(overlaps(600, 650, 620, 700), true); // parcial por el final

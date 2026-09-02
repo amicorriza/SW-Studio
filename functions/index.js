@@ -50,13 +50,22 @@ exports.onBookingCreated = onDocumentCreated(
     // ruido y costo evitable.
     const bookingUpdate = {};
 
+    // buildBookingDoc() (functions/createBooking.js) ya genera reminderToken
+    // para el camino público -- acá se cubre el otro camino de creación (el
+    // panel admin escribe el doc directo, sin pasar por ese builder) para
+    // que TODA reserva termine con un token válido, sin importar por dónde
+    // se creó. Si ya venía con uno, se reutiliza tal cual -- nunca se
+    // sobreescribe uno existente (el email ya pudo haber salido con él).
+    const reminderToken = b.reminderToken || generateReminderToken();
+    if (!b.reminderToken) bookingUpdate.reminderToken = reminderToken;
+
     // Email opcional (panel admin): sin email no hay a quién enviarle, así
     // que ni se intenta -- 'skipped' es un estado distinto de 'failed' (que
     // significa "había email pero el envío falló") para no ensuciar adminLog
     // con fallos de un envío que nunca correspondía intentar.
     if (email) {
       try {
-        await sendBookingEmails({ ...b, email }, {
+        await sendBookingEmails({ ...b, email }, reminderToken, {
           apiKey: RESEND_API_KEY.value(),
           fromEmail: FROM_EMAIL.value(),
           shopEmail: SHOP_EMAIL.value(),
@@ -423,7 +432,14 @@ exports.sendBookingReminders = onSchedule(
         // onBookingCreated (una reserva tomada por teléfono puede no traer
         // email).
         if (!b.email) continue;
-        const token = generateReminderToken();
+        // Toda reserva ya trae reminderToken desde su creación (ver
+        // buildBookingDoc/onBookingCreated) -- se reutiliza el mismo, nunca
+        // se genera uno nuevo acá: si el cliente ya recibió el email de
+        // "reserva confirmada" con ese token, un token distinto en el
+        // recordatorio invalidaría silenciosamente ese link viejo. Solo se
+        // genera uno nuevo como respaldo para reservas de antes de este
+        // cambio, que no tienen el campo.
+        const token = b.reminderToken || generateReminderToken();
         try {
           await sendReminderEmail(b, token, {
             apiKey: RESEND_API_KEY.value(),

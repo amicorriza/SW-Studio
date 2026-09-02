@@ -69,6 +69,15 @@ test('los datos del cliente se escapan para evitar inyección de HTML', () => {
   assert.match(html, /Juan &lt;script&gt;/);
 });
 
+test('email al cliente incluye los botones Confirmar/Declinar con code+token+r correctos (no espera al recordatorio de 24h)', () => {
+  const { html } = renderClientEmail(booking, 'abc123token');
+  assert.match(html, /confirmar-cita\.html\?code=SW-AB12345&t=abc123token&r=confirm/);
+  assert.match(html, /confirmar-cita\.html\?code=SW-AB12345&t=abc123token&r=decline/);
+  assert.match(html, /CONFIRMAR ASISTENCIA/);
+  assert.match(html, /NO PODRÉ IR/);
+  assert.doesNotMatch(html, /VER MI RESERVA/);
+});
+
 test('email a la barbería incluye teléfono y email del cliente', () => {
   const { subject, html } = renderShopEmail(booking);
   assert.match(subject, /Nueva reserva/i);

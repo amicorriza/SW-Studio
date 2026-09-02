@@ -56,16 +56,61 @@ function detailRow(label, valueHtml, last) {
     </tr>`;
 }
 
+// URLs de acción del recordatorio de citas -- comparten forma entre
+// renderClientEmail (email inicial) y renderReminderEmail (24h antes), así
+// que un cliente puede usar el link de CUALQUIERA de los dos correos
+// indistintamente mientras el token siga siendo válido.
+function confirmDeclineUrls(code, token) {
+  return {
+    confirmUrl: `${SITE_URL}/confirmar-cita.html?code=${encodeURIComponent(code)}&t=${encodeURIComponent(token)}&r=confirm`,
+    declineUrl: `${SITE_URL}/confirmar-cita.html?code=${encodeURIComponent(code)}&t=${encodeURIComponent(token)}&r=decline`,
+  };
+}
+
+// Bloque de dos botones (Confirmar/Declinar) compartido entre
+// renderClientEmail y renderReminderEmail -- misma pieza visual en ambos
+// correos. Cargar el link NUNCA ejecuta la acción: ambos apuntan a
+// confirmar-cita.html, que exige un tap explícito antes de llamar a
+// respondToBookingReminder -- necesario porque clientes de correo (Gmail,
+// Outlook Safe Links) siguen/prefetchean links automáticamente por
+// seguridad, y un link que ejecutara la acción con un simple GET se
+// dispararía solo.
+function confirmDeclineCta(confirmUrl, declineUrl) {
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;">
+      <tr>
+        <td class="sw-cta-col" width="50%" style="padding-right:6px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#161616;border-radius:8px;">
+            <tr><td align="center" style="padding:18px 10px;">
+              <a href="${confirmUrl}" target="_blank" style="font-family:${FONT_SANS};font-weight:500;font-size:13px;letter-spacing:2px;color:#ffffff;">CONFIRMAR ASISTENCIA</a>
+            </td></tr>
+          </table>
+        </td>
+        <td class="sw-cta-col" width="50%" style="padding-left:6px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:transparent;border:1px solid #161616;border-radius:8px;">
+            <tr><td align="center" style="padding:18px 10px;">
+              <a href="${declineUrl}" target="_blank" style="font-family:${FONT_SANS};font-weight:500;font-size:13px;letter-spacing:2px;color:#161616;">NO PODRÉ IR</a>
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>`;
+}
+
 // Template "SW Studio — Reserva Confirmada": versión email-safe (tablas + estilos
 // inline; sin flexbox ni SVG, que Gmail/Outlook no soportan). Las imágenes viven
 // en Hosting (public/assets/email) porque los clientes de correo bloquean data-URIs.
-function renderClientEmail(b) {
+// `token` llega desde buildBookingDoc() (functions/createBooking.js), generado
+// junto con la reserva -- así el cliente puede confirmar/declinar desde este
+// mismo correo, sin esperar al recordatorio de 24h antes.
+function renderClientEmail(b, token) {
   // b.tz ausente = reserva de antes de Fase 2 -- cae a DEFAULT_TZ, que es la
   // misma zona que estaba hardcodeada acá, así que el comportamiento para
   // esas reservas viejas no cambia.
   const tz = b.tz || DEFAULT_TZ;
   const subject = `Tu reserva en Scissor White — ${b.code}`;
   const d = dateParts(b.date, b.time, tz);
+  const { confirmUrl, declineUrl } = confirmDeclineUrls(b.code, token);
   const rows = [
     detailRow('CLIENTE', esc(b.name)),
     detailRow('PROFESIONAL', esc(b.barberName)),
@@ -99,6 +144,7 @@ function renderClientEmail(b) {
     .sw-datecell { padding:0 0 22px 0 !important; }
     .sw-datebox { width:100% !important; }
     .sw-foot-links { display:block !important; width:100% !important; text-align:left !important; padding-top:12px !important; }
+    .sw-cta-col { display:block !important; width:100% !important; padding:0 0 10px 0 !important; }
   }
 </style>
 </head>
@@ -150,17 +196,8 @@ function renderClientEmail(b) {
       </tr>
     </table>
 
-    <!-- CTA -->
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;">
-      <tr><td style="background:#161616;border:1px solid rgba(255,255,255,.1);border-radius:8px;">
-        <a href="${SITE_URL}" target="_blank" style="display:block;padding:21px 30px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td style="font-family:${FONT_SANS};font-weight:500;font-size:15px;letter-spacing:5px;color:#ffffff;">VER MI RESERVA</td>
-            <td align="right" style="font-family:${FONT_SANS};font-weight:300;font-size:22px;color:#ffffff;line-height:1;">&#8594;</td>
-          </tr></table>
-        </a>
-      </td></tr>
-    </table>
+    <!-- CTA: Confirmar / Declinar -->
+    ${confirmDeclineCta(confirmUrl, declineUrl)}
 
     <!-- Aviso -->
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
@@ -312,8 +349,7 @@ function renderReminderEmail(b, token) {
   const tz = b.tz || DEFAULT_TZ;
   const subject = `¿Confirmas tu cita de mañana a las ${b.time}? — Scissor White`;
   const d = dateParts(b.date, b.time, tz);
-  const confirmUrl = `${SITE_URL}/confirmar-cita.html?code=${encodeURIComponent(b.code)}&t=${encodeURIComponent(token)}&r=confirm`;
-  const declineUrl = `${SITE_URL}/confirmar-cita.html?code=${encodeURIComponent(b.code)}&t=${encodeURIComponent(token)}&r=decline`;
+  const { confirmUrl, declineUrl } = confirmDeclineUrls(b.code, token);
   const rows = [
     detailRow('PROFESIONAL', esc(b.barberName)),
     detailRow('SERVICIO', esc(b.svcName)),
@@ -379,24 +415,7 @@ function renderReminderEmail(b, token) {
     </table>
 
     <!-- CTA: Confirmar / Declinar -->
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;">
-      <tr>
-        <td class="sw-cta-col" width="50%" style="padding-right:6px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#161616;border-radius:8px;">
-            <tr><td align="center" style="padding:18px 10px;">
-              <a href="${confirmUrl}" target="_blank" style="font-family:${FONT_SANS};font-weight:500;font-size:13px;letter-spacing:2px;color:#ffffff;">CONFIRMAR ASISTENCIA</a>
-            </td></tr>
-          </table>
-        </td>
-        <td class="sw-cta-col" width="50%" style="padding-left:6px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:transparent;border:1px solid #161616;border-radius:8px;">
-            <tr><td align="center" style="padding:18px 10px;">
-              <a href="${declineUrl}" target="_blank" style="font-family:${FONT_SANS};font-weight:500;font-size:13px;letter-spacing:2px;color:#161616;">NO PODRÉ IR</a>
-            </td></tr>
-          </table>
-        </td>
-      </tr>
-    </table>
+    ${confirmDeclineCta(confirmUrl, declineUrl)}
   </td></tr>
 
   <!-- BANDA OSCURA -->
@@ -546,9 +565,9 @@ function assertResendOk(results) {
   }
 }
 
-async function sendBookingEmails(b, { apiKey, fromEmail, shopEmail }) {
+async function sendBookingEmails(b, token, { apiKey, fromEmail, shopEmail }) {
   const resend = new Resend(apiKey);
-  const client = renderClientEmail(b);
+  const client = renderClientEmail(b, token);
   const shop = renderShopEmail(b);
   const results = await Promise.all([
     resend.emails.send({ from: fromEmail, to: b.email, subject: client.subject, html: client.html }),

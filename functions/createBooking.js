@@ -10,6 +10,7 @@ const {
 const { zonedInstant } = require('./shared/timezone.js');
 const { isValidBookingPayload } = require('./shared/validate.js');
 const { DEFAULT_BOOKING_STATUS } = require('./shared/status.js');
+const { generateReminderToken } = require('./reminders.js');
 
 // Único punto de la política de asignación cuando el cliente pide 'any' (o
 // no manda barberId). Hoy: orden alfabético por id. Con un solo barbero
@@ -89,6 +90,12 @@ function buildBookingDoc({ payload, service, barber, now, businessTz }) {
     status: DEFAULT_BOOKING_STATUS,
     emailStatus: 'pending',
     tz: businessTz,
+    // Generado desde la creación (no recién a las 24h) para que el email de
+    // "reserva confirmada" ya pueda ofrecer Confirmar/Declinar con el mismo
+    // link -- ver renderClientEmail (functions/email.js) y
+    // exports.sendBookingReminders (functions/index.js), que reutiliza este
+    // mismo token en vez de generar uno nuevo si ya existe.
+    reminderToken: generateReminderToken(),
     // Marca de origen: permite verificar en Firestore que el 100% de los
     // creates nuevos pasan por este callable antes de cerrar la vía pública
     // directa en firestore.rules (ver plan de despliegue de Fase A).

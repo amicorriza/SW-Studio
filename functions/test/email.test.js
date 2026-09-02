@@ -158,3 +158,13 @@ test('renderReminderEmail escapa el código para evitar inyección de HTML', () 
   const { html } = renderReminderEmail({ ...booking, code: '<script>x</script>' }, 'tok');
   assert.doesNotMatch(html, /<script>x/);
 });
+
+test('renderReminderEmail escapa barberName y svcName para evitar inyección de HTML', () => {
+  const { html } = renderReminderEmail({
+    ...booking, barberName: '<img src=x onerror=alert(1)>', svcName: '<b>bold</b>',
+  }, 'tok');
+  assert.doesNotMatch(html, /<img src=x onerror/);
+  assert.doesNotMatch(html, /<b>bold<\/b>/);
+  assert.match(html, /&lt;img src=x onerror/);
+  assert.match(html, /&lt;b&gt;bold&lt;\/b&gt;/);
+});

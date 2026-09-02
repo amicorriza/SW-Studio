@@ -36,10 +36,20 @@ function findBookingsNeedingReminder(bookings, now) {
   return (bookings || []).filter((b) => {
     if (b.status !== 'pending') return false;
     if (b.reminderSentAt) return false;
-    const tz = b.tz || DEFAULT_TZ;
-    const instant = zonedInstant(dateKeyOf(b.date), b.time, tz);
-    const t = instant.getTime();
-    return t >= windowStart && t < windowEnd;
+    // Una reserva con date/time faltante o malformado no debe tirar abajo
+    // el resto del lote -- el admin no pasa por isValidBookingPayload() en
+    // sus escrituras (ver CLAUDE.md), así que un dato corrupto acá es un
+    // caso real, no hipotético. Se trata como "no elegible todavía", igual
+    // que dateParts() en email.js hace con el mismo tipo de fallo.
+    try {
+      const tz = b.tz || DEFAULT_TZ;
+      const instant = zonedInstant(dateKeyOf(b.date), b.time, tz);
+      const t = instant.getTime();
+      if (Number.isNaN(t)) return false;
+      return t >= windowStart && t < windowEnd;
+    } catch {
+      return false;
+    }
   });
 }
 

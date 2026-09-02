@@ -90,6 +90,35 @@ test('findBookingsNeedingReminder usa DEFAULT_TZ cuando la reserva no trae tz (r
   assert.strictEqual(result.length, 1);
 });
 
+test('findBookingsNeedingReminder omite (no crashea) una reserva con date faltante', () => {
+  const now = new Date('2026-06-10T12:00:00.000Z');
+  const bookings = [
+    { code: 'SW-sin-date', status: 'pending', time: '08:00', tz: 'America/Santiago' },
+  ];
+  assert.doesNotThrow(() => findBookingsNeedingReminder(bookings, now));
+  assert.strictEqual(findBookingsNeedingReminder(bookings, now).length, 0);
+});
+
+test('findBookingsNeedingReminder omite (no crashea) una reserva con time faltante', () => {
+  const now = new Date('2026-06-10T12:00:00.000Z');
+  const bookings = [
+    { code: 'SW-sin-time', status: 'pending', date: '2026-06-11', tz: 'America/Santiago' },
+  ];
+  assert.doesNotThrow(() => findBookingsNeedingReminder(bookings, now));
+  assert.strictEqual(findBookingsNeedingReminder(bookings, now).length, 0);
+});
+
+test('una reserva malformada no bloquea el resto del lote (no propaga la excepción al resto del filter)', () => {
+  const now = new Date('2026-06-10T12:00:00.000Z');
+  const bookings = [
+    { code: 'SW-mala', status: 'pending', date: '2026-06-11', time: undefined, tz: 'America/Santiago' },
+    { code: 'SW-buena', status: 'pending', date: '2026-06-11', time: '08:00', tz: 'America/Santiago' },
+  ];
+  const result = findBookingsNeedingReminder(bookings, now);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].code, 'SW-buena');
+});
+
 test('REMINDER_WINDOW_MS es 15 minutos (mismo ancho que el intervalo de la corrida programada)', () => {
   assert.strictEqual(REMINDER_WINDOW_MS, 15 * 60 * 1000);
 });

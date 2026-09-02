@@ -218,6 +218,29 @@ test('computeAvailability sin dow/scheduleBlocks se comporta exactamente igual q
   assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:50', kind: 'booking' }]);
 });
 
+test('computeAvailability excluye reservas con status "declined" de barberBusy', () => {
+  const bookings = [
+    { barberId: 'felipe', date: '2026-07-10', time: '10:00', dur: 50, status: 'declined' },
+    { barberId: 'felipe', date: '2026-07-10', time: '15:00', dur: 30, status: 'confirmed' },
+  ];
+  const staff = [{ id: 'felipe', status: 'active' }];
+  const result = computeAvailability({ bookings, staff, barberId: 'felipe' });
+  assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '15:00', end: '15:30', kind: 'booking' }]);
+});
+
+test('computeAvailability sigue ocupando el slot para status "pending" y "confirmed" (sin cambios)', () => {
+  const bookings = [
+    { barberId: 'felipe', date: '2026-07-10', time: '10:00', dur: 50, status: 'pending' },
+    { barberId: 'felipe', date: '2026-07-10', time: '15:00', dur: 30, status: 'confirmed' },
+  ];
+  const staff = [{ id: 'felipe', status: 'active' }];
+  const result = computeAvailability({ bookings, staff, barberId: 'felipe' });
+  assert.deepStrictEqual(result.barberBusy.felipe, [
+    { start: '10:00', end: '10:50', kind: 'booking' },
+    { start: '15:00', end: '15:30', kind: 'booking' },
+  ]);
+});
+
 test('overlaps: solape exacto, parcial, adyacente y sin relación (bufferMin=0, comportamiento original)', () => {
   assert.strictEqual(overlaps(600, 650, 600, 650), true); // exacto
   assert.strictEqual(overlaps(600, 650, 620, 700), true); // parcial por el final

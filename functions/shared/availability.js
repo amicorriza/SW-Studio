@@ -101,7 +101,11 @@ function computeAvailability({ bookings, staff, barberId, dow, scheduleBlocks })
     barberBusy[id].push({ start, end, kind });
   }
 
-  relevant.forEach(b => addBusy(b.barberId, b.time, addMinutesToTime(b.time, b.dur || 0), 'booking'));
+  // 'declined' libera el horario (recordatorio de citas, 2026-09) --
+  // 'pending' y 'confirmed' siguen ocupando el slot igual que antes.
+  relevant
+    .filter(b => b.status !== 'declined')
+    .forEach(b => addBusy(b.barberId, b.time, addMinutesToTime(b.time, b.dur || 0), 'booking'));
 
   const activeBarberIds = (staff || [])
     .filter(s => s.status === 'active')

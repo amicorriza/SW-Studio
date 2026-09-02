@@ -7,12 +7,13 @@ const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
-const { sendBookingEmails } = require('./email.js');
+const { sendBookingEmails, sendReminderEmail } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
 const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./shared/availability.js');
 const { resolveCreateBooking } = require('./createBooking.js');
-const { resolveBusinessTz, resolveBufferMin } = require('./shared/timezone.js');
+const { resolveBusinessTz, resolveBufferMin, dateKeyInZone } = require('./shared/timezone.js');
 const { searchPlaceId, fetchPlaceDetails, isFresh } = require('./googleReviews.js');
+const { REMINDER_LEAD_MS, REMINDER_WINDOW_MS, generateReminderToken, findBookingsNeedingReminder } = require('./reminders.js');
 
 const app = initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -336,6 +337,152 @@ exports.onScheduleBlockWritten = onDocumentWritten(
     if (!dates.size) return;
     const db = getFirestore(app);
     await Promise.all([...dates].map(dk => recomputeAvailabilityForDate(db, dk)));
+  }
+);
+
+// ══ RECORDATORIO DE CITAS (confirmar/declinar) ══
+// Ventana rodante: se envía exactamente 24h antes de la hora real de cada
+// cita (ver functions/reminders.js). Cada corrida cubre 15 minutos, el
+// mismo ancho que el intervalo del schedule -- sin huecos ni duplicados por
+// diseño; reminderSentAt es el respaldo si una corrida se atrasa o se
+// reintenta. Mismo criterio de resiliencia que refreshGoogleReviews: un
+// fallo individual no debe tirar la función a estado de error ni bloquear
+// el resto de la corrida.
+exports.sendBookingReminders = onSchedule(
+  { schedule: 'every 15 minutes', region: 'southamerica-east1', secrets: [RESEND_API_KEY, FROM_EMAIL] },
+  async () => {
+    const db = getFirestore(app);
+    // Se ancla `now` a la grilla fija de 15 min (el mismo ancho que
+    // REMINDER_WINDOW_MS) en vez de usar la hora real de invocación --
+    // onSchedule no garantiza puntualidad al segundo (cold start, hiccup de
+    // GCP), y como la ventana solo avanza hacia adelante entre corridas,
+    // anclar a la hora real de cada invocación podía abrir un hueco
+    // PERMANENTE para una reserva cuyo instante cae justo entre el fin de
+    // una ventana y el inicio (ya corrido por el jitter) de la siguiente.
+    // Con la grilla fija, un jitter de segundos/minutos sigue mapeando al
+    // mismo bloque de 15 min, así que no se pierde cobertura mientras la
+    // función corra al menos una vez por bloque (una corrida completamente
+    // saltada sigue siendo un riesgo residual aceptado, igual que con
+    // refreshGoogleReviews).
+    const rawNow = new Date();
+    const now = new Date(Math.floor(rawNow.getTime() / REMINDER_WINDOW_MS) * REMINDER_WINDOW_MS);
+    const businessInfoSnap = await db.collection('businessInfo').doc('main').get();
+    const businessTz = resolveBusinessTz(businessInfoSnap.exists ? businessInfoSnap.data() : null);
+
+    // Ventana amplia por fecha calendario (puede spanear dos días si la
+    // ventana de 15 min cruza medianoche local) -- el filtro fino por
+    // instante real ocurre en findBookingsNeedingReminder(), en JS puro.
+    // Mismo patrón de "query amplia por date + filtro preciso en memoria"
+    // que ya usa createBooking.js.
+    const windowStart = new Date(now.getTime() + REMINDER_LEAD_MS);
+    const windowEnd = new Date(windowStart.getTime() + REMINDER_WINDOW_MS);
+    const startDateKey = dateKeyInZone(windowStart, businessTz);
+    const endDateKey = dateKeyInZone(windowEnd, businessTz);
+    const { end: endBound } = dayBoundsOf(endDateKey);
+
+    const snap = await db.collection('bookings')
+      .where('status', '==', 'pending')
+      .where('date', '>=', startDateKey)
+      .where('date', '<', endBound)
+      .get();
+
+    const items = snap.docs
+      .map((d) => ({ ref: d.ref, data: d.data() }))
+      .filter((item) => !item.data.reminderSentAt);
+    const toRemindData = findBookingsNeedingReminder(items.map((item) => item.data), now);
+    const toRemind = items.filter((item) => toRemindData.includes(item.data));
+
+    for (const item of toRemind) {
+      const b = item.data;
+      // Sin email no hay a quién recordarle -- mismo criterio que
+      // onBookingCreated (una reserva tomada por teléfono puede no traer
+      // email).
+      if (!b.email) continue;
+      const token = generateReminderToken();
+      try {
+        await sendReminderEmail(b, token, {
+          apiKey: RESEND_API_KEY.value(),
+          fromEmail: FROM_EMAIL.value(),
+        });
+        await item.ref.update({ reminderToken: token, reminderSentAt: new Date().toISOString() });
+        logger.info('Recordatorio enviado', { code: b.code });
+      } catch (err) {
+        logger.error('Fallo al enviar recordatorio', err);
+        try {
+          await db.collection('adminLog').add({
+            action: 'reminder_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
+          });
+        } catch (err2) {
+          logger.error('Fallo al registrar adminLog de reminder_failed', err2);
+        }
+        // No relanzar: un fallo individual no debe abortar el resto de la
+        // corrida -- la reserva queda elegible para reintento en 15 min
+        // porque reminderSentAt nunca se escribió.
+      }
+    }
+  }
+);
+
+// respondToBookingReminder: el cliente nunca puede leer ni escribir
+// `bookings` directo (ver firestore.rules) -- esta función valida el
+// reminderToken (búsqueda por el TOKEN, no por `code`: es único por
+// diseño, así la seguridad no depende de que `code` lo sea) y aplica la
+// transición de estado. Idempotente: un segundo tap del mismo link no
+// rompe nada, cae en la rama `already`.
+exports.respondToBookingReminder = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const data = request.data || {};
+    const code = typeof data.code === 'string' ? data.code.trim() : '';
+    const token = typeof data.token === 'string' ? data.token.trim() : '';
+    const action = data.action;
+    if (!token || (action !== 'confirm' && action !== 'decline')) {
+      throw new HttpsError('invalid-argument', 'Datos inválidos.');
+    }
+
+    const db = getFirestore(app);
+    const snap = await db.collection('bookings').where('reminderToken', '==', token).limit(1).get();
+    // Mismo mensaje genérico si el token no existe o si el `code` no calza
+    // con el que sí se encontró -- no revelar cuál de las dos cosas falló.
+    if (snap.empty || snap.docs[0].data().code !== code) {
+      throw new HttpsError('not-found', 'No encontramos esa reserva.');
+    }
+
+    const doc = snap.docs[0];
+    const b = doc.data();
+    if (b.status !== 'pending') {
+      return { ok: true, already: true, status: b.status };
+    }
+
+    const status = action === 'confirm' ? 'confirmed' : 'declined';
+    await doc.ref.update({ status, respondedAt: new Date().toISOString() });
+    return { ok: true, already: false, status };
+  }
+);
+
+// getBookingForReminderAction: lectura de solo lo necesario para pintar
+// confirmar-cita.html antes de que el cliente decida -- nunca devuelve
+// reminderToken de vuelta. Mismo criterio de búsqueda por reminderToken que
+// respondToBookingReminder.
+exports.getBookingForReminderAction = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const data = request.data || {};
+    const code = typeof data.code === 'string' ? data.code.trim() : '';
+    const token = typeof data.token === 'string' ? data.token.trim() : '';
+    if (!token) throw new HttpsError('invalid-argument', 'Datos inválidos.');
+
+    const db = getFirestore(app);
+    const snap = await db.collection('bookings').where('reminderToken', '==', token).limit(1).get();
+    if (snap.empty || snap.docs[0].data().code !== code) {
+      throw new HttpsError('not-found', 'No encontramos esa reserva.');
+    }
+
+    const b = snap.docs[0].data();
+    return {
+      code: b.code, date: b.date, time: b.time, svcName: b.svcName,
+      barberName: b.barberName, status: b.status,
+    };
   }
 );
 

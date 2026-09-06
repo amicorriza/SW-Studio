@@ -7,6 +7,10 @@ Resend para correo, Google Places para reseñas.
 public/index.html        landing + widget de reservas, ~4.000 líneas, JS y CSS inline
 public/admin/index.html  panel admin, ~3.700 líneas, JS y CSS inline
 public/js/data.js        única capa que habla con Firestore, Storage y Functions
+public/js/metrics.js     agregaciones puras del Dashboard de métricas (KPIs,
+                         ingresos por servicio, tendencias). NO toca Firestore
+                         ni el DOM; <script> clásico sin bundler, require-able
+                         por Node. Tests en tests/unit/metrics.test.js (`npm test`).
 functions/               callables y triggers
 firestore.rules, storage.rules
 

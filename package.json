@@ -2,6 +2,7 @@
   "name": "scissor-white",
   "private": true,
   "scripts": {
+    "test": "node --test \"tests/unit/**/*.test.js\"",
     "test:rules": "firebase emulators:exec --only firestore \"vitest run tests/rules\""
   },
   "devDependencies": {

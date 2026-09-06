@@ -162,7 +162,7 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 .a-panel.a-on{display:block;animation:admFU .3s ease}
 
 /* STAT CARDS */
-#a-stats-d,#a-stats-s{
+.a-dash-kpis{
   display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));
   gap:10px;margin-bottom:20px
 }
@@ -377,6 +377,24 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
 
 .a-empty{text-align:center;padding:36px 18px;color:var(--a-meta);font-size:12.5px;line-height:1.55;background:#fff;border-radius:11px;border:1px dashed var(--a-g2)}
 
+/* ═══ DASHBOARD MÉTRICAS ═══ */
+.a-dash-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:18px}
+.a-dash-bar label{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--a-body);cursor:pointer}
+.a-dash-range{display:flex;gap:8px;align-items:center}
+.a-dash-svgwrap{width:100%;background:#fff;border:1.5px solid var(--a-g2);border-radius:11px;padding:14px;margin-bottom:16px;overflow:hidden}
+.a-dash-svg{display:block;width:100%;height:auto}
+.a-dash-stack{display:flex;height:22px;border-radius:5px;overflow:hidden;background:var(--a-g1)}
+.a-dash-stack-seg{height:100%}
+.a-dash-stack-new{background:var(--a-ink)}
+.a-dash-stack-ret{background:linear-gradient(90deg,#6A7888,#9AAABB,#C8D0DA)}
+.a-dash-delta{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;white-space:nowrap}
+.a-dash-delta.up{color:var(--a-ok)}
+.a-dash-delta.down{color:var(--a-err)}
+.a-dash-delta.flat{color:var(--a-meta)}
+.a-dash-note{font-size:11px;color:var(--a-meta);font-style:italic;margin-top:14px;line-height:1.5}
+.a-dash-svc-cells{flex:0 0 auto;display:flex;gap:12px;font-family:'Orbitron',sans-serif;font-size:11px;font-weight:600;color:var(--a-sd);text-align:right}
+.a-dash-svc-cells span{min-width:52px}
+
 /* ═══ AGENDA / CALENDAR ═══ */
 #a-bk-nav{
   display:flex;align-items:center;gap:8px;
@@ -564,7 +582,7 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
   #adm-top{padding:0 22px;height:56px}
   #adm-top-title{font-size:14px}
   #adm-scroll{padding:22px 22px}
-  #a-stats-d,#a-stats-s{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+  .a-dash-kpis{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
   .a-scv{font-size:25px}
   .a-bar-lbl{flex:0 0 32%;font-size:12.5px}
   .a-bar-val{min-width:65px;font-size:12px}
@@ -937,10 +955,6 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
           <span>Agenda</span>
           <span class="an-badge" id="anb-bk">0</span>
         </button>
-        <button class="an-item" data-p="stats">
-          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 16V8M7 16V3M12 16v-6M17 16V6"/></svg>
-          <span>Estadísticas</span>
-        </button>
         <button class="an-item" data-p="patients">
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 16v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><circle cx="9" cy="5" r="3"/></svg>
           <span>Clientes</span>
@@ -998,9 +1012,7 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
 
         <!-- ─ DASHBOARD ─ -->
         <div class="a-panel a-on" id="adm-p-dashboard">
-          <div id="a-stats-d"></div>
-          <div class="a-sh"><div class="a-st">Actividad reciente</div></div>
-          <div class="a-tw"><table class="a-t"><thead><tr><th>Acción</th><th>Elemento</th><th>Fecha</th></tr></thead><tbody id="a-log"></tbody></table></div>
+          <div id="a-dash"></div>
         </div>
 
         <!-- ─ CALENDAR / APPOINTMENTS ─ -->
@@ -1069,16 +1081,6 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
             </div>
           </div>
         </div>
-
-        <!-- ─ STATS ─ -->
-        <div class="a-panel" id="adm-p-stats">
-          <div id="a-stats-s"></div>
-          <div class="a-sh"><div><div class="a-st">Servicios más demandados</div></div></div>
-          <div id="a-top-svcs" style="margin-bottom:22px"></div>
-          <div class="a-sh"><div><div class="a-st">Reservas por barbero</div></div></div>
-          <div id="a-barber-stats"></div>
-        </div>
-
 
         <!-- ─ PATIENTS / CLIENTS DATABASE ─ -->
         <div class="a-panel" id="adm-p-patients">
@@ -1434,6 +1436,10 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
   </div>
 </div>
 
+<!-- Agregaciones puras del Dashboard de métricas. <script> clásico sin bundler
+     (como js/data.js): expone window.SWMetrics y es require()-able por Node.
+     No toca el DOM ni Firestore. Debe cargar ANTES del IIFE de abajo. -->
+<script src="/js/metrics.js"></script>
 <script>
 (function(){
 'use strict';
@@ -1464,6 +1470,17 @@ var bkListRange = 'upcoming';
 var bkListFrom = '';
 var bkListTo = '';
 var rmSelectedBarber = null;
+// Estado del Dashboard de métricas -- solo en memoria de la sesión, NO se
+// persiste (ni en D, ni en localStorage). dashMode es global (afecta KPIs,
+// tendencias y desgloses); dashPeriod/dashFrom/dashTo/dashCompare acotan solo
+// KPIs y los desgloses por servicio/barbero/retención; dashTrendMetric y
+// dashSvcGroup son locales a su sección.
+var dashMode = 'realizado';       // 'realizado' | 'agendado'
+var dashPeriod = 'month';         // 'month'|'lastMonth'|'last3'|'year'|'custom'
+var dashFrom = '', dashTo = '';   // rango libre, 'YYYY-MM-DD'
+var dashCompare = false;
+var dashTrendMetric = 'ingresos'; // 'ingresos' | 'citas'
+var dashSvcGroup = 'svc';         // 'svc' | 'cat'
 var D = {services:[], staff:[], schedule:[], log:[], info:{}};
 var BK=[]; var PT=[]; var SB=[];
 var bkUnsubscribe = null;
@@ -1682,7 +1699,7 @@ function updateBadges(){
 
 // ═══ RENDER ALL ═══
 function renderAll(){
-  renderDash(); renderStats(); renderSvcs(); renderStaff();
+  renderDash(); renderSvcs(); renderStaff();
   renderSchedule(); renderCalendar(); loadInfo(); updateBadges();
   renderPatients(); updatePatBadge();
   // Sin await: es una lectura suelta de `googleReviews/main` que solo alimenta
@@ -1698,7 +1715,7 @@ function renderBookingsViews(){
   // renderBookingList() incluida acá a propósito: la vista Lista de la
   // Agenda también depende de las reservas, así que la suscripción en
   // tiempo real debe refrescarla junto al resto o queda desactualizada.
-  renderDash(); renderStats(); renderCalendar(); renderBookingList(); updateBadges();
+  renderDash(); renderCalendar(); renderBookingList(); updateBadges();
 }
 
 // ═══ NAVIGATION ═══
@@ -1711,12 +1728,12 @@ function admPnl(p){
   for(var j=0;j<items.length;j++) items[j].classList.remove('an-on');
   var btn = document.querySelector('.an-item[data-p="'+p+'"]');
   if(btn) btn.classList.add('an-on');
-  var T = {dashboard:'Dashboard', calendar:'Agenda', stats:'Estadísticas', patients:'Clientes', services:'Servicios', staff:'Personal', schedule:'Horarios', info:'Info & Contacto', images:'Imágenes'};
+  var T = {dashboard:'Dashboard', calendar:'Agenda', patients:'Clientes', services:'Servicios', staff:'Personal', schedule:'Horarios', info:'Info & Contacto', images:'Imágenes'};
   g('adm-top-title').textContent = T[p] || p;
   g('adm-scroll').scrollTop = 0;
   // refresh panel-specific data
+  if(p==='dashboard') renderDash();
   if(p==='calendar') renderCalendar();
-  if(p==='stats') renderStats();
   if(p==='schedule') renderSchedule();
   if(p==='images') loadSiteImagesUI();
   if(p==='patients') renderPatients();
@@ -1725,23 +1742,259 @@ document.querySelectorAll('.an-item').forEach(function(b){
   b.addEventListener('click', function(){ admPnl(b.dataset.p); });
 });
 
-// ═══ DASHBOARD ═══
-function renderDash(){
-  var act = D.services.filter(function(s){return s.status==='active'}).length;
-  var prices = D.services.map(function(s){return s.price});
-  var mn = prices.length ? Math.min.apply(null,prices) : 0;
-  var mx = prices.length ? Math.max.apply(null,prices) : 0;
-  var sa = D.staff.filter(function(s){return s.status==='active'}).length;
-  var bk = getBookings().length;
-  g('a-stats-d').innerHTML =
-    '<div class="a-sc"><div class="a-scl">Reservas</div><div class="a-scv">'+bk+'</div><div class="a-scs">total registradas</div></div>'+
-    '<div class="a-sc"><div class="a-scl">Servicios Activos</div><div class="a-scv">'+act+'</div><div class="a-scs">de '+D.services.length+'</div></div>'+
-    '<div class="a-sc"><div class="a-scl">Personal Activo</div><div class="a-scv">'+sa+'</div><div class="a-scs">de '+D.staff.length+'</div></div>'+
-    '<div class="a-sc"><div class="a-scl">Precio Promedio</div><div class="a-scv">'+(prices.length?fmtCLP(Math.round(prices.reduce(function(a,b){return a+b},0)/prices.length)):'—')+'</div></div>';
+// ═══ DASHBOARD (métricas de negocio) ═══
+// Todo se calcula en el navegador sobre BK (la colección bookings completa, ya
+// suscrita en tiempo real). Las funciones puras viven en public/js/metrics.js
+// (window.SWMetrics); acá solo se resuelve el estado de los controles, se llama
+// a las agregaciones y se pinta. El estado (dashMode/dashPeriod/...) NO se
+// persiste. Un re-render por snapshot de bookings reconstruye la barra de
+// controles byte-idéntica y re-aplica la selección desde las variables de módulo.
 
-  g('a-log').innerHTML = D.log.length
-    ? D.log.map(function(l){return '<tr><td data-label="Acción">'+esc(l.action)+'</td><td class="a-tn" data-label="Elemento">'+esc(l.item)+'</td><td data-label="Fecha" style="font-size:11px;color:#888">'+esc(l.date)+'</td></tr>'}).join('')
-    : '<tr><td colspan="3" style="text-align:center;color:#888;padding:24px">Sin actividad aún.</td></tr>';
+// Ventana del período seleccionado + la ventana previa contigua del mismo largo
+// (para el modo "comparar"). Strings 'YYYY-MM-DD', comparables contra b.date.
+function dashPeriodWindow(today){
+  var X = window.SWMetrics;
+  var ym = today.slice(0,7), y = +today.slice(0,4);
+  if(dashPeriod === 'month'){
+    var c = X.monthBounds(ym), p = X.monthBounds(X.ymAdd(ym,-1));
+    return { from:c.from, to:c.to, prevFrom:p.from, prevTo:p.to };
+  }
+  if(dashPeriod === 'lastMonth'){
+    var c2 = X.monthBounds(X.ymAdd(ym,-1)), p2 = X.monthBounds(X.ymAdd(ym,-2));
+    return { from:c2.from, to:c2.to, prevFrom:p2.from, prevTo:p2.to };
+  }
+  if(dashPeriod === 'last3'){
+    return {
+      from: X.monthBounds(X.ymAdd(ym,-2)).from, to: X.monthBounds(ym).to,
+      prevFrom: X.monthBounds(X.ymAdd(ym,-5)).from, prevTo: X.monthBounds(X.ymAdd(ym,-3)).to
+    };
+  }
+  if(dashPeriod === 'year'){
+    // Previo = mismo tramo del año pasado (hasta la fecha equivalente), no el
+    // año completo, para no comparar un año en curso contra uno cerrado.
+    return { from:y+'-01-01', to:today, prevFrom:(y-1)+'-01-01', prevTo:(y-1)+today.slice(4) };
+  }
+  // custom
+  var rb = X.rangeBounds(dashFrom, dashTo);
+  if(!rb.from) return { from:'', to:'', prevFrom:'', prevTo:'' };
+  var days = Math.round((new Date(rb.to+'T12:00:00Z') - new Date(rb.from+'T12:00:00Z'))/86400000) + 1;
+  var prevTo = X.addDaysYMD(rb.from, -1);
+  return { from:rb.from, to:rb.to, prevFrom:X.addDaysYMD(prevTo, -(days-1)), prevTo:prevTo };
+}
+
+// Indicador Δ. null => "sin base". asPoints=true para % recurrentes (diferencia
+// de puntos, no fracción).
+function dashDelta(val, asPoints){
+  if(val == null) return '<span class="a-dash-delta flat">— sin base</span>';
+  var up = val > 0.0001, down = val < -0.0001;
+  var cls = up ? 'up' : (down ? 'down' : 'flat');
+  var arrow = up ? '▲' : (down ? '▼' : '—');
+  var num = Math.round(val*100);
+  var txt = (num >= 0 ? '+' : '') + num + (asPoints ? ' pts' : '%');
+  return '<span class="a-dash-delta '+cls+'">'+arrow+' '+txt+'</span>';
+}
+
+function dashKpiCard(label, value, sub){
+  return '<div class="a-sc"><div class="a-scl">'+esc(label)+'</div><div class="a-scv">'+value+'</div>'+
+    (sub ? '<div class="a-scs">'+sub+'</div>' : '')+'</div>';
+}
+
+function renderDash(){
+  var host = g('a-dash');
+  if(!host) return;
+  var X = window.SWMetrics;
+  if(!X){
+    host.innerHTML = '<div class="a-empty">No se pudo cargar el módulo de métricas (js/metrics.js). Recargá la página.</div>';
+    return;
+  }
+
+  var ALL = getBookings();
+  var tz = (D.info && D.info.tz) || X.DEFAULT_TZ;
+  var today = X.bizToday(tz) || X.bizToday(X.DEFAULT_TZ);
+  var win = dashPeriodWindow(today);
+  var firstSeen = X.firstBookingByEmail(ALL, { tz:tz });
+
+  var periodBk = X.mFilterPeriod(ALL, { from:win.from, to:win.to, mode:dashMode, today:today });
+  var prevBk = dashCompare ? X.mFilterPeriod(ALL, { from:win.prevFrom, to:win.prevTo, mode:dashMode, today:today }) : [];
+  var kpis = X.mKpis(periodBk, prevBk, { firstSeen:firstSeen, periodFrom:win.from, prevFrom:win.prevFrom });
+  var monthly = X.mMonthlySeries(ALL, { months:12, mode:dashMode, today:today });
+  var weekly = X.mWeeklySeries(ALL, { weeks:12, mode:dashMode, today:today });
+  var svc = X.mByService(periodBk, { groupBy:dashSvcGroup });
+  var barbers = X.mByBarber(periodBk, prevBk);
+  var ret = X.mNewVsReturning(ALL, { months:6, tz:tz, today:today, firstSeen:firstSeen });
+
+  // Agendado total del período (solo para el matiz "Este mes" + Realizado).
+  var agIngresos = 0, agCitas = 0;
+  if(dashPeriod === 'month' && dashMode === 'realizado'){
+    var agBk = X.mFilterPeriod(ALL, { from:win.from, to:win.to, mode:'agendado', today:today });
+    agBk.forEach(function(b){ agIngresos += (+b.price) || 0; });
+    agCitas = agBk.length;
+  }
+
+  var cmp = dashCompare;
+  var html = '';
+
+  // 1 · Barra de período
+  var presets = [['month','Este mes'],['lastMonth','Mes pasado'],['last3','Últimos 3 meses'],['year','Este año'],['custom','Rango libre']];
+  html += '<div class="a-dash-bar">'+
+    '<select class="a-in" id="a-dash-period" style="width:auto">'+presets.map(function(o){
+      return '<option value="'+o[0]+'"'+(dashPeriod===o[0]?' selected':'')+'>'+o[1]+'</option>';
+    }).join('')+'</select>'+
+    '<span class="a-dash-range" id="a-dash-range" style="'+(dashPeriod==='custom'?'':'display:none')+'">'+
+      '<input class="a-in" type="date" id="a-dash-from" value="'+esc(dashFrom)+'">'+
+      '<span style="opacity:.5">→</span>'+
+      '<input class="a-in" type="date" id="a-dash-to" value="'+esc(dashTo)+'">'+
+    '</span>'+
+    '<label><input type="checkbox" id="a-dash-cmp"'+(cmp?' checked':'')+'> comparar vs período anterior</label>'+
+    '<div class="a-vtoggle">'+
+      '<button type="button" id="a-dash-mode-real" class="'+(dashMode==='realizado'?'a-on':'')+'">Realizado</button>'+
+      '<button type="button" id="a-dash-mode-agen" class="'+(dashMode==='agendado'?'a-on':'')+'">Agendado</button>'+
+    '</div>'+
+  '</div>';
+
+  // 2 · Fila de KPIs
+  var ingSub = cmp ? dashDelta(kpis.deltas.ingresos, false) : '';
+  var citSub = cmp ? dashDelta(kpis.deltas.citas, false) : '';
+  if(dashPeriod === 'month' && dashMode === 'realizado'){
+    var restIng = agIngresos - kpis.ingresos, restCit = agCitas - kpis.citas;
+    if(restIng > 0) ingSub += (ingSub ? ' ' : '') + '<span style="color:#999">· quedan '+fmtCLP(restIng)+' agendados</span>';
+    if(restCit > 0) citSub += (citSub ? ' ' : '') + '<span style="color:#999">· '+restCit+' agendadas</span>';
+  }
+  var nvSub = cmp ? dashDelta(kpis.deltas.nuevos, false)
+                  : (kpis.nuevosPct == null ? '' : Math.round(kpis.nuevosPct*100)+'% del total');
+  html += '<div class="a-dash-kpis">'+
+    dashKpiCard('Ingresos', fmtCLP(kpis.ingresos), ingSub)+
+    dashKpiCard('Citas', String(kpis.citas), citSub)+
+    dashKpiCard('Ticket promedio', fmtCLP(kpis.ticket), cmp ? dashDelta(kpis.deltas.ticket, false) : '')+
+    dashKpiCard('Clientes nuevos', String(kpis.nuevos), nvSub)+
+    dashKpiCard('% recurrentes', (kpis.recurrentesPct == null ? '—' : Math.round(kpis.recurrentesPct*100)+'%'), cmp ? dashDelta(kpis.deltas.recurrentesPct, true) : '')+
+  '</div>';
+
+  // 3 · Tendencia 12 meses  (ventana fija; respeta Realizado/Agendado)
+  var fmtTrend = dashTrendMetric === 'ingresos' ? fmtCLP : String;
+  html += '<div class="a-sh"><div class="a-st">Tendencia — últimos 12 meses</div>'+
+    '<div class="a-vtoggle">'+
+      '<button type="button" id="a-dash-tm-ing" class="'+(dashTrendMetric==='ingresos'?'a-on':'')+'">Ingresos</button>'+
+      '<button type="button" id="a-dash-tm-cit" class="'+(dashTrendMetric==='citas'?'a-on':'')+'">Citas</button>'+
+    '</div></div>'+
+    '<div class="a-dash-svgwrap">'+X.svgLine(monthly.map(function(m){ return { label:m.ym, value:m[dashTrendMetric] }; }), { fmt:fmtTrend })+'</div>';
+
+  // 4 · Por semana (últimas 12 + actual)
+  html += '<div class="a-sh"><div class="a-st">Por semana — últimas 12 semanas + actual</div></div>'+
+    '<div class="a-dash-svgwrap">'+X.svgLine(weekly.map(function(w){ return { label:w.weekStart.slice(5), value:w[dashTrendMetric], current:w.current }; }), { fmt:fmtTrend })+'</div>';
+
+  // 5 · Ingresos por servicio / categoría  (acotado al período)
+  html += '<div class="a-sh"><div class="a-st">Ingresos por '+(dashSvcGroup==='cat'?'categoría':'servicio')+'</div>'+
+    '<div class="a-vtoggle">'+
+      '<button type="button" id="a-dash-sg-svc" class="'+(dashSvcGroup==='svc'?'a-on':'')+'">Servicio</button>'+
+      '<button type="button" id="a-dash-sg-cat" class="'+(dashSvcGroup==='cat'?'a-on':'')+'">Categoría</button>'+
+    '</div></div>';
+  if(!svc.length){
+    html += '<div class="a-empty">Sin reservas en el período.</div>';
+  } else {
+    var maxIng = svc[0].ingreso || 1;
+    html += '<div class="a-tw" style="padding:14px 16px;overflow:visible">'+svc.map(function(r){
+      var label = dashSvcGroup==='cat' ? (CN[r.key] || (r.key==='sin' ? 'Sin categoría' : r.key) || 'Sin categoría') : r.label;
+      var w = Math.round((r.ingreso/maxIng)*100);
+      return '<div class="a-bar-row">'+
+        '<div class="a-bar-lbl" title="'+esc(label)+'">'+esc(label)+'</div>'+
+        '<div class="a-bar-track"><div class="a-bar-fill" style="width:'+w+'%"></div></div>'+
+        '<div class="a-dash-svc-cells">'+
+          '<span>'+r.citas+'</span>'+
+          '<span>'+fmtCLP(r.ingreso)+'</span>'+
+          '<span>'+Math.round(r.pct*100)+'%</span>'+
+          '<span>'+(r.ingresoHora==null ? '—' : fmtCLP(Math.round(r.ingresoHora)))+'</span>'+
+        '</div>'+
+      '</div>';
+    }).join('')+'</div>'+
+    '<div class="a-dash-note">Columnas: citas · ingreso · % del total · ingreso/hora.</div>';
+  }
+
+  // 6 · Por barbero  (acotado al período, con Δ vs previo)
+  html += '<div class="a-sh"><div class="a-st">Por barbero</div></div>';
+  if(!barbers.length){
+    html += '<div class="a-empty">Sin reservas asignadas en el período.</div>';
+  } else {
+    html += barbers.map(function(d){
+      var st = D.staff.find(function(x){ return x.id === d.barberId; }) || { name:d.name };
+      var av = st.photo ? '<img src="'+esc(st.photo)+'" alt="">' : esc((d.name && d.name[0]) || '?');
+      var svcArr = Object.keys(d.svcs).map(function(n){ return { name:n, n:d.svcs[n] }; });
+      svcArr.sort(function(a,b){ return b.n - a.n; });
+      var svcHtml = svcArr.slice(0,5).map(function(s){
+        return '<div class="a-bstat-svc"><span>'+esc(s.name)+'</span><span class="a-bstat-svc-n">'+s.n+'</span></div>';
+      }).join('');
+      var dIng = cmp ? ' '+dashDelta(d.deltaIngreso, false) : '';
+      var dCit = cmp ? ' '+dashDelta(d.deltaCitas, false) : '';
+      return '<div class="a-bstat">'+
+        '<div class="a-bstat-hd">'+
+          '<div class="a-bstat-av">'+av+'</div>'+
+          '<div><div class="a-bstat-nm">'+esc(d.name)+'</div><div class="a-bstat-ct">'+fmtCLP(d.revenue)+' generados'+dIng+'</div></div>'+
+          '<div class="a-bstat-total"><div class="a-bstat-total-n">'+d.total+'</div><div class="a-bstat-total-l">reservas'+dCit+'</div></div>'+
+        '</div>'+
+        '<div class="a-bstat-svcs">'+(svcHtml || '<div class="a-bstat-svc"><span style="color:#999">Sin detalle</span></div>')+'</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  // 7 · Retención — nuevos vs recurrentes por mes (últimos 6, ventana fija)
+  html += '<div class="a-sh"><div class="a-st">Clientes nuevos vs recurrentes — últimos 6 meses</div></div>'+
+    '<div class="a-tw" style="padding:14px 16px;overflow:visible">'+ret.series.map(function(r){
+      var tot = r.nuevos + r.recurrentes;
+      var wNew = tot ? Math.round((r.nuevos/tot)*100) : 0;
+      return '<div class="a-bar-row">'+
+        '<div class="a-bar-lbl">'+esc(r.ym)+'</div>'+
+        '<div class="a-bar-track a-dash-stack">'+
+          '<div class="a-dash-stack-seg a-dash-stack-new" style="width:'+wNew+'%"></div>'+
+          '<div class="a-dash-stack-seg a-dash-stack-ret" style="width:'+(100-wNew)+'%"></div>'+
+        '</div>'+
+        '<div class="a-bar-val">'+r.nuevos+' / '+r.recurrentes+'</div>'+
+      '</div>';
+    }).join('')+'</div>'+
+    '<div class="a-dash-note">Clientes activos en el período: '+kpis.activos+
+      (kpis.sinEmail ? ' · sin email en el período: '+kpis.sinEmail : '')+
+      (ret.sinEmail ? ' · reservas sin email (6 meses): '+ret.sinEmail : '')+'</div>';
+
+  // 8 · Exportar
+  html += '<div style="margin:18px 0 4px"><button class="a-btn a-btn-g" id="a-dash-csv">⬇ Exportar CSV</button></div>';
+
+  // 9 · Pie de nota
+  html += '<div class="a-dash-note">Ingresos estimados con precio de catálogo. "Realizado" asume que toda cita pasada ocurrió — aún no se registra asistencia.</div>';
+
+  host.innerHTML = html;
+
+  // ── listeners: mutan la variable de módulo y re-renderizan (sin persistir) ──
+  g('a-dash-period').addEventListener('change', function(){
+    dashPeriod = this.value;
+    if(dashPeriod !== 'custom'){ dashFrom = ''; dashTo = ''; }
+    renderDash();
+  });
+  var dFrom = g('a-dash-from'), dTo = g('a-dash-to');
+  if(dFrom) dFrom.addEventListener('change', function(){ dashFrom = this.value; renderDash(); });
+  if(dTo) dTo.addEventListener('change', function(){ dashTo = this.value; renderDash(); });
+  g('a-dash-cmp').addEventListener('change', function(){ dashCompare = this.checked; renderDash(); });
+  g('a-dash-mode-real').addEventListener('click', function(){ dashMode = 'realizado'; renderDash(); });
+  g('a-dash-mode-agen').addEventListener('click', function(){ dashMode = 'agendado'; renderDash(); });
+  g('a-dash-tm-ing').addEventListener('click', function(){ dashTrendMetric = 'ingresos'; renderDash(); });
+  g('a-dash-tm-cit').addEventListener('click', function(){ dashTrendMetric = 'citas'; renderDash(); });
+  var sgS = g('a-dash-sg-svc'), sgC = g('a-dash-sg-cat');
+  if(sgS) sgS.addEventListener('click', function(){ dashSvcGroup = 'svc'; renderDash(); });
+  if(sgC) sgC.addEventListener('click', function(){ dashSvcGroup = 'cat'; renderDash(); });
+  g('a-dash-csv').addEventListener('click', function(){
+    var btn = this, orig = btn.textContent;
+    btn.disabled = true; btn.textContent = '⏳ Exportando…';
+    try {
+      var rows = X.mMonthlyExportRows(getBookings(), { months:12, mode:dashMode, today:today, firstSeen:firstSeen });
+      var blob = new Blob(['﻿' + X.toCSV(rows)], { type:'text/csv;charset=utf-8' });
+      var url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = 'SW_metricas_' + today + '.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch(e){
+      console.error('Export CSV del dashboard falló', e);
+    } finally {
+      btn.disabled = false; btn.textContent = orig;
+    }
+  });
 }
 
 // ═══ BOOKINGS HELPERS ═══
@@ -2628,71 +2881,6 @@ g('a-blkm-del').addEventListener('click', function(){
     });
   });
 });
-
-// ═══ STATS ═══
-function renderStats(){
-  var bk = getBookings();
-  var total = bk.length;
-  var revenue = bk.reduce(function(a,b){return a+(b.price||0)},0);
-  var avg = total ? Math.round(revenue/total) : 0;
-  var svcCount = {};
-  bk.forEach(function(b){if(b.svcName) svcCount[b.svcName] = (svcCount[b.svcName]||0)+1});
-  var distinct = Object.keys(svcCount).length;
-
-  g('a-stats-s').innerHTML =
-    '<div class="a-sc"><div class="a-scl">Reservas Totales</div><div class="a-scv">'+total+'</div></div>'+
-    '<div class="a-sc"><div class="a-scl">Ingresos</div><div class="a-scv">'+fmtCLP(revenue)+'</div></div>'+
-    '<div class="a-sc"><div class="a-scl">Ticket Promedio</div><div class="a-scv">'+fmtCLP(avg)+'</div></div>'+
-    '<div class="a-sc"><div class="a-scl">Servicios Distintos</div><div class="a-scv">'+distinct+'</div></div>';
-
-  var arr = Object.keys(svcCount).map(function(k){return {name:k, count:svcCount[k]}});
-  arr.sort(function(a,b){return b.count-a.count});
-  var top = g('a-top-svcs');
-  if(!arr.length){
-    top.innerHTML = '<div class="a-empty">Aún no hay reservas. Crea citas desde la Agenda.</div>';
-  } else {
-    var maxC = arr[0].count;
-    top.innerHTML = '<div class="a-tw" style="padding:16px 18px;overflow:visible">' +
-      arr.slice(0,10).map(function(s){
-        var pct = Math.round((s.count/maxC)*100);
-        return '<div class="a-bar-row"><div class="a-bar-lbl" title="'+esc(s.name)+'">'+esc(s.name)+'</div><div class="a-bar-track"><div class="a-bar-fill" style="width:'+pct+'%"></div></div><div class="a-bar-val">'+s.count+'</div></div>';
-      }).join('') + '</div>';
-  }
-
-  var byBarber = {};
-  bk.forEach(function(b){
-    var key = b.barberId || 'unknown';
-    if(!byBarber[key]) byBarber[key] = {total:0, revenue:0, svcs:{}, name:b.barberName||'?'};
-    byBarber[key].total++;
-    byBarber[key].revenue += (b.price||0);
-    if(b.svcName) byBarber[key].svcs[b.svcName] = (byBarber[key].svcs[b.svcName]||0)+1;
-  });
-  var keys = Object.keys(byBarber);
-  var bs = g('a-barber-stats');
-  if(!keys.length){
-    bs.innerHTML = '<div class="a-empty">Sin reservas asignadas.</div>';
-    return;
-  }
-  keys.sort(function(a,b){return byBarber[b].total - byBarber[a].total});
-  bs.innerHTML = keys.map(function(k){
-    var d = byBarber[k];
-    var st = D.staff.find(function(x){return x.id===k}) || {name:d.name};
-    var av = st.photo ? '<img src="'+esc(st.photo)+'" alt="">' : (d.name[0]||'?');
-    var svcArr = Object.keys(d.svcs).map(function(n){return {name:n, n:d.svcs[n]}});
-    svcArr.sort(function(a,b){return b.n-a.n});
-    var svcHtml = svcArr.slice(0,5).map(function(s){
-      return '<div class="a-bstat-svc"><span>'+esc(s.name)+'</span><span class="a-bstat-svc-n">'+s.n+'</span></div>';
-    }).join('');
-    return '<div class="a-bstat">'+
-      '<div class="a-bstat-hd">'+
-        '<div class="a-bstat-av">'+av+'</div>'+
-        '<div><div class="a-bstat-nm">'+esc(d.name)+'</div><div class="a-bstat-ct">'+fmtCLP(d.revenue)+' generados</div></div>'+
-        '<div class="a-bstat-total"><div class="a-bstat-total-n">'+d.total+'</div><div class="a-bstat-total-l">reservas</div></div>'+
-      '</div>'+
-      '<div class="a-bstat-svcs">'+(svcHtml||'<div class="a-bstat-svc"><span style="color:#999">Sin detalle</span></div>')+'</div>'+
-    '</div>';
-  }).join('');
-}
 
 // ═══ SERVICES ═══
 // Precio por hora -- métrica de auditoría. dur 0/ausente => '—' (no divide).

@@ -93,7 +93,9 @@ scissor-white/
 │   ├── index.html        # sitio público: landing + widget de reservas
 │   ├── admin/index.html  # panel de administración (ruta /admin/)
 │   ├── robots.txt        # Disallow: /admin/
-│   ├── js/               # firebase-init.js, data.js (Firestore), auth.js (login)
+│   ├── js/               # firebase-init.js, data.js (Firestore), auth.js (login),
+│   │                     #   metrics.js (agregaciones puras del Dashboard —
+│   │                     #   <script> clásico, NO habla con Firestore, require-able por Node)
 │   └── assets/email/     # logo.png, salon.png — imágenes del email de confirmación
 ├── functions/            # Cloud Functions v2 (ver arriba)
 │   ├── email.js          # render del template de email + envío vía Resend
@@ -102,6 +104,8 @@ scissor-white/
 │   ├── scripts/          # reconcileCatalog, backfillAvailability, setAdminClaim
 │   └── test/             # node --test (sin emulador)
 ├── seed/                 # carga inicial a Firestore
+├── tests/unit/           # node --test de las agregaciones del Dashboard (npm test)
+├── tests/browser/        # scripts Playwright standalone (no vitest)
 ├── tests/rules/          # tests de reglas con el emulador
 ├── firebase.json         # Hosting + Firestore + Functions + Emuladores
 └── firestore.rules       # público: crear reservas validadas; admin: todo lo demás
@@ -133,6 +137,19 @@ Tests de funciones (rápidos, sin emulador):
 
 ```bash
 cd functions && node --test
+```
+
+Tests de las agregaciones del Dashboard de métricas (`public/js/metrics.js`):
+
+```bash
+npm test        # node --test "tests/unit/**/*.test.js"
+```
+
+Test de navegador del Dashboard (requiere Playwright, no es dependencia del repo):
+
+```bash
+npm i -D playwright && npx playwright install chromium
+node tests/browser/dashboard.mjs
 ```
 
 ## Deploy

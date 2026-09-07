@@ -204,7 +204,7 @@ const asis = await page.evaluate(() => {
     .map(c => [c.querySelector('.a-scl').textContent.trim(), c.querySelector('.a-scv').textContent.trim()]));
   const p = v => v == null ? '—' : Math.round(v*100)+'%';
   return {
-    pintado, medidas: att.atendidas + att.noShow,
+    pintado, medidas: att.atendidas + att.noShow, noShow: att.noShow,
     esperadoAsis: p(att.asistenciaPct), esperadoNs: p(att.noShowPct),
     esperadoVentas: '$' + X.mRevenue(X.mFilterPeriod(BK, opts)).toLocaleString('es-CL'),
     coverage: cov.pct,
@@ -212,6 +212,29 @@ const asis = await page.evaluate(() => {
 });
 check('hay asistencia medida en el fixture', asis.medidas >= 10, asis.medidas);
 check('Asistencia real coincide con el recomputo', asis.pintado['Asistencia real'] === asis.esperadoAsis, asis);
+
+// Los puntos son el recurso visual del no-show: uno por cita medida, los que
+// faltaron encendidos. Se comprueba el conteo, no solo que existan.
+const puntos = await page.evaluate(() => {
+  const card = [...document.querySelectorAll('#a-dash .a-dash-kpis .a-sc')]
+    .find(c => /No-show/i.test(c.querySelector('.a-scl').textContent));
+  if (!card) return null;
+  const d = card.querySelectorAll('.a-kdots i');
+  return { total: d.length, on: card.querySelectorAll('.a-kdots i.on').length };
+});
+check('el no-show muestra un punto por cita medida',
+  puntos && puntos.total === asis.medidas, { puntos, medidas: asis.medidas });
+check('los puntos encendidos son las inasistencias',
+  puntos && puntos.on === asis.noShow, { puntos, noShow: asis.noShow });
+
+// Solo el no-show los lleva: si los tuvieran los cinco KPI volvería el
+// problema de que cuando todo destaca, nada destaca.
+const conPuntos = await page.evaluate(() =>
+  [...document.querySelectorAll('#a-dash .a-dash-kpis .a-sc')]
+    .filter(c => c.querySelector('.a-kdots'))
+    .map(c => c.querySelector('.a-scl').textContent.trim()));
+check('los puntos solo aparecen en el no-show',
+  conPuntos.length === 1 && /No-show/i.test(conPuntos[0]), conPuntos);
 check('No-show coincide con el recomputo', asis.pintado['No-show'] === asis.esperadoNs, asis);
 check('Ventas del período excluye los no-show', asis.pintado['Ventas del período'] === asis.esperadoVentas, asis);
 check('la cobertura de asistencia es parcial en el fixture', asis.coverage > 0 && asis.coverage < 1, asis.coverage);

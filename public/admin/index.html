@@ -203,6 +203,18 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 .a-sc.tono-aviso .a-scs{color:var(--a-warn)}
 .a-sc.tono-alerta .a-scs{color:var(--a-err)}
 
+/* Puntos: una cita medida, un punto; pintados los que fallaron. Un
+   porcentaje es abstracto -- "3 de 33" con tres cuadraditos encendidos se
+   entiende sin leer el número, y 3 / 6 / 1 se distinguen de un vistazo.
+   Solo se usa en el no-show: si lo llevaran los cinco KPI volvería el
+   problema original, que cuando todo destaca no destaca nada. */
+.a-kdots{display:flex;flex-wrap:wrap;gap:3px;margin-top:9px}
+.a-kdots i{width:9px;height:9px;border-radius:2px;background:var(--a-g2);display:block}
+.a-sc.tono-ok .a-kdots i.on{background:var(--a-ok)}
+.a-sc.tono-aviso .a-kdots i.on{background:var(--a-warn)}
+.a-sc.tono-alerta .a-kdots i.on{background:var(--a-err)}
+.a-kdots i.on{background:var(--a-sd)}
+
 /* SECTION HEADER */
 .a-sh{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap}
 /* Escala explícita, para que nada compite:
@@ -1977,11 +1989,12 @@ function dashDelta(val, asPoints){
 // una lectura buena o mala. Ventas o cantidad de reservas no la tienen: que
 // suban o bajen depende del mes, y pintarlas de color sería inventar un
 // juicio que el dato no sostiene.
-function dashKpiCard(label, value, sub, tono){
+function dashKpiCard(label, value, sub, tono, extra){
   return '<div class="a-sc'+(tono ? ' tono-'+tono : '')+'">'+
     '<div class="a-scl">'+esc(label)+'</div>'+
     '<div class="a-scv">'+value+'</div>'+
     (sub ? '<div class="a-scs">'+sub+'</div>' : '')+
+    (extra || '')+
   '</div>';
 }
 
@@ -2001,6 +2014,18 @@ function tonoNoShow(pct){
   if(pct <= 0.15) return 'aviso';
   return 'alerta';
 }
+// Grilla de puntos para un conteo sobre un total. Devuelve '' si el total no
+// sirve para esto: con cero no hay nada que mostrar, y pasadas ~60 citas los
+// puntos se vuelven una mancha ilegible -- ahí el porcentaje solo comunica
+// mejor que un recurso visual roto.
+var KDOTS_MAX = 60;
+function dashDots(marcados, total){
+  if(!total || total > KDOTS_MAX) return '';
+  var h = '';
+  for(var i = 0; i < total; i++) h += '<i class="'+(i < marcados ? 'on' : '')+'"></i>';
+  return '<div class="a-kdots" title="'+marcados+' de '+total+'">'+h+'</div>';
+}
+
 function tonoOcupacion(pct){
   if(pct == null) return '';
   if(pct > 0.85) return 'aviso';      // saturada: es una oportunidad, no un logro
@@ -2180,8 +2205,8 @@ function renderDash(){
         medidas ? att.atendidas+' de '+medidas+' medidas' : 'sin datos aún',
         tonoAsistencia(att.asistenciaPct))+
       dashKpiCard('No-show', pctTxt(att.noShowPct),
-        medidas ? att.noShow+' inasistencias' : 'sin datos aún',
-        tonoNoShow(att.noShowPct))+
+        medidas ? att.noShow+' de '+medidas+' citas medidas' : 'sin datos aún',
+        tonoNoShow(att.noShowPct), dashDots(att.noShow, medidas))+
       dashKpiCard('Ticket promedio', fmtCLP(ticketReal), cmp ? dashDelta(deltaTicketReal, false) : '')+
     '</div>';
 
@@ -2330,8 +2355,8 @@ function renderDash(){
         medidas ? pctTxt(att.asistenciaPct)+' de las medidas' : 'sin datos aún',
         tonoAsistencia(att.asistenciaPct))+
       dashKpiCard('No llegó', String(att.noShow),
-        medidas ? pctTxt(att.noShowPct)+' de las medidas' : 'sin datos aún',
-        tonoNoShow(att.noShowPct))+
+        medidas ? pctTxt(att.noShowPct)+' de '+medidas+' medidas' : 'sin datos aún',
+        tonoNoShow(att.noShowPct), dashDots(att.noShow, medidas))+
       dashKpiCard('Canceladas', String(att.canceladas), pctTxt(att.cancelPct)+' del total')+
       dashKpiCard('Sin registrar', String(att.sinMarcar), att.total ? Math.round((att.sinMarcar/att.total)*100)+'% del total' : '')+
       dashKpiCard('Ocupación efectiva', pctTxt(occ.pct),

@@ -518,3 +518,105 @@ test('svgLine: serie toda en cero -> sin NaN en coordenadas', () => {
   const svg = M.svgLine([{ label: 'a', value: 0 }, { label: 'b', value: 0 }], { fmt: String });
   assert.ok(svg.indexOf('NaN') === -1);
 });
+
+// ═══════════ P2: asistencia real, cobertura e ingreso ═══════════
+const P = { from: '2026-09-01', to: '2026-09-30', today: '2026-09-15' };
+const at = (over) => Object.assign({
+  date: '2026-09-10', time: '10:00', price: 10000, dur: 45,
+  svcId: 'corte', svcName: 'Corte', barberId: 'v', barberName: 'Victoria', email: 'a@a.cl',
+}, over);
+const periodo = (bks) => M.mFilterPeriod(bks, { from: P.from, to: P.to, mode: 'agendado', today: P.today });
+const periodoAll = (bks) => M.mFilterPeriodAll(bks, { from: P.from, to: P.to, mode: 'agendado', today: P.today });
+
+test('median: muestra impar toma el central', () => {
+  assert.strictEqual(M.median([50, 10, 30]), 30);
+});
+
+test('median: muestra par promedia los dos centrales', () => {
+  assert.strictEqual(M.median([10, 20, 30, 40]), 25);
+});
+
+test('median: lista vacía o basura devuelve null', () => {
+  assert.strictEqual(M.median([]), null);
+  assert.strictEqual(M.median(null), null);
+  assert.strictEqual(M.median(undefined), null);
+});
+
+// La mediana existe justamente para esto (PDF §2): una atención de 4 horas
+// no debe arrastrar la recomendación de todo el servicio.
+test('median resiste un valor atípico que sí movería el promedio', () => {
+  const v = [40, 45, 50, 45, 240];
+  const prom = v.reduce((a, b) => a + b, 0) / v.length;
+  assert.strictEqual(M.median(v), 45);
+  assert.ok(prom > 80, 'el promedio sí se dispara');
+});
+
+test('mFilterPeriodAll conserva cancelled y declined que mFilterPeriod descarta', () => {
+  const bks = [
+    at({ status: 'completed' }), at({ status: 'cancelled' }),
+    at({ status: 'declined' }), at({ status: 'no_show' }),
+  ];
+  assert.strictEqual(periodo(bks).length, 2, 'completed + no_show');
+  assert.strictEqual(periodoAll(bks).length, 4);
+});
+
+test('mFilterPeriodAll respeta los mismos límites de fecha', () => {
+  const bks = [at({ date: '2026-08-31' }), at({ date: '2026-09-01' }), at({ date: '2026-10-01' })];
+  assert.strictEqual(periodoAll(bks).length, 1);
+});
+
+test('mAttendance cuenta cada estado por separado', () => {
+  const a = M.mAttendance(periodoAll([
+    at({ status: 'completed' }), at({ status: 'completed' }), at({ status: 'completed' }),
+    at({ status: 'no_show' }),
+    at({ status: 'cancelled' }),
+    at({ status: 'declined' }),
+    at({ status: 'confirmed' }),
+  ]));
+  assert.strictEqual(a.atendidas, 3);
+  assert.strictEqual(a.noShow, 1);
+  assert.strictEqual(a.canceladas, 1);
+  assert.strictEqual(a.declinadas, 1);
+  assert.strictEqual(a.sinMarcar, 1);
+  assert.ok(Math.abs(a.asistenciaPct - 0.75) < 1e-9, 'atendidas / (atendidas+noShow)');
+  assert.ok(Math.abs(a.noShowPct - 0.25) < 1e-9);
+});
+
+// El caso del día 1: nadie usó la PWA todavía. No puede dar NaN ni 0%,
+// que se leería como "nadie asiste".
+test('mAttendance sin ninguna marca: porcentajes null, nunca NaN ni 0', () => {
+  const a = M.mAttendance(periodoAll([at({ status: 'pending' }), at({ status: 'confirmed' })]));
+  assert.strictEqual(a.atendidas, 0);
+  assert.strictEqual(a.sinMarcar, 2);
+  assert.strictEqual(a.asistenciaPct, null);
+  assert.strictEqual(a.noShowPct, null);
+});
+
+test('mAttendance: arrived e in_service todavía no son asistencia cerrada', () => {
+  const a = M.mAttendance(periodoAll([at({ status: 'arrived' }), at({ status: 'in_service' })]));
+  assert.strictEqual(a.atendidas, 0);
+  assert.strictEqual(a.sinMarcar, 2);
+});
+
+test('mAttendanceCoverage: 0, parcial y total', () => {
+  assert.strictEqual(M.mAttendanceCoverage(periodo([at({ status: 'pending' })])).pct, 0);
+  const parcial = M.mAttendanceCoverage(periodo([
+    at({ status: 'completed' }), at({ status: 'no_show' }),
+    at({ status: 'pending' }), at({ status: 'confirmed' }),
+  ]));
+  assert.strictEqual(parcial.medidas, 2);
+  assert.strictEqual(parcial.total, 4);
+  assert.ok(Math.abs(parcial.pct - 0.5) < 1e-9);
+  assert.strictEqual(M.mAttendanceCoverage([]).pct, 0, 'período vacío no divide por cero');
+});
+
+test('mRevenue excluye no_show, pero mFilterPeriod sí lo conserva como reserva', () => {
+  const bks = [at({ status: 'completed', price: 10000 }), at({ status: 'no_show', price: 10000 })];
+  const p = periodo(bks);
+  assert.strictEqual(p.length, 2, 'las dos siguen siendo demanda');
+  assert.strictEqual(M.mRevenue(p), 10000, 'pero solo una generó ingreso');
+});
+
+test('mRevenue con período vacío devuelve 0', () => {
+  assert.strictEqual(M.mRevenue([]), 0);
+});

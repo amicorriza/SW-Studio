@@ -146,27 +146,108 @@
     return out;
   }
 
+  // ¿Cae esta reserva dentro del período? Solo fecha y modo -- el filtro por
+  // estado lo decide cada llamador. Nunca lanza.
+  function inPeriod(b, o) {
+    try {
+      var d = parseBookingDate(b);
+      if (!d) return false;
+      var dk = ymd(d);
+      if (o.from && dk < o.from) return false;
+      if (o.to && dk > o.to) return false;
+      // Realizado: estrictamente antes de hoy en la zona del negocio.
+      if (o.mode === 'realizado' && o.today && dk >= o.today) return false;
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   // Reservas del período aplicando Realizado/Agendado y excluyendo los
   // estados que no cuentan (ver EXCLUDED_STATUSES).
   // 'confirmed' y 'pending' se tratan igual. Aísla por reserva las que no parsean.
   function mFilterPeriod(bookings, opts) {
     var o = opts || {};
-    var from = o.from, to = o.to, mode = o.mode, today = o.today;
     var out = [];
     (bookings || []).forEach(function (b) {
-      try {
-        if (b && isExcluded(b.status)) return;
-        var d = parseBookingDate(b);
-        if (!d) return;
-        var dk = ymd(d);
-        if (from && dk < from) return;
-        if (to && dk > to) return;
-        // Realizado: estrictamente antes de hoy en la zona del negocio.
-        if (mode === 'realizado' && today && dk >= today) return;
-        out.push(b);
-      } catch (e) { /* aislar */ }
+      if (b && isExcluded(b.status)) return;
+      if (inPeriod(b, o)) out.push(b);
     });
     return out;
+  }
+
+  // Igual que mFilterPeriod pero SIN excluir por estado. Lo necesita
+  // mAttendance: la tasa de cancelación no se puede calcular sobre un
+  // conjunto del que ya se sacaron las canceladas.
+  function mFilterPeriodAll(bookings, opts) {
+    var o = opts || {};
+    var out = [];
+    (bookings || []).forEach(function (b) {
+      if (inPeriod(b, o)) out.push(b);
+    });
+    return out;
+  }
+
+  // Mediana. El PDF (§2) la exige como valor principal del tiempo real:
+  // "resiste mejor atenciones excepcionalmente largas o cortas que el
+  // promedio simple". null con muestra vacía -- nunca NaN.
+  function median(nums) {
+    var v = (nums || []).filter(function (n) { return Number.isFinite(n); }).slice()
+      .sort(function (a, b) { return a - b; });
+    if (!v.length) return null;
+    var mid = Math.floor(v.length / 2);
+    return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+  }
+
+  // Reparto por estado del período COMPLETO (usa mFilterPeriodAll).
+  //
+  // Los porcentajes se calculan sobre las citas con marca real de asistencia
+  // (atendidas + no llegó), no sobre el total: mientras nadie use la PWA la
+  // base es 0 y devuelven null. Dividir por el total daría 0%, que se leería
+  // como "no asiste nadie" en vez de "todavía no se mide".
+  function mAttendance(allPeriodBookings) {
+    var r = { total: 0, atendidas: 0, noShow: 0, canceladas: 0, declinadas: 0, sinMarcar: 0 };
+    (allPeriodBookings || []).forEach(function (b) {
+      r.total++;
+      var s = b && b.status;
+      if (s === 'completed') r.atendidas++;
+      else if (s === 'no_show') r.noShow++;
+      else if (s === 'cancelled') r.canceladas++;
+      else if (s === 'declined') r.declinadas++;
+      // 'arrived' e 'in_service' son atenciones en curso: todavía no son
+      // asistencia cerrada, así que cuentan como sin marcar.
+      else r.sinMarcar++;
+    });
+    var base = r.atendidas + r.noShow;
+    r.asistenciaPct = base ? r.atendidas / base : null;
+    r.noShowPct = base ? r.noShow / base : null;
+    r.cancelPct = r.total ? r.canceladas / r.total : null;
+    return r;
+  }
+
+  // Qué parte del período tiene asistencia realmente registrada. Es lo que
+  // permite migrar sin salto: con cobertura 0 el panel se comporta como
+  // antes de la medición, y el pie de nota dice cuánto es medido y cuánto
+  // inferido.
+  function mAttendanceCoverage(periodBookings) {
+    var total = 0, medidas = 0;
+    (periodBookings || []).forEach(function (b) {
+      total++;
+      if (b && (b.status === 'completed' || b.status === 'no_show')) medidas++;
+    });
+    return { medidas: medidas, total: total, pct: total ? medidas / total : 0 };
+  }
+
+  // Ingreso del período. Excluye no_show: el cliente no llegó, no pagó.
+  // Las citas sin marcar SÍ suman -- es la misma sobreestimación que ya
+  // existía, y mAttendanceCoverage la hace visible en vez de silenciosa.
+  function mRevenue(periodBookings) {
+    var t = 0;
+    (periodBookings || []).forEach(function (b) {
+      if (b && b.status === 'no_show') return;
+      t += (b && +b.price) || 0;
+    });
+    return t;
   }
 
   function sumPrice(bookings) {
@@ -465,6 +546,8 @@
     parseBookingDate: parseBookingDate, dayKeyInZone: dayKeyInZone, bizToday: bizToday,
     monthBounds: monthBounds, rangeBounds: rangeBounds, weekStartsBack: weekStartsBack,
     firstBookingByEmail: firstBookingByEmail, mFilterPeriod: mFilterPeriod, mKpis: mKpis,
+    mFilterPeriodAll: mFilterPeriodAll, median: median,
+    mAttendance: mAttendance, mAttendanceCoverage: mAttendanceCoverage, mRevenue: mRevenue,
     mMonthlySeries: mMonthlySeries, mWeeklySeries: mWeeklySeries, mByService: mByService,
     mByBarber: mByBarber, mNewVsReturning: mNewVsReturning, mMonthlyExportRows: mMonthlyExportRows,
     svgLine: svgLine, toCSV: toCSV

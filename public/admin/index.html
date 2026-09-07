@@ -436,8 +436,15 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
 .a-dash-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:18px}
 .a-dash-bar label{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--a-body);cursor:pointer}
 .a-dash-range{display:flex;gap:8px;align-items:center}
-.a-dash-svgwrap{width:100%;background:#fff;border:1.5px solid var(--a-g2);border-radius:11px;padding:14px;margin-bottom:16px;overflow:hidden}
+.a-dash-svgwrap{width:100%;background:#fff;border:1.5px solid var(--a-g2);border-radius:11px;padding:12px;margin-bottom:14px;overflow:hidden}
 .a-dash-svg{display:block;width:100%;height:auto}
+/* Las dos tendencias del detalle, lado a lado desde 900px. Apiladas ocupaban
+   dos pantallas y empujaban todo lo demás fuera de la vista. */
+.a-dash-trends{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:900px){ .a-dash-trends{grid-template-columns:1fr 1fr} }
+.a-dash-trends .a-dash-svgwrap{margin-bottom:0}
+.a-dash-svgt{font-family:'Barlow Condensed',sans-serif;font-size:9.5px;font-weight:700;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--a-sd);margin-bottom:7px}
 .a-dash-stack{display:flex;height:22px;border-radius:5px;overflow:hidden;background:var(--a-g1)}
 .a-dash-stack-seg{height:100%}
 .a-dash-stack-new{background:var(--a-ink)}
@@ -2148,18 +2155,23 @@ function renderDash(){
     dashKpiCard('% recurrentes', (kpis.recurrentesPct == null ? '—' : Math.round(kpis.recurrentesPct*100)+'%'), cmp ? dashDelta(kpis.deltas.recurrentesPct, true) : '')+
   '</div>';
 
-  // 3 · Tendencia 12 meses  (ventana fija; respeta Realizado/Agendado)
+  // 3 y 4 · Tendencias, lado a lado en pantalla ancha. Apiladas ocupaban dos
+  // pantallas de alto y empujaban el desglose por servicio fuera de la vista;
+  // además meses y semanas se comparan mejor de a dos que en scroll.
   var fmtTrend = dashTrendMetric === 'ingresos' ? fmtCLP : String;
-  html += '<div class="a-sh"><div class="a-st">Tendencia — últimos 12 meses</div>'+
+  html += '<div class="a-sh"><div class="a-st">Tendencias</div>'+
     '<div class="a-vtoggle">'+
       '<button type="button" id="a-dash-tm-ing" class="'+(dashTrendMetric==='ingresos'?'a-on':'')+'">Ingresos</button>'+
       '<button type="button" id="a-dash-tm-cit" class="'+(dashTrendMetric==='citas'?'a-on':'')+'">Citas</button>'+
     '</div></div>'+
-    '<div class="a-dash-svgwrap">'+X.svgLine(monthly.map(function(m){ return { label:m.ym, value:m[dashTrendMetric] }; }), { fmt:fmtTrend })+'</div>';
-
-  // 4 · Por semana (últimas 12 + actual)
-  html += '<div class="a-sh"><div class="a-st">Por semana — últimas 12 semanas + actual</div></div>'+
-    '<div class="a-dash-svgwrap">'+X.svgLine(weekly.map(function(w){ return { label:w.weekStart.slice(5), value:w[dashTrendMetric], current:w.current }; }), { fmt:fmtTrend })+'</div>';
+    '<div class="a-dash-trends">'+
+      '<div class="a-dash-svgwrap"><div class="a-dash-svgt">Últimos 12 meses</div>'+
+        X.svgLine(monthly.map(function(m){ return { label:m.ym, value:m[dashTrendMetric] }; }), { fmt:fmtTrend })+
+      '</div>'+
+      '<div class="a-dash-svgwrap"><div class="a-dash-svgt">Últimas 12 semanas + actual</div>'+
+        X.svgLine(weekly.map(function(w){ return { label:w.weekStart.slice(5), value:w[dashTrendMetric], current:w.current }; }), { fmt:fmtTrend })+
+      '</div>'+
+    '</div>';
 
   // 5 · Ingresos por servicio / categoría  (acotado al período)
   html += '<div class="a-sh"><div class="a-st">Ingresos por '+(dashSvcGroup==='cat'?'categoría':'servicio')+'</div>'+

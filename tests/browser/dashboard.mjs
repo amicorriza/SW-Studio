@@ -392,6 +392,14 @@ check('el CSV arranca con BOM', csv.charCodeAt(0) === 0xFEFF, csv.charCodeAt(0))
 check('el CSV tiene header + 12 meses', lines.length === 13, lines.length);
 check('el header del CSV es el esperado', lines[0].replace(/^﻿/, '').startsWith('Mes,Citas,Ingresos CLP'), lines[0]);
 
+// Las dos tendencias lado a lado, arriba del detalle.
+await page.evaluate(() => {
+  const sh = [...document.querySelectorAll('#a-dash .a-sh')].find(e => /Tendencias/.test(e.textContent));
+  if (sh) sh.scrollIntoView({ block: 'start' });
+});
+await page.waitForTimeout(250);
+await page.screenshot({ path: path.join(OUT, 'admin-dashboard-tendencias.png') }).catch(() => {});
+
 // Captura acotada de las secciones nuevas del detalle: un screenshot del
 // panel completo mide varios miles de píxeles y no sirve para revisar nada.
 await page.evaluate(() => {

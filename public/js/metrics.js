@@ -810,7 +810,15 @@
   function svgLine(series, opts) {
     var o = opts || {};
     var fmt = typeof o.fmt === 'function' ? o.fmt : String;
-    var W = 640, H = 200, padL = 8, padR = 8, padT = 12, padB = 20;
+    // El SVG escala UNIFORME al ancho del contenedor (preserveAspectRatio
+    // none pero con height:auto), así que la altura en pantalla la fija la
+    // proporción del viewBox, no el CSS. Con H=200 el gráfico salía ~344px
+    // de alto en el panel y se comía la pantalla: tapaba los KPI y le robaba
+    // el protagonismo al resto. Achatar el viewBox lo baja a ~190px sin
+    // distorsionar nada -- el texto y los marcadores escalan igual que antes.
+    // `opts.height` permite pedir uno más compacto todavía.
+    var W = 640, H = Number.isFinite(o.height) ? o.height : 112;
+    var padL = 8, padR = 8, padT = 10, padB = 18;
     var pts = (series || []).filter(function (p) {
       return p && typeof p.value === 'number' && isFinite(p.value);
     });

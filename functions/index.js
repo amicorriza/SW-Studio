@@ -722,9 +722,15 @@ exports.getMyDay = onCall(
     const dayKey = dateKeyOf(request.data && request.data.date) || dateKeyInZone(new Date(), tz);
     const { end } = dayBoundsOf(dayKey);
 
-    // Rango sobre `date` + igualdad sobre `barberId`: lo cubre el índice
-    // compuesto bookings(date, barberId) que ya existe. El >= / < además
-    // captura las reservas del admin, cuyo `date` trae sufijo 'T...Z'.
+    // Igualdad sobre `barberId` + rango sobre `date`. Firestore exige que el
+    // campo de igualdad vaya PRIMERO en el índice compuesto, así que el que
+    // ya existía -- bookings(date, barberId) -- NO sirve acá: hizo falta
+    // agregar bookings(barberId, date) en firestore.indexes.json. El >= / <
+    // además captura las reservas del admin, cuyo `date` trae sufijo 'T...Z'.
+    //
+    // Devuelve UN SOLO día: el de `request.data.date`, o hoy en la zona del
+    // negocio. La PWA no manda fecha y no tiene navegación de días -- es la
+    // agenda de hoy, a propósito (spec de medición, §PWA).
     const snap = await db.collection('bookings')
       .where('barberId', '==', staff.id)
       .where('date', '>=', dayKey)

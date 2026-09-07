@@ -242,13 +242,40 @@ test('computeAvailability sigue ocupando el slot para status "pending" y "confir
 });
 
 test('computeAvailability sigue ocupando el slot de una reserva sin campo status (datos de antes de este goal)', () => {
-  // El filtro es deny-list (b.status !== 'declined'), no allow-list -- a
-  // propósito: una reserva sin `status` (legado) debe seguir ocupando el
-  // horario, igual que antes de este cambio.
+  // El filtro es allow-list (BLOCKING_STATUSES, shared/status.js), pero
+  // isBlockingStatus() trata la ausencia de `status` como bloqueante a
+  // propósito: una reserva de legado debe seguir ocupando el horario.
   const bookings = [{ barberId: 'felipe', date: '2026-07-10', time: '10:00', dur: 50 }];
   const staff = [{ id: 'felipe', status: 'active' }];
   const result = computeAvailability({ bookings, staff, barberId: 'felipe' });
   assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '10:00', end: '10:50', kind: 'booking' }]);
+});
+
+// Medición de la atención real (2026-09): no_show y cancelled liberan el
+// horario igual que declined; completed lo sigue ocupando, porque la cita
+// efectivamente ocurrió y su franja no vuelve a estar libre.
+test('computeAvailability: no_show y cancelled liberan el horario, completed no', () => {
+  const bookings = [
+    { barberId: 'felipe', date: '2026-07-10', time: '10:00', dur: 30, status: 'no_show' },
+    { barberId: 'felipe', date: '2026-07-10', time: '11:00', dur: 30, status: 'cancelled' },
+    { barberId: 'felipe', date: '2026-07-10', time: '12:00', dur: 30, status: 'completed' },
+  ];
+  const staff = [{ id: 'felipe', status: 'active' }];
+  const result = computeAvailability({ bookings, staff, barberId: 'felipe' });
+  assert.deepStrictEqual(result.barberBusy.felipe, [{ start: '12:00', end: '12:30', kind: 'booking' }]);
+});
+
+test('computeAvailability: arrived e in_service ocupan el horario', () => {
+  const bookings = [
+    { barberId: 'felipe', date: '2026-07-10', time: '10:00', dur: 30, status: 'arrived' },
+    { barberId: 'felipe', date: '2026-07-10', time: '11:00', dur: 30, status: 'in_service' },
+  ];
+  const staff = [{ id: 'felipe', status: 'active' }];
+  const result = computeAvailability({ bookings, staff, barberId: 'felipe' });
+  assert.deepStrictEqual(result.barberBusy.felipe, [
+    { start: '10:00', end: '10:30', kind: 'booking' },
+    { start: '11:00', end: '11:30', kind: 'booking' },
+  ]);
 });
 
 test('overlaps: solape exacto, parcial, adyacente y sin relación (bufferMin=0, comportamiento original)', () => {

@@ -2088,6 +2088,16 @@ function deleteScheduleBlockLocal(id){
   SB = SB.filter(function(b){ return b.id !== id; });
   return window.SWData.deleteScheduleBlock(id);
 }
+// Copia deliberada de BLOCKING_STATUSES / isBlockingStatus
+// (functions/shared/status.js). Mismo motivo de siempre para la duplicación:
+// <script> plano, sin bundler, no puede importar. Es una lista BLANCA a
+// propósito -- ver el razonamiento completo en ese archivo: con lista negra,
+// olvidar un estado nuevo libera un horario ocupado (doble reserva); con
+// lista blanca, el olvido produce el error seguro.
+// Si cambia allá, tiene que cambiar acá.
+var BLOCKING_STATUSES = ['pending','confirmed','arrived','in_service','completed'];
+function isBlockingStatus(s){ return !s || BLOCKING_STATUSES.indexOf(s) !== -1; }
+
 // Check if a proposed booking conflicts with existing ones (same barber, overlapping time).
 // bufferMin (D.info.bufferMin, default 0) es el margen de limpieza contra
 // OTRAS RESERVAS -- checkScheduleBlock (colación/bloqueos) no lo usa, son
@@ -2116,7 +2126,7 @@ function checkConflict(barberId, dateStr, timeStr, durMin, ignoreId, bufferMin){
   for(var i=0; i<bookings.length; i++){
     var b = bookings[i];
     if(ignoreId && b.code === ignoreId) continue;
-    if(b.status === 'declined') continue;
+    if(!isBlockingStatus(b.status)) continue;
     if(b.barberId !== barberId) continue;
     if((b.date ? b.date.substring(0,10) : '') !== dateStr) continue;
     var bStart = toMin(b.time);

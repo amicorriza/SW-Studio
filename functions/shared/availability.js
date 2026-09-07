@@ -15,6 +15,8 @@
 // (ver firestore.rules: bookings solo lo lee el admin).
 'use strict';
 
+const { isBlockingStatus } = require('./status.js');
+
 // 'HH:MM' -> minutos desde medianoche. Tolerante a valores raros (mismo
 // espíritu defensivo que parseDt/checkConflict en public/index.html).
 function toMinutes(hhmm) {
@@ -101,10 +103,12 @@ function computeAvailability({ bookings, staff, barberId, dow, scheduleBlocks })
     barberBusy[id].push({ start, end, kind });
   }
 
-  // 'declined' libera el horario (recordatorio de citas, 2026-09) --
-  // 'pending' y 'confirmed' siguen ocupando el slot igual que antes.
+  // Un solo criterio de "ocupa el horario": BLOCKING_STATUSES en
+  // shared/status.js. 'declined' (el cliente declinó el recordatorio),
+  // 'no_show' y 'cancelled' liberan el slot; el resto lo ocupa, incluidas
+  // las reservas sin `status` de antes de Fase 2.
   relevant
-    .filter(b => b.status !== 'declined')
+    .filter(b => isBlockingStatus(b.status))
     .forEach(b => addBusy(b.barberId, b.time, addMinutesToTime(b.time, b.dur || 0), 'booking'));
 
   const activeBarberIds = (staff || [])

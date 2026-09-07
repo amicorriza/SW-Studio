@@ -1767,18 +1767,58 @@ async function loadFromCloud(){
 }
 
 // ═══ LOGIN ═══
+// Este panel y la PWA del barbero comparten la sesión de Firebase Auth -- mismo
+// origen, misma app -- así que quien entra acá ya queda logueado en /barbero/.
+//
+// Un barbero no tiene nada que hacer en este panel: bookings, patients,
+// adminLog y staffAccounts son admin-only en firestore.rules, así que
+// loadAdmin() falla entero (Promise.all) y queda mirando el catálogo DEMO
+// bajo el banner rojo, creyendo que ve datos reales.
+//
+// La pertenencia NO se decide con una copia del predicado isAdmin(): ese ya
+// vive repetido en cuatro archivos (firestore.rules, storage.rules x2 y
+// functions/index.js) y una quinta copia en el navegador se desincronizaría
+// sola -- y equivocarse acá hacia el otro lado expulsa al admin de su propio
+// panel. Se le pregunta al servidor: si loadAdmin() no pudo y getMyDay SÍ
+// responde, es un barbero vinculado y se lo manda a su app. Un admin nunca
+// llega a esa pregunta porque su loadAdmin() funciona, lo que además le da la
+// precedencia correcta a quien sea admin Y tenga ficha de barbero.
+//
+// Un error de red tampoco redirige: si loadAdmin() cayó por conexión, getMyDay
+// también cae, y el panel se queda con el banner en vez de mandar al admin a
+// una app que no es la suya.
+async function redirigirSiEsBarbero(){
+  try { await window.SWData.getMyDay(); }
+  catch(e){ return false; }
+  location.replace('/barbero/');
+  return true;
+}
+
 async function login(){
   var email = (g('adm-email') ? g('adm-email').value.trim() : 'admin@scissorwhite.cl');
+  var btn = g('adm-login-btn'), btnTxt = btn.textContent;
   try {
     await window.SWAuth.signIn(email, g('adm-pass').value);
-    auth = true;
-    g('adm-login').style.display = 'none';
-    g('adm-app').style.display = 'flex';
-    await loadFromCloud();
-    renderAll();
   } catch(e) {
     g('adm-login-err').style.display = 'block';
     g('adm-pass').style.borderColor = 'rgba(220,80,80,.6)';
+    return;
+  }
+  // La sesión ya es válida, pero el destino todavía no está decidido: el panel
+  // no se muestra hasta saberlo, para que un barbero no alcance a ver el
+  // catálogo demo ni el banner de error que no le corresponde.
+  btn.disabled = true;
+  btn.textContent = 'Entrando…';
+  try {
+    await loadFromCloud();
+    if (dataLoadFailed && await redirigirSiEsBarbero()) return;
+    auth = true;
+    g('adm-login').style.display = 'none';
+    g('adm-app').style.display = 'flex';
+    renderAll();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = btnTxt;
   }
 }
 g('adm-login-btn').addEventListener('click', login);

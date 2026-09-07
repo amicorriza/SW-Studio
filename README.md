@@ -245,6 +245,15 @@ dispositivo guarda su token de FCM.
 Los íconos (192/512 y el *maskable*) se regeneran con
 `node scripts/make-barbero-icons.mjs`.
 
+> **Índice nuevo.** `getMyDay` consulta `barberId ==` + rango sobre `date`, y
+> Firestore exige que el campo de igualdad vaya **primero** en el índice
+> compuesto. El que ya existía es `bookings(date, barberId)` y **no** sirve
+> para esa consulta, así que `firestore.indexes.json` suma
+> `bookings(barberId, date)`. Se despliega con
+> `firebase deploy --only firestore:indexes`, que ya está en el comando de
+> arriba; hasta que el índice termine de construirse, la app del barbero
+> devuelve error al cargar la agenda.
+
 ## Reseñas de Google
 
 La sección *"La voz de quienes vuelven"* del landing (`#resenas`, entre

@@ -916,13 +916,16 @@ exports.staffAttendanceNudges = onSchedule(
           const target = tokensByStaff[n.barberId];
           if (!target) continue;
 
+          // SOLO DATOS, sin clave `notification`. Si el payload trae
+          // `notification`, el SDK de FCM en el service worker muestra la
+          // notificación por su cuenta y onBackgroundMessage no corre de
+          // forma confiable -- se perderían el `tag` (una notificación por
+          // cita en vez de una pila), las acciones de Android y el `data`
+          // que arma el enlace profundo. Con solo datos, el handler de
+          // public/barbero/sw.js siempre es el que decide qué se muestra.
           const res = await getMessaging(app).sendEachForMulticast({
             tokens: target.tokens,
-            notification: { title: n.title, body: n.body },
-            data: { b: n.data.b, a: n.data.a },
-            webpush: {
-              fcmOptions: { link: `https://scissorwhite.cl/barbero/?b=${n.data.b}&a=${n.data.a}` },
-            },
+            data: { b: n.data.b, a: n.data.a, title: n.title, body: n.body },
           });
 
           // Purga de tokens muertos (teléfono reinstalado, permiso revocado,

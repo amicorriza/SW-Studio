@@ -30,11 +30,15 @@ firebase.initializeApp({
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
 
+// staffAttendanceNudges manda SOLO datos (sin clave `notification`), a
+// propósito: con `notification` el SDK de FCM muestra la notificación por su
+// cuenta y este handler no corre de forma confiable, así que se perderían el
+// `tag`, las acciones y el `data` del enlace profundo. Título y cuerpo
+// viajan dentro de `data`.
 firebase.messaging().onBackgroundMessage(function (payload) {
   const d = payload.data || {};
-  const n = payload.notification || {};
-  self.registration.showNotification(n.title || 'SW Barbero', {
-    body: n.body || '',
+  self.registration.showNotification(d.title || 'SW Barbero', {
+    body: d.body || '',
     icon: '/barbero/icon-192.png',
     badge: '/barbero/icon-192.png',
     // Una notificación por cita, no una pila: si el aviso de fin se repite,

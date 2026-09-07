@@ -1761,6 +1761,19 @@ function renderBookingsViews(){
   // Agenda también depende de las reservas, así que la suscripción en
   // tiempo real debe refrescarla junto al resto o queda desactualizada.
   renderDash(); renderCalendar(); renderBookingList(); renderReview(); updateBadges();
+  // Si hay una cita abierta, su bloque de atención también se repinta. Las
+  // marcas de asistencia se escriben server-side (markAttendance es un
+  // callable), así que el snapshot llega DESPUÉS de que la promesa resuelve:
+  // sin esto, el modal se quedaría mostrando el estado anterior hasta que
+  // alguien lo cerrara y volviera a abrir.
+  var modal = g('a-bkm');
+  if(modal && modal.classList.contains('a-open')){
+    var code = g('a-bkm-id').value;
+    if(code){
+      var abierta = getBookings().find(function(x){ return x.code === code; });
+      if(abierta) renderAttendanceBlock(abierta);
+    }
+  }
 }
 
 // Banner de atenciones sin cerrar. Se calcula sobre toda la cache, no solo

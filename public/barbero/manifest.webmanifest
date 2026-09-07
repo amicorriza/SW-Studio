@@ -1,0 +1,17 @@
+{
+  "name": "SW Barbero",
+  "short_name": "SW Barbero",
+  "description": "Agenda del día y registro de atenciones para el equipo de Scissor White.",
+  "start_url": "/barbero/",
+  "scope": "/barbero/",
+  "display": "standalone",
+  "background_color": "#0A0A0A",
+  "theme_color": "#0A0A0A",
+  "orientation": "portrait",
+  "lang": "es-CL",
+  "icons": [
+    { "src": "/barbero/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/barbero/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/barbero/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

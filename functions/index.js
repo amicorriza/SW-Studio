@@ -738,7 +738,11 @@ exports.getMyDay = onCall(
       };
     }).sort((x, y) => String(x.time).localeCompare(String(y.time)));
 
-    return { staffId: staff.id, name: staff.name || '', date: dayKey, bookings };
+    // `tz` viaja para que la PWA pinte "empezó a las HH:MM" en la hora del
+    // NEGOCIO y no en la del dispositivo. Es el invariante del proyecto, y
+    // acá no es teórico: un barbero que viaja, o un teléfono con la zona
+    // mal configurada, mostraría horas que no coinciden con la agenda.
+    return { staffId: staff.id, name: staff.name || '', date: dayKey, tz, bookings };
   }
 );
 

@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SW Barbero</title>
+<meta name="theme-color" content="#0A0A0A">
+<link rel="manifest" href="/barbero/manifest.webmanifest">
+<link rel="icon" href="/barbero/icon-192.png">
+<link rel="apple-touch-icon" href="/barbero/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="SW Barbero">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0A0A; --white:#FAFAFA; --off:#F4F4F4;
+    --g100:#F0F0F0; --g200:#E0E0E0; --g300:#C8C8C8;
+    --text:#111; --body:#1E1E1E; --meta:#505050;
+    --steel-dark:#6A7888;
+    --ok:#2E7D52; --err:#C44545; --warn:#B8791F; --info:#3A5F8A;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--off);color:var(--text);
+    font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;
+    min-height:100dvh;display:flex;flex-direction:column;
+    /* La barra inferior es fija: sin este padding las últimas tarjetas
+       quedan tapadas en iPhone. */
+    padding-bottom:calc(72px + env(safe-area-inset-bottom))
+  }
+  [hidden]{display:none!important}
+  button{font-family:inherit}
+
+  /* ── cabecera ── */
+  header{
+    background:var(--ink);color:#fff;padding:calc(14px + env(safe-area-inset-top)) 18px 14px;
+    position:sticky;top:0;z-index:20
+  }
+  .b-hd{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .b-brand{display:flex;align-items:center;gap:10px}
+  .b-brand img{width:26px;height:26px;border-radius:5px}
+  .b-brand span{font-family:'Audiowide','Orbitron',sans-serif;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+  .b-who{font-size:12px;color:#9AA3AD;margin-top:6px}
+  .b-who b{color:#fff;font-weight:600}
+  .b-ghost{
+    background:transparent;border:1px solid #3A3A3A;color:#CFCFCF;
+    font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;
+    letter-spacing:.14em;text-transform:uppercase;padding:7px 11px;border-radius:6px;cursor:pointer
+  }
+  .b-ghost:hover{border-color:#fff;color:#fff}
+
+  main{flex:1;padding:16px 14px 8px;max-width:640px;width:100%;margin:0 auto}
+
+  /* ── login ── */
+  .b-login{max-width:340px;margin:8vh auto 0;text-align:center}
+  .b-login h1{font-family:'Orbitron',sans-serif;font-size:20px;font-weight:500;margin:0 0 6px}
+  .b-login p{font-size:13px;color:var(--meta);margin:0 0 22px}
+  .b-in{
+    width:100%;padding:13px 14px;border:1.5px solid var(--g200);border-radius:8px;
+    font-size:16px;/* 16px evita el zoom automático de iOS al enfocar */
+    margin-bottom:10px;background:#fff;color:var(--text)
+  }
+  .b-in:focus{outline:none;border-color:var(--ink)}
+
+  /* ── botones ── */
+  .b-btn{
+    font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+    letter-spacing:.16em;text-transform:uppercase;
+    padding:15px 18px;border-radius:8px;border:1.5px solid transparent;
+    cursor:pointer;transition:background .15s,color .15s,border-color .15s;
+    min-height:50px;/* se tocan de pie, con las manos ocupadas */
+    flex:1
+  }
+  .b-btn:disabled{opacity:.5;cursor:not-allowed}
+  .b-pri{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .b-pri:active{background:#2A2A2A}
+  .b-sec{background:#fff;color:var(--meta);border-color:var(--g200)}
+  .b-sec:active{border-color:var(--ink);color:var(--ink)}
+  .b-dan{background:#fff;color:var(--err);border-color:#E8CACA}
+  .b-dan:active{background:#FBF2F2}
+  .b-wide{width:100%}
+
+  /* ── tarjetas ── */
+  .b-sec-t{
+    font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;
+    letter-spacing:.28em;text-transform:uppercase;color:var(--steel-dark);
+    margin:22px 2px 10px
+  }
+  .b-card{
+    background:#fff;border:1px solid var(--g200);border-radius:12px;
+    padding:14px 15px;margin-bottom:10px
+  }
+  .b-card.done{opacity:.62}
+  .b-card.void{opacity:.5}
+  .b-card.void .b-name{text-decoration:line-through}
+  .b-card.live{border-color:var(--ink);border-width:2px;padding:13px 14px}
+  .b-card.review{border-color:#E2C48A;background:#FFFCF5}
+
+  .b-top{display:flex;align-items:baseline;gap:10px;margin-bottom:2px}
+  .b-time{font-family:'Orbitron',sans-serif;font-size:19px;font-weight:600;letter-spacing:.02em}
+  .b-name{font-size:15px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .b-meta{font-size:12.5px;color:var(--meta);margin-bottom:12px}
+  .b-tag{
+    display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:10px;
+    font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    padding:3px 8px;border-radius:4px;color:#fff;vertical-align:2px
+  }
+  .t-confirmed{background:var(--ok)} .t-declined{background:var(--err)}
+  .t-arrived{background:var(--info)} .t-inservice{background:var(--ink)}
+  .t-completed{background:var(--steel-dark)} .t-noshow{background:var(--err)}
+  .t-cancelled{background:var(--g300);color:var(--text)}
+  .t-review{background:var(--warn)}
+
+  .b-acts{display:flex;gap:8px;flex-wrap:wrap}
+  .b-acts .b-btn{min-width:110px}
+
+  /* El cronómetro informa, no presiona: mismo peso visual que el resto de
+     los metadatos, no un número gigante en rojo. */
+  .b-timer{
+    font-family:'Orbitron',sans-serif;font-size:13px;color:var(--meta);
+    margin-bottom:12px;display:flex;align-items:center;gap:7px
+  }
+  .b-timer b{font-weight:600;color:var(--text)}
+  .b-timer.over b{color:var(--warn)}
+  .b-dot{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:b-pulse 2s infinite}
+  @keyframes b-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  .b-empty{text-align:center;color:var(--meta);font-size:14px;padding:42px 20px;line-height:1.6}
+  .b-note{font-size:12px;color:var(--meta);margin-top:14px;line-height:1.5}
+
+  /* ── avisos ── */
+  .b-toast{
+    position:fixed;left:50%;transform:translateX(-50%);
+    bottom:calc(84px + env(safe-area-inset-bottom));
+    background:var(--ink);color:#fff;font-size:13.5px;
+    padding:12px 18px;border-radius:9px;z-index:40;
+    max-width:calc(100% - 28px);text-align:center;box-shadow:0 8px 28px -8px rgba(0,0,0,.5)
+  }
+  .b-toast.err{background:var(--err)}
+
+  .b-bar{
+    position:fixed;left:0;right:0;bottom:0;z-index:30;
+    background:#fff;border-top:1px solid var(--g200);
+    padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+    display:flex;gap:8px;align-items:center
+  }
+  .b-bar .b-btn{padding:11px 14px;min-height:42px;font-size:12px}
+</style>
+</head>
+<body>
+
+<header hidden id="b-header">
+  <div class="b-hd">
+    <div class="b-brand"><img src="/barbero/icon-192.png" alt=""><span>SW Barbero</span></div>
+    <button class="b-ghost" id="b-refresh">Actualizar</button>
+  </div>
+  <div class="b-who">Hola, <b id="b-me">—</b> · <span id="b-date">—</span></div>
+</header>
+
+<main>
+  <!-- Login -->
+  <section class="b-login" id="b-login" hidden>
+    <h1>SW Barbero</h1>
+    <p>Entra con la cuenta que te dio el salón.</p>
+    <input class="b-in" id="b-email" type="email" inputmode="email" autocomplete="username" placeholder="Correo">
+    <input class="b-in" id="b-pass" type="password" autocomplete="current-password" placeholder="Contraseña">
+    <button class="b-btn b-pri b-wide" id="b-signin">Entrar</button>
+    <p class="b-note" id="b-login-err" style="color:var(--err)" hidden></p>
+  </section>
+
+  <!-- Agenda -->
+  <section id="b-app" hidden>
+    <div id="b-review-wrap" hidden>
+      <div class="b-sec-t">Por revisar</div>
+      <div id="b-review"></div>
+    </div>
+    <div class="b-sec-t" id="b-day-t">Hoy</div>
+    <div id="b-list"></div>
+    <p class="b-note" id="b-foot"></p>
+  </section>
+</main>
+
+<div class="b-bar" id="b-bar" hidden>
+  <button class="b-btn b-sec" id="b-push">Activar avisos</button>
+  <button class="b-btn b-sec" id="b-signout">Salir</button>
+</div>
+
+<!-- Los tres módulos compartidos con el resto del sitio, cada uno en su
+     propio <script>: si uno falla (gstatic caído, red del salón lenta), no
+     se lleva puesto al de al lado. Exponen window.SWAuth y window.SWData. -->
+<script type="module" src="/js/firebase-init.js"></script>
+<script type="module" src="/js/data.js"></script>
+<script type="module" src="/js/auth.js"></script>
+
+<script>
+(function(){
+'use strict';
+// Script clásico, no módulo, y todo el acceso a Firebase va por
+// window.SWAuth / window.SWData -- mismo patrón que public/admin/index.html.
+// Un `import` estático del SDK acá haría que una falla de gstatic dejara la
+// agenda entera en blanco, cuando en realidad lo único que se pierde es el
+// push. Por eso el SDK de messaging se carga con import() dinámico, recién
+// cuando el barbero toca "Activar avisos".
+
+// Clave VAPID pública del proyecto (Consola de Firebase → Cloud Messaging →
+// Web Push certificates → Generate key pair). Es PÚBLICA por diseño, igual
+// que el resto de firebaseConfig en /js/firebase-init.js: identifica al
+// remitente, no autoriza a enviar. No va a Secret Manager ni a
+// functions/.env. Mientras esté vacía, la app funciona completa salvo el
+// push -- el botón "Activar avisos" avisa que falta configurarla.
+const VAPID_KEY = '';
+
+const g = (id) => document.getElementById(id);
+const els = {
+  header: g('b-header'), login: g('b-login'), app: g('b-app'), bar: g('b-bar'),
+  me: g('b-me'), date: g('b-date'), list: g('b-list'),
+  review: g('b-review'), reviewWrap: g('b-review-wrap'),
+  dayT: g('b-day-t'), foot: g('b-foot'), loginErr: g('b-login-err'),
+};
+
+let CURRENT = null;   // { staffId, name, date, bookings }
+let USER = null;
+let ticker = null;
+let poller = null;
+
+// ── utilidades ──
+const esc = (s) => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+const clp = (n) => '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
+
+function toast(msg, isErr) {
+  const prev = document.querySelector('.b-toast');
+  if (prev) prev.remove();
+  const el = document.createElement('div');
+  el.className = 'b-toast' + (isErr ? ' err' : '');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), isErr ? 5200 : 2600);
+}
+
+function show(view) {
+  els.login.hidden = view !== 'login';
+  els.app.hidden = view !== 'app';
+  els.header.hidden = view !== 'app';
+  els.bar.hidden = view !== 'app';
+}
+
+// Minutos transcurridos desde un ISO. El reloj del teléfono solo se usa
+// para PINTAR el cronómetro; lo que se registra son las horas del servidor
+// que devuelve markAttendance.
+function minsSince(iso) {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return null;
+  return Math.max(0, Math.floor((Date.now() - t) / 60000));
+}
+
+// Siempre con las horas, aunque sean 00. Sin ellas, "12:00" (doce minutos)
+// se lee como una hora de reloj justo al lado de "Desde las 14:17".
+function hhmmss(iso) {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '--:--:--';
+  const s = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  const p = (n) => String(n).padStart(2, '0');
+  return p(Math.floor(s / 3600)) + ':' + p(Math.floor((s % 3600) / 60)) + ':' + p(s % 60);
+}
+
+// Hora de pared en la zona del NEGOCIO, nunca la del dispositivo -- el `tz`
+// lo resuelve el servidor y viaja en getMyDay. Recortar el ISO con
+// slice(11,16) daría la hora UTC, que en Chile son 3 o 4 horas de más.
+function horaNegocio(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '--:--';
+  try {
+    return new Intl.DateTimeFormat('es-CL', {
+      timeZone: (CURRENT && CURRENT.tz) || 'America/Santiago',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(d);
+  } catch (e) {
+    return '--:--';
+  }
+}
+
+// Una atención que debió cerrarse hace más de media hora. El PDF pide que el
+// sistema solicite revisión al final del día en vez de asumir una duración
+// arbitraria -- esta es esa señal, calculada, no persistida.
+const REVIEW_GRACE_MIN = 30;
+function needsReview(b) {
+  if (b.status !== 'in_service' || !b.startedAt) return false;
+  const m = minsSince(b.startedAt);
+  return m !== null && m > (Number(b.dur) || 0) + REVIEW_GRACE_MIN;
+}
+
+const TAGS = {
+  confirmed: ['t-confirmed', 'Confirmada'],
+  declined: ['t-declined', 'Declinada'],
+  arrived: ['t-arrived', 'Llegó'],
+  in_service: ['t-inservice', 'En atención'],
+  completed: ['t-completed', 'Atendida'],
+  no_show: ['t-noshow', 'No llegó'],
+  cancelled: ['t-cancelled', 'Cancelada'],
+};
+
+// Qué botones corresponden según el estado. `start` aparece también en
+// pending/confirmed porque el flujo de la notificación va directo a iniciar
+// sin obligar a marcar Llegó antes (ver functions/shared/attendance.js).
+function botones(b) {
+  if (b.status === 'in_service') {
+    return [['end', 'Finalizar atención', 'b-pri'], ['snooze', 'Recuérdame en 10 min', 'b-sec']];
+  }
+  if (b.status === 'arrived') {
+    return [['start', 'Iniciar atención', 'b-pri'], ['no_show', 'No llegó', 'b-dan']];
+  }
+  if (b.status === 'pending' || b.status === 'confirmed') {
+    return [['arrive', 'Llegó', 'b-pri'], ['no_show', 'No llegó', 'b-dan'], ['start', 'Iniciar', 'b-sec']];
+  }
+  return [];
+}
+
+function cardClass(b) {
+  if (needsReview(b)) return 'b-card review';
+  if (b.status === 'in_service') return 'b-card live';
+  if (b.status === 'completed') return 'b-card done';
+  if (b.status === 'no_show' || b.status === 'cancelled' || b.status === 'declined') return 'b-card void';
+  return 'b-card';
+}
+
+function resumen(b) {
+  if (b.status === 'completed') {
+    const real = Number.isFinite(b.actualDur) ? b.actualDur : null;
+    const plan = Number(b.dur) || 0;
+    if (real === null) return 'Atendida';
+    const dif = real - plan;
+    const cmp = dif === 0 ? 'igual a lo planificado'
+      : (dif > 0 ? `${dif} min más de lo planificado` : `${-dif} min menos de lo planificado`);
+    return `Duró ${real} min · ${cmp}`;
+  }
+  if (b.status === 'no_show') return 'Marcada como no llegó';
+  if (b.status === 'cancelled') return 'Cita cancelada';
+  if (b.status === 'declined') return 'El cliente declinó';
+  return '';
+}
+
+function cardHTML(b) {
+  const tag = needsReview(b) ? ['t-review', 'Sin cerrar'] : TAGS[b.status];
+  const acts = botones(b);
+  let cronometro = '';
+  if (b.status === 'in_service' && b.startedAt) {
+    const over = minsSince(b.startedAt) > (Number(b.dur) || 0);
+    cronometro = `<div class="b-timer${over ? ' over' : ''}" data-since="${esc(b.startedAt)}" data-dur="${Number(b.dur) || 0}">
+      <span class="b-dot"></span>Empezó ${esc(horaNegocio(b.startedAt))} · llevas <b>${hhmmss(b.startedAt)}</b>
+    </div>`;
+  }
+  const res = resumen(b);
+  return `<div class="${cardClass(b)}" data-id="${esc(b.id)}">
+    <div class="b-top">
+      <span class="b-time">${esc(b.time)}</span>
+      <span class="b-name">${esc(b.name || 'Sin nombre')}</span>
+      ${tag ? `<span class="b-tag ${tag[0]}">${esc(tag[1])}</span>` : ''}
+    </div>
+    <div class="b-meta">${esc(b.svcName || 'Servicio')} · ${Number(b.dur) || 0} min · ${clp(b.price)}</div>
+    ${cronometro}
+    ${res ? `<div class="b-meta" style="margin-bottom:0">${esc(res)}</div>` : ''}
+    ${acts.length ? `<div class="b-acts">${acts.map(([a, txt, cls]) =>
+      `<button class="b-btn ${cls}" data-act="${a}" data-id="${esc(b.id)}">${esc(txt)}</button>`).join('')}</div>` : ''}
+  </div>`;
+}
+
+function render() {
+  if (!CURRENT) return;
+  els.me.textContent = CURRENT.name || CURRENT.staffId;
+  els.date.textContent = CURRENT.date;
+
+  const todas = CURRENT.bookings || [];
+  const revisar = todas.filter(needsReview);
+  els.reviewWrap.hidden = revisar.length === 0;
+  els.review.innerHTML = revisar.map(cardHTML).join('');
+
+  const resto = todas.filter((b) => !needsReview(b));
+  els.dayT.textContent = `Agenda · ${resto.length} ${resto.length === 1 ? 'cita' : 'citas'}`;
+  els.list.innerHTML = resto.length
+    ? resto.map(cardHTML).join('')
+    : '<div class="b-empty">No tienes citas para hoy.<br>Cuando el salón agende una, aparecerá acá.</div>';
+
+  const atendidas = todas.filter((b) => b.status === 'completed').length;
+  els.foot.textContent = atendidas
+    ? `${atendidas} ${atendidas === 1 ? 'atención registrada' : 'atenciones registradas'} hoy.`
+    : '';
+
+  startTicker();
+}
+
+// Repinta SOLO el texto del cronómetro cada segundo. Nunca vuelve a llamar a
+// getMyDay: un re-render completo por segundo perdería el foco de los
+// botones y gastaría llamadas al servidor sin ninguna razón.
+function startTicker() {
+  if (ticker) clearInterval(ticker);
+  const nodos = document.querySelectorAll('.b-timer[data-since]');
+  if (!nodos.length) return;
+  ticker = setInterval(() => {
+    document.querySelectorAll('.b-timer[data-since]').forEach((el) => {
+      const since = el.dataset.since;
+      const b = el.querySelector('b');
+      if (b) b.textContent = hhmmss(since);
+      const over = minsSince(since) > Number(el.dataset.dur || 0);
+      el.classList.toggle('over', !!over);
+    });
+  }, 1000);
+}
+
+// ── datos ──
+async function loadDay(silencioso) {
+  try {
+    CURRENT = await window.SWData.getMyDay();
+    render();
+    await applyDeepLink();
+  } catch (e) {
+    console.error('getMyDay', e);
+    if (!silencioso) {
+      const msg = (e && e.code === 'functions/permission-denied')
+        ? 'Tu cuenta todavía no está vinculada a un profesional. Avisale al salón.'
+        : 'No pudimos cargar tu agenda. Revisa la conexión.';
+      toast(msg, true);
+    }
+  }
+}
+
+// Reporta el error real en vez de mostrar éxito a ciegas -- mismo criterio
+// que saveBookingAnd() en el admin, que existe justamente porque antes un
+// guardado rechazado se veía igual que uno correcto.
+async function act(bookingId, action) {
+  const botonesDeLaCita = document.querySelectorAll(`[data-act][data-id="${CSS.escape(bookingId)}"]`);
+  botonesDeLaCita.forEach((b) => { b.disabled = true; });
+  try {
+    const r = await window.SWData.markAttendance(bookingId, action);
+    if (r && r.already) {
+      toast('Eso ya estaba registrado.');
+    } else if (action === 'end' && r && Number.isFinite(r.actualDur)) {
+      toast(`Atención cerrada · ${r.actualDur} min`);
+    } else if (action === 'snooze') {
+      toast('Listo, te recuerdo en 10 minutos.');
+    }
+    await loadDay(true);
+  } catch (e) {
+    console.error('markAttendance', e);
+    botonesDeLaCita.forEach((b) => { b.disabled = false; });
+    toast('No se pudo registrar: ' + ((e && e.message) || 'error desconocido'), true);
+  }
+}
+
+// Tocar la notificación abre /barbero/?b=<id>&a=<accion>. La acción se
+// ejecuta ACÁ, ya autenticados -- nunca en el service worker, que no tiene
+// sesión. Se limpia la URL para que un refresco no la repita: markAttendance
+// es idempotente, así que repetirla no rompe datos, pero mostraría "eso ya
+// estaba registrado" cada vez que alguien recarga.
+async function applyDeepLink() {
+  const q = new URLSearchParams(location.search);
+  const b = q.get('b'), a = q.get('a');
+  if (!b && !a) return;
+  history.replaceState(null, '', '/barbero/');
+  if (!b || !a || a === 'view') return;
+  await act(b, a);
+}
+
+// ── push ──
+async function activarAvisos() {
+  if (!('serviceWorker' in navigator) || !('Notification' in window) || !('PushManager' in window)) {
+    toast('Este navegador no soporta avisos. En iPhone hay que agregar la app a la pantalla de inicio primero.', true);
+    return;
+  }
+  if (!VAPID_KEY) {
+    toast('Falta configurar la clave VAPID del proyecto. Avisale a quien administra el sitio.', true);
+    return;
+  }
+  try {
+    // El permiso DEBE pedirse desde un gesto del usuario, no al cargar: iOS
+    // lo exige y Chrome penaliza los pedidos automáticos.
+    const permiso = await Notification.requestPermission();
+    if (permiso !== 'granted') {
+      toast('No activaste los avisos. Puedes hacerlo más tarde desde este botón.', true);
+      return;
+    }
+    // Import dinámico: el SDK de messaging solo se descarga si alguien
+    // realmente activa los avisos, y una falla acá no toca la agenda.
+    const [{ app }, fcm] = await Promise.all([
+      import('/js/firebase-init.js'),
+      import('https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging.js'),
+    ]);
+    const reg = await navigator.serviceWorker.register('/barbero/sw.js', { scope: '/barbero/' });
+    const messaging = fcm.getMessaging(app);
+    const token = await fcm.getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    if (!token) { toast('No se pudo obtener el token de avisos.', true); return; }
+    await window.SWData.saveMyPushToken(USER.uid, token);
+    // Con la app abierta, un push no debe apilar una notificación del
+    // sistema sobre algo que ya está a la vista: se repinta la agenda.
+    fcm.onMessage(messaging, () => { if (USER) loadDay(true); });
+    toast('Avisos activados en este teléfono.');
+    pintarBotonPush();
+  } catch (e) {
+    console.error('activarAvisos', e);
+    toast('No se pudieron activar los avisos: ' + ((e && e.message) || 'error'), true);
+  }
+}
+
+function pintarBotonPush() {
+  const btn = g('b-push');
+  const ok = ('Notification' in window) && Notification.permission === 'granted';
+  btn.textContent = ok ? 'Avisos activos' : 'Activar avisos';
+  btn.disabled = !!ok;
+}
+
+// ── refresco ──
+// Sin onSnapshot a propósito: la PWA no habla con Firestore, todo pasa por
+// callables. Se recarga al volver al foco y cada 60s mientras esté visible.
+function startPolling() {
+  if (poller) clearInterval(poller);
+  poller = setInterval(() => {
+    if (document.visibilityState === 'visible' && USER) loadDay(true);
+  }, 60000);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && USER) loadDay(true);
+});
+
+// ── eventos ──
+document.addEventListener('click', (ev) => {
+  const btn = ev.target.closest('[data-act]');
+  if (!btn) return;
+  act(btn.dataset.id, btn.dataset.act);
+});
+
+g('b-signin').addEventListener('click', async () => {
+  const btn = g('b-signin');
+  els.loginErr.hidden = true;
+  btn.disabled = true; btn.textContent = 'Entrando…';
+  try {
+    await window.SWAuth.signIn(g('b-email').value.trim(), g('b-pass').value);
+  } catch (e) {
+    els.loginErr.textContent = 'No pudimos entrar. Revisa el correo y la contraseña.';
+    els.loginErr.hidden = false;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Entrar';
+  }
+});
+g('b-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') g('b-signin').click(); });
+g('b-signout').addEventListener('click', () => window.SWAuth.signOut());
+g('b-refresh').addEventListener('click', () => loadDay());
+g('b-push').addEventListener('click', activarAvisos);
+
+// Los <script type="module"> de arriba son diferidos: ya corrieron cuando
+// dispara DOMContentLoaded, así que acá window.SWAuth/SWData existen.
+document.addEventListener('DOMContentLoaded', () => {
+  if (!window.SWAuth || !window.SWData) {
+    show('login');
+    els.loginErr.textContent = 'No se pudo cargar la app. Revisa la conexión y recarga.';
+    els.loginErr.hidden = false;
+    return;
+  }
+  // La sesión la decide onAuthStateChanged, NO el botón de login. Una app
+  // instalada arranca en frío todo el tiempo: si el gate fuera solo de DOM
+  // (como en /admin hoy), pediría contraseña en cada apertura.
+  window.SWAuth.onChange((user) => {
+    USER = user || null;
+    if (user) {
+      show('app');
+      pintarBotonPush();
+      loadDay();
+      startPolling();
+    } else {
+      CURRENT = null;
+      if (ticker) { clearInterval(ticker); ticker = null; }
+      if (poller) { clearInterval(poller); poller = null; }
+      show('login');
+    }
+  });
+});
+})();
+</script>
+</body>
+</html>

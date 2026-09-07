@@ -256,6 +256,11 @@ Tres cosas que conviene saber al leerlo:
   cuántas lleva registradas. Es deliberado: con cuatro atenciones medidas una
   sola que se alargó mueve la mediana lo suficiente como para "recomendar"
   subir un precio.
+- **Nunca aparecen más de tres**, y como mucho una de cada tipo: una prioridad,
+  una oportunidad y un reconocimiento. Hay 13 reglas compitiendo por esos tres
+  cupos, ordenadas por impacto: primero lo que hace perder dinero (inasistencias,
+  ventas que caen atendiendo lo mismo), después las desviaciones de tiempo,
+  después la ocupación, y al final las señales positivas.
 - **El tiempo real es la mediana, no el promedio.** Una atención de dos horas
   no arrastra la conclusión de todo el servicio.
 - **El pie de nota dice cuánto del número está medido.** Mientras el equipo no

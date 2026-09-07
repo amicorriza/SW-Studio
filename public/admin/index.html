@@ -2016,9 +2016,43 @@ function renderDash(){
   var real = dashSvcGroup === 'cat' ? X.mRealTime(periodBk, { groupBy:'cat' }) : realBySvc;
 
   var medidas = att.atendidas + att.noShow;
+  var lateStarts = X.mLateStarts(periodBk, { tz:tz });
+  // Ventana fija de 3 semanas completas: la regla de "agenda casi llena"
+  // busca sostenimiento, no la foto del período que el usuario eligió.
+  var weeklyOcc = X.mWeeklyOccupancy(ALL, D.staff, blocks, { weeks:3, today:today });
+
+  // El período anterior, con las MISMAS agregaciones: las reglas que comparan
+  // no pueden mezclar definiciones. Solo se calcula si hay algo con qué
+  // comparar -- una comparación contra un período vacío no es una señal.
+  var prevCtx = null;
+  if(win.prevFrom && win.prevTo){
+    var prevBkAll = X.mFilterPeriodAll(ALL, { from:win.prevFrom, to:win.prevTo, mode:dashMode, today:today });
+    var prevBk2 = X.mFilterPeriod(ALL, { from:win.prevFrom, to:win.prevTo, mode:dashMode, today:today });
+    if(prevBk2.length){
+      var prevAtt = X.mAttendance(prevBkAll);
+      var prevOccTo = win.prevTo;
+      if(dashMode === 'realizado'){
+        var pAyer = X.addDaysYMD(today, -1);
+        if(pAyer < prevOccTo) prevOccTo = pAyer;
+      }
+      prevCtx = {
+        medidas: prevAtt.atendidas + prevAtt.noShow,
+        attendance: prevAtt,
+        realTime: X.mRealTime(prevBk2, { groupBy:'svc' }),
+        occupancy: X.mOccupancy(prevBk2, D.staff, blocks,
+          { from:win.prevFrom, to:(prevOccTo < win.prevFrom ? '' : prevOccTo) }),
+        kpis: { ingresos: X.mRevenue(prevBk2), ticket: ticketDe(prevBk2, prevAtt) || 0 },
+      };
+    }
+  }
+
   var cards = (window.SWInsights ? window.SWInsights.evaluateInsights({
     medidas: medidas, attendance: att, coverage: cov,
-    realTime: realBySvc, occupancy: occ, heatmap: heat, kpis: kpis,
+    realTime: realBySvc, occupancy: occ, heatmap: heat,
+    byService: X.mByService(periodBk, { groupBy:'svc' }),
+    lateStarts: lateStarts, weeklyOccupancy: weeklyOcc,
+    kpis: { ingresos: ingresoReal, ticket: ticketReal, citas: kpis.citas },
+    prev: prevCtx,
     priceSim: X.mPriceSim,
   }) : []);
 
@@ -2219,8 +2253,19 @@ function renderDash(){
       dashKpiCard('Ocupación efectiva', pctTxt(occ.pct),
         occ.disponibles ? Math.round(occ.atendidos/60)+'h de '+Math.round(occ.disponibles/60)+'h disponibles' : 'sin horarios configurados')+
     '</div>';
+  var notasAsis = [];
+  if(lateStarts.pct != null){
+    notasAsis.push(lateStarts.tarde === 0
+      ? 'Todas las atenciones medidas ('+lateStarts.medidas+') empezaron a tiempo.'
+      : Math.round(lateStarts.pct*100)+'% de las atenciones ('+lateStarts.tarde+' de '+lateStarts.medidas+
+        ') empezó con más de 8 min de atraso'+
+        (lateStarts.medianaAtrasoMin != null ? ' (mediana '+Math.round(lateStarts.medianaAtrasoMin)+' min)' : '')+'.');
+  }
   if(occ.sinHorario.length){
-    html += '<div class="a-dash-note">Sin horario configurado, excluidos de la ocupación: '+esc(occ.sinHorario.join(', '))+'.</div>';
+    notasAsis.push('Sin horario configurado, excluidos de la ocupación: '+occ.sinHorario.join(', ')+'.');
+  }
+  if(notasAsis.length){
+    html += '<div class="a-dash-note">'+esc(notasAsis.join(' '))+'</div>';
   }
 
   // 6d · Mapa de ocupación por día y franja (las "horas débiles" del reporte)

@@ -121,6 +121,17 @@ await page.addInitScript(() => {
     barberId:'victoria', barberName:'Victoria', date: monthBack(0, 8), time:'12:00',
     status:'cancelled', cancelledAt:'2026-09-01T15:00:00.000Z', club:'guest' });
 
+  // Inicio real de cada atención, para que mLateStarts tenga qué medir.
+  // Un tercio arranca con 15 min de atraso: suficiente para pasar el 20%.
+  BK.forEach((b) => {
+    if (b.status !== 'completed' || !b.time) return;
+    const [hh, mm] = b.time.split(':').map(Number);
+    const tarde = /[0369]$/.test(b.code) ? 15 : 1;
+    // Hora de pared del negocio -> instante UTC (Chile GMT-3 en septiembre).
+    b.startedAt = `${b.date}T${String(hh + 3).padStart(2, '0')}:${String(mm + tarde).padStart(2, '0')}:00.000Z`;
+    b.endedAt = new Date(new Date(b.startedAt).getTime() + (b.actualDur || 45) * 60000).toISOString();
+  });
+
   window.__BK = BK;
   window.SWAuth = { signIn: async () => ({uid:'test'}), signOut: async () => {}, onChange: () => () => {} };
   window.SWData = {
@@ -213,6 +224,46 @@ const insCards = await page.evaluate(() => [...document.querySelectorAll('#a-das
 check('toda recomendación aclara que no modifica la configuración',
   insCards.length > 0 && insCards.every(c => /no modifica la configuración/.test(c.f)), insCards);
 check('no hay más de 3 recomendaciones', insCards.length <= 3, insCards.length);
+check('nunca hay dos recomendaciones del mismo tipo',
+  new Set(insCards.map(c => c.tipo)).size === insCards.length, insCards.map(c => c.tipo));
+
+// El motor completo corre con el mismo contexto que arma el panel: si a
+// renderDash le faltara un insumo, acá se vería como una regla que nunca
+// dispara pese a tener los datos.
+const motor = await page.evaluate(() => {
+  const X = window.SWMetrics, I = window.SWInsights, BK = window.__BK, tz = 'America/Santiago';
+  const today = X.bizToday(tz);
+  const mb = X.monthBounds(today.slice(0, 7));
+  const o = { from: mb.from, to: mb.to, mode: 'realizado', today };
+  const period = X.mFilterPeriod(BK, o);
+  const att = X.mAttendance(X.mFilterPeriodAll(BK, o));
+  const late = X.mLateStarts(period, { tz });
+  return {
+    reglas: I.REGLA_ORDEN.length,
+    late,
+    // Se fuerza la regla comparativa con un contexto mínimo para confirmar que
+    // está cableada y no solo declarada. La asistencia va SANA a propósito:
+    // no_show_alto también es prioridad y, si disparara, ganaría el único
+    // cupo de ese tipo y este check no probaría nada.
+    conPrev: I.evaluateInsights({
+      medidas: 40,
+      attendance: { total: 40, atendidas: 38, noShow: 2, noShowConfirmados: 0,
+                    canceladas: 0, asistenciaPct: 0.95, noShowPct: 0.05 },
+      realTime: [], occupancy: { pct: 0.6 }, heatmap: [],
+      byService: [], lateStarts: { medidas: 0, tarde: 0, pct: null, medianaAtrasoMin: null },
+      weeklyOccupancy: [],
+      kpis: { ingresos: 100, ticket: 10, citas: 40 },
+      prev: { medidas: 40,
+              attendance: { total: 40, atendidas: 38, noShow: 2, canceladas: 0,
+                            asistenciaPct: 0.95, noShowPct: 0.05 },
+              realTime: [], occupancy: { pct: 0.6 }, kpis: { ingresos: 1000, ticket: 20 } },
+    }).map(c => c.regla),
+  };
+});
+check('el motor declara las 13 reglas', motor.reglas === 13, motor.reglas);
+check('mLateStarts midió los inicios del fixture', motor.late.medidas > 0, motor.late);
+check('la regla de ventas que caen está cableada',
+  motor.conPrev.includes('ventas_bajan'), motor.conPrev);
 
 // ══════════ VISTA EN DETALLE ══════════
 await page.click('#a-dash-view-d');

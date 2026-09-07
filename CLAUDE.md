@@ -11,12 +11,13 @@ public/js/metrics.js     agregaciones puras del Dashboard de métricas (KPIs,
                          ingresos por servicio, tendencias). NO toca Firestore
                          ni el DOM; <script> clásico sin bundler, require-able
                          por Node. Tests en tests/unit/metrics.test.js (`npm test`).
-public/js/insights.js    motor de recomendaciones del Dashboard: recibe las
-                         agregaciones ya calculadas y decide qué decir. Mismo
-                         patrón que metrics.js (script clásico, export dual,
-                         cero DOM). Lo importante es la escalera de muestra
-                         mínima: bajo 10 atenciones medidas NO opina, y bajo
-                         20 no sugiere precio. Tests en tests/unit/insights.test.js.
+public/js/insights.js    motor de recomendaciones del Dashboard: 13 reglas que
+                         reciben las agregaciones ya calculadas y deciden qué
+                         decir. Mismo patrón que metrics.js (script clásico,
+                         export dual, cero DOM). Lo importante es la escalera
+                         de muestra mínima: bajo 10 atenciones medidas NO
+                         opina, y bajo 20 no sugiere precio. Máximo 3 tarjetas,
+                         una por tipo. Tests en tests/unit/insights.test.js.
 public/barbero/          PWA instalable del profesional: agenda del día y los
                          cuatro botones (Llegó / No llegó / Iniciar / Finalizar),
                          más push por FCM. index.html + manifest + sw.js, todo
@@ -118,10 +119,19 @@ Dos cosas que conviene no "arreglar" sin leer el spec:
   cerradas a mano (`durSource:'manual'`) se cuentan aparte pero no se
   excluyen del cálculo.
 
-Pendiente inmediato (proyecto 3 del reporte): completar el motor de
-recomendaciones. Hoy insights.js tiene 5 de las 14 reglas (§7: 1, 4, 6, 9,
-14) y la escalera de confianza completa; faltan las 9 restantes y la
-comparación semana contra semana.
+El motor de recomendaciones está completo
+(docs/superpowers/specs/2026-09-07-motor-recomendaciones-completo-design.md):
+13 reglas del §7 más la comparación contra el período anterior. La 3 (precio
+equivalente) no es una tarjeta aparte a propósito -- el ejemplo del §8 la
+muestra dentro de la tarjeta de sobretiempo, que es donde está.
+
+Dos cosas de insights.js que NO hay que "arreglar" sin leer el spec:
+- `REGLAS` está ordenado y ese orden ES la jerarquía del §8. Como se emite una
+  sola tarjeta por tipo, insertar una regla al medio cambia lo que ve el
+  usuario sin que nadie lo note. `REGLA_ORDEN` existe para que un test lo fije.
+- Dentro de las positivas, `asistencia_sana` va ÚLTIMA. Dispara casi todas las
+  semanas (es el estado normal) y si fuera primera taparía para siempre a
+  "mejora operacional" y "servicio líder", que sí son noticia.
 
 REGLA DE TRABAJO: si el repo contradice algo de este contexto, detente y avísame
 antes de escribir código. No improvises sobre una suposición equivocada.

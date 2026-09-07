@@ -8,11 +8,12 @@ const logger = require('firebase-functions/logger');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
+const { getMessaging } = require('firebase-admin/messaging');
 const { sendBookingEmails, sendReminderEmail, sendReminderResponseEmail } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
 const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./shared/availability.js');
 const { resolveCreateBooking } = require('./createBooking.js');
-const { resolveBusinessTz, resolveBufferMin, dateKeyInZone } = require('./shared/timezone.js');
+const { resolveBusinessTz, resolveBufferMin, resolveNudgeLeadMin, dateKeyInZone } = require('./shared/timezone.js');
 const { searchPlaceId, fetchPlaceDetails, isFresh } = require('./googleReviews.js');
 const { REMINDER_LEAD_MS, REMINDER_WINDOW_MS, generateReminderToken, findBookingsNeedingReminder } = require('./reminders.js');
 const { ATTENDANCE_ACTIONS, applyAction, computeNudges, SNOOZE_MS } = require('./shared/attendance.js');
@@ -831,5 +832,129 @@ exports.linkStaffAccount = onCall(
 
     await ref.update({ uid: user.uid, authEmail: user.email || '' });
     return { ok: true, uid: user.uid };
+  }
+);
+
+// Avisos al profesional: "se acerca la hora", "¿comenzamos?", "¿finalizamos?".
+// Corre cada 2 min porque el aviso de fin debe caer cerca del minuto exacto
+// en que se cumple la duración planificada -- con la cadencia de 15 min de
+// sendBookingReminders, "¿deseas finalizar?" llegaría hasta un cuarto de
+// hora tarde y el dato de tiempo real perdería sentido.
+//
+// La query trae solo las citas de ayer y hoy (decenas de docs), nunca la
+// colección entera. Ayer entra por las atenciones que quedaron abiertas
+// cruzando la medianoche.
+exports.staffAttendanceNudges = onSchedule(
+  { schedule: 'every 2 minutes', timeZone: 'America/Santiago', region: 'southamerica-east1' },
+  async () => {
+    try {
+      const db = getFirestore(app);
+      const now = new Date();
+
+      const businessInfoSnap = await db.collection('businessInfo').doc('main').get();
+      const businessInfoData = businessInfoSnap.exists ? businessInfoSnap.data() : null;
+
+      // Mismo interruptor de seguridad que sendBookingReminders: por defecto
+      // (campo ausente) no manda nada, y corta ANTES de tocar `bookings`.
+      // Desplegar deja el Cloud Scheduler instalado pero en no-op; los avisos
+      // recién salen cuando alguien activa nudgesEnabled:true a mano, después
+      // de verificar en staging que la PWA y el push se ven bien.
+      // Deploy != activación.
+      if (!businessInfoData || businessInfoData.nudgesEnabled !== true) {
+        logger.info('staffAttendanceNudges: nudgesEnabled no está activado, no se envía nada.');
+        return;
+      }
+
+      const tz = resolveBusinessTz(businessInfoData);
+      const leadMin = resolveNudgeLeadMin(businessInfoData);
+
+      const todayKey = dateKeyInZone(now, tz);
+      const yesterdayKey = dateKeyInZone(new Date(now.getTime() - 24 * 60 * 60 * 1000), tz);
+      const { end } = dayBoundsOf(todayKey);
+
+      // Rango sobre `date` -- campo simple, sin índice compuesto nuevo. El
+      // >= / < además captura las reservas del admin, cuyo `date` trae
+      // sufijo 'T...Z' (ver public/admin/index.html).
+      const snap = await db.collection('bookings')
+        .where('date', '>=', yesterdayKey)
+        .where('date', '<', end)
+        .get();
+
+      const refsById = new Map(snap.docs.map((d) => [d.id, d.ref]));
+      // `_docId` viaja en el objeto porque computeNudges necesita devolver
+      // con qué reserva se corresponde cada aviso; mismo patrón que usa
+      // sendBookingReminders para no emparejar por `code` (que se genera en
+      // el cliente y no tiene unicidad reforzada).
+      const bookings = snap.docs.map((d) => ({ ...d.data(), _docId: d.id }));
+      const nudges = computeNudges(bookings, now, { leadMin, tz });
+      if (!nudges.length) return;
+
+      // uid -> staffId se deriva del lado del servidor leyendo `staff`.
+      // NUNCA se confía en un staffId que haya escrito el cliente en
+      // staffDevices: ahí solo se leen los tokens del dueño del documento.
+      const staffSnap = await db.collection('staff').get();
+      const tokensByStaff = {};
+      await Promise.all(staffSnap.docs.map(async (s) => {
+        const uid = s.data().uid;
+        if (!uid) return;
+        const dev = await db.collection('staffDevices').doc(uid).get();
+        const tokens = dev.exists ? (dev.data().tokens || []) : [];
+        if (tokens.length) tokensByStaff[s.id] = { uid, tokens };
+      }));
+
+      const nowISO = now.toISOString();
+      const FIELD = { upcoming: 'nudgeUpcomingAt', start: 'nudgeStartAt', end: 'nudgeEndAt' };
+
+      for (const n of nudges) {
+        // Un fallo por reserva no aborta la corrida -- mismo criterio de
+        // resiliencia que sendBookingReminders y refreshGoogleReviews.
+        try {
+          const target = tokensByStaff[n.barberId];
+          if (!target) continue;
+
+          const res = await getMessaging(app).sendEachForMulticast({
+            tokens: target.tokens,
+            notification: { title: n.title, body: n.body },
+            data: { b: n.data.b, a: n.data.a },
+            webpush: {
+              fcmOptions: { link: `https://scissorwhite.cl/barbero/?b=${n.data.b}&a=${n.data.a}` },
+            },
+          });
+
+          // Purga de tokens muertos (teléfono reinstalado, permiso revocado,
+          // app desinstalada): sin esto, cada corrida reintenta contra ellos
+          // para siempre y el log se llena de errores que nadie puede
+          // accionar.
+          const muertos = res.responses
+            .map((r, i) => (r.success ? null : target.tokens[i]))
+            .filter(Boolean);
+          if (muertos.length) {
+            await db.collection('staffDevices').doc(target.uid)
+              .update({ tokens: FieldValue.arrayRemove(...muertos) });
+          }
+
+          if (res.successCount > 0) {
+            const patch = { [FIELD[n.kind]]: nowISO };
+            if (n.kind === 'end') {
+              // Consumir la posposición y contar el envío. El contador es lo
+              // que hace efectivo el tope de MAX_END_NUDGES cuando el barbero
+              // IGNORA la notificación en vez de posponerla -- sin esto solo
+              // contaría las posposiciones explícitas y la app insistiría
+              // para siempre.
+              patch.snoozeUntil = null;
+              patch.nudgeEndCount = FieldValue.increment(1);
+            }
+            await refsById.get(n.bookingId).update(patch);
+          }
+        } catch (e) {
+          logger.error('staffAttendanceNudges: falló un aviso', n.bookingId, e);
+        }
+      }
+    } catch (e) {
+      // Mismo criterio que refreshGoogleReviews: se loguea y NO se relanza,
+      // para no dejar la función en estado de error ni gastar reintentos.
+      // La corrida de 2 min después recoge lo que haya quedado.
+      logger.error('staffAttendanceNudges: falló la corrida', e);
+    }
   }
 );

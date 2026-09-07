@@ -172,6 +172,8 @@ firebase deploy --project scissor-white --only \
 functions:onBookingCreated,functions:createBooking,functions:getClubStatus,\
 functions:getAvailability,functions:onBookingWritten,functions:onScheduleBlockWritten,\
 functions:refreshGoogleReviews,functions:syncGoogleReviews,\
+functions:getMyDay,functions:markAttendance,functions:linkStaffAccount,\
+functions:staffAttendanceNudges,\
 functions:sendBookingReminders,functions:respondToBookingReminder,functions:getBookingForReminderAction
 ```
 

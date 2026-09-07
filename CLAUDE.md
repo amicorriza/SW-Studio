@@ -11,6 +11,12 @@ public/js/metrics.js     agregaciones puras del Dashboard de métricas (KPIs,
                          ingresos por servicio, tendencias). NO toca Firestore
                          ni el DOM; <script> clásico sin bundler, require-able
                          por Node. Tests en tests/unit/metrics.test.js (`npm test`).
+public/js/insights.js    motor de recomendaciones del Dashboard: recibe las
+                         agregaciones ya calculadas y decide qué decir. Mismo
+                         patrón que metrics.js (script clásico, export dual,
+                         cero DOM). Lo importante es la escalera de muestra
+                         mínima: bajo 10 atenciones medidas NO opina, y bajo
+                         20 no sugiere precio. Tests en tests/unit/insights.test.js.
 public/barbero/          PWA instalable del profesional: agenda del día y los
                          cuatro botones (Llegó / No llegó / Iniciar / Finalizar),
                          más push por FCM. index.html + manifest + sw.js, todo
@@ -99,11 +105,23 @@ medición de la atención real con PWA y push
 autogestión completa (modificar/cancelar) y WhatsApp como canal siguen sin
 construirse, pero ya no están bloqueados por etapa.
 
-Pendiente inmediato (proyectos 2 y 3 del reporte de KPI, ver ese spec): el
-Dashboard con vista simple / vista en detalle y los seis KPI que la medición
-recién habilita (asistencia real, no-show, tiempo real, desviación,
-ingreso/hora real, ocupación), y después el motor de recomendaciones
-semanales.
+El Dashboard ya tiene los dos niveles de lectura del reporte
+(docs/superpowers/specs/2026-09-06-dashboard-kpi-simple-detalle-design.md):
+vista simple con 5 KPI por defecto y vista en detalle con tiempo planificado
+vs. real, asistencia, ocupación efectiva y mapa de horas débiles.
+
+Dos cosas que conviene no "arreglar" sin leer el spec:
+- `mFilterPeriod` (reservas del período) INCLUYE los no_show a propósito: son
+  demanda real y el numerador del KPI de no-show. El ingreso los excluye vía
+  `mRevenue`. Son dos conceptos distintos que antes eran el mismo filtro.
+- Todo tiempo real es MEDIANA, nunca promedio (reporte §2), y las atenciones
+  cerradas a mano (`durSource:'manual'`) se cuentan aparte pero no se
+  excluyen del cálculo.
+
+Pendiente inmediato (proyecto 3 del reporte): completar el motor de
+recomendaciones. Hoy insights.js tiene 5 de las 14 reglas (§7: 1, 4, 6, 9,
+14) y la escalera de confianza completa; faltan las 9 restantes y la
+comparación semana contra semana.
 
 REGLA DE TRABAJO: si el repo contradice algo de este contexto, detente y avísame
 antes de escribir código. No improvises sobre una suposición equivocada.

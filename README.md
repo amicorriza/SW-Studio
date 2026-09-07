@@ -139,7 +139,8 @@ Tests de funciones (rápidos, sin emulador):
 cd functions && node --test
 ```
 
-Tests de las agregaciones del Dashboard de métricas (`public/js/metrics.js`):
+Tests de las agregaciones del Dashboard (`public/js/metrics.js`) y del motor
+de recomendaciones (`public/js/insights.js`):
 
 ```bash
 npm test        # node --test "tests/unit/**/*.test.js"
@@ -201,6 +202,37 @@ runbook en `docs/`). El template de email vive en `functions/email.js`
 (`renderClientEmail`); sus imágenes deben existir publicadas en
 `https://scissorwhite.cl/assets/email/` — los clientes de correo bloquean
 imágenes embebidas (data-URI).
+
+## Dashboard de KPI
+
+Dos niveles de lectura, con un interruptor arriba a la izquierda.
+
+**Vista simple** (la que se abre por defecto) responde cinco preguntas y nada
+más: *cuánto vendí · cuántas reservas hubo · cuántos clientes llegaron ·
+cuántos no llegaron · cuánto deja una visita promedio.* Debajo, la tendencia
+de ingresos por semana y como máximo dos tarjetas: una prioridad y una
+oportunidad.
+
+**Ver detalle** agrega el porqué: tiempo planificado vs. tiempo real por
+servicio (con la desviación), el reparto de asistencia, la ocupación efectiva,
+el mapa de ocupación por día y hora, el desglose por servicio y por
+profesional, la retención y el CSV.
+
+Tres cosas que conviene saber al leerlo:
+
+- **Las recomendaciones aparecen recién con 10 atenciones medidas**, y las que
+  hablan de precio con 20. Antes de eso el panel muestra los datos y dice
+  cuántas lleva registradas. Es deliberado: con cuatro atenciones medidas una
+  sola que se alargó mueve la mediana lo suficiente como para "recomendar"
+  subir un precio.
+- **El tiempo real es la mediana, no el promedio.** Una atención de dos horas
+  no arrastra la conclusión de todo el servicio.
+- **El pie de nota dice cuánto del número está medido.** Mientras el equipo no
+  use la app del barbero, los ingresos siguen asumiendo que toda cita pasada
+  ocurrió, igual que antes; la nota lo declara y el porcentaje sube solo.
+
+Ninguna tarjeta cambia precios ni duraciones. Sugieren rangos para que decida
+una persona.
 
 ## App del barbero (`/barbero/`)
 

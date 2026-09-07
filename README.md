@@ -328,6 +328,75 @@ Los íconos (192/512 y el *maskable*) se regeneran con
 > arriba; hasta que el índice termine de construirse, la app del barbero
 > devuelve error al cargar la agenda.
 
+## Puesta en marcha de la medición (orden importa)
+
+> **No hay proyecto de staging aparte.** `.firebaserc` apunta a un solo
+> Firebase (`scissor-white`) y no hay targets de hosting. Un canal de preview
+> aísla el **front-end**, pero Firestore, Functions y Auth son **los mismos
+> que producción**. Por eso este orden: primero lo que no cambia nada visible,
+> después el front en un canal, y el interruptor de avisos al final.
+
+### 1. Backend aditivo (no cambia nada visible)
+
+```bash
+firebase deploy --project scissor-white --only firestore:indexes
+firebase deploy --project scissor-white --only firestore:rules
+```
+
+El índice `bookings(barberId, date)` es nuevo y tarda unos minutos en
+construirse; hasta que termine, la app del barbero da error al cargar la
+agenda. Las reglas solo suman el bloque `staffDevices/{uid}`.
+
+Después las funciones, **con los nombres explícitos** (ver el comando completo
+en [Deploy](#deploy) — sin nombres, el CLI ofrece borrar `api`, que es de otra
+rama):
+
+```bash
+firebase deploy --project scissor-white --only   functions:getMyDay,functions:markAttendance,functions:linkStaffAccount,functions:staffAttendanceNudges
+```
+
+`staffAttendanceNudges` queda instalada pero **en no-op**: sin
+`businessInfo.nudgesEnabled` no manda nada. Desplegar no es activar.
+
+### 2. Front-end a un canal de preview, NO a producción
+
+```bash
+firebase hosting:channel:deploy medicion --project scissor-white --expires 7d
+```
+
+Devuelve una URL tipo `scissor-white--medicion-xxxx.web.app`. Ahí se prueba
+`/barbero/` y `/admin/` sin tocar scissorwhite.cl.
+
+> Ojo: ese canal escribe en la Firestore **real**. Si cancelás una cita de
+> prueba, se cancela de verdad (queda con `status:'cancelled'`, ya no se
+> borra). Conviene usar una cita creada para probar.
+
+### 3. Cuentas del equipo
+
+Consola → Authentication → *Add user*, una por profesional. Después, en el
+panel del canal de preview: **Personal → Vincular cuenta** y escribir ese
+correo.
+
+### 4. Recién ahora, activar los avisos
+
+`businessInfo/main.nudgesEnabled = true`, a mano en Firestore.
+
+A partir de ese momento salen pushes **reales sobre citas reales**, cada 2
+minutos, a los dispositivos registrados. Por eso va último.
+
+Prueba de punta a punta: sembrar una cita a ~10 minutos, bloquear el teléfono
+y esperar el aviso *"Se acerca la hora de atención con…"*.
+
+### 5. Cuando esté probado, front a producción
+
+```bash
+firebase deploy --project scissor-white --only hosting
+```
+
+Esto publica también el admin nuevo: dashboard de dos vistas y **cancelar que
+archiva en vez de borrar**. Es el paso que cambia lo que ve el equipo todos
+los días.
+
 ## Reseñas de Google
 
 La sección *"La voz de quienes vuelven"* del landing (`#resenas`, entre

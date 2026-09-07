@@ -250,6 +250,73 @@
     return t;
   }
 
+  // Tiempo REAL por servicio, contra lo planificado. Solo entran atenciones
+  // efectivamente cerradas (`completed` con `actualDur` > 0): una cita sin
+  // marcar no aporta información de duración, y meterla con su `dur`
+  // planificado haría que la desviación tendiera a 0 por construcción --
+  // justo la conclusión equivocada.
+  function mRealTime(periodBookings, opts) {
+    var groupBy = (opts && opts.groupBy) === 'cat' ? 'cat' : 'svc';
+    var acc = {};
+    (periodBookings || []).forEach(function (b) {
+      try {
+        if (!b || b.status !== 'completed') return;
+        var real = +b.actualDur;
+        if (!Number.isFinite(real) || real <= 0) return;
+        var key = groupBy === 'cat' ? (b.svcCat || '') : (b.svcId || b.svcName || '');
+        if (!acc[key]) {
+          acc[key] = {
+            key: key, label: groupBy === 'cat' ? (b.svcCat || '') : (b.svcName || b.svcId || ''),
+            n: 0, nManual: 0, reales: [], planes: [], precios: [],
+          };
+        }
+        var a = acc[key];
+        a.n++;
+        if (b.durSource === 'manual') a.nManual++;
+        a.reales.push(real);
+        a.planes.push((+b.dur) || 0);
+        a.precios.push((+b.price) || 0);
+      } catch (e) { /* aislar */ }
+    });
+
+    return Object.keys(acc).map(function (k) {
+      var a = acc[k];
+      var medianMin = median(a.reales);
+      var planMin = median(a.planes);
+      var price = median(a.precios);
+      return {
+        key: a.key, label: a.label, n: a.n, nManual: a.nManual,
+        planMin: planMin, medianMin: medianMin, price: price,
+        deviationPct: (planMin && medianMin != null) ? (medianMin - planMin) / planMin : null,
+        ingresoHoraReal: medianMin ? price / (medianMin / 60) : null,
+        ingresoHoraPlan: planMin ? price / (planMin / 60) : null,
+      };
+    }).sort(function (x, y) { return y.n - x.n; });
+  }
+
+  // Muestra mínima para hablar de precio (PDF §6: 20-29 "recomendaciones
+  // prudentes"). Bajo eso el módulo devuelve null y la UI no muestra nada.
+  var PRICE_SIM_MIN_N = 20;
+
+  // Precio que preservaría la productividad implícita en la configuración
+  // (PDF §5: ingreso/hora objetivo x mediana real / 60). Devuelve un RANGO
+  // comercial redondeado, nunca un valor exacto: §9 prohíbe que el sistema
+  // imponga un precio, y un número al peso se lee como una orden.
+  function mPriceSim(row) {
+    if (!row) return null;
+    var n = +row.n, planMin = +row.planMin, medianMin = +row.medianMin, price = +row.price;
+    if (!Number.isFinite(n) || n < PRICE_SIM_MIN_N) return null;
+    if (!planMin || !medianMin || !price) return null;
+    var objetivoHora = price / (planMin / 60);
+    var equivalente = objetivoHora * (medianMin / 60);
+    var cien = function (v) { return Math.round(v / 100) * 100; };
+    return {
+      objetivoHora: objetivoHora,
+      equivalente: equivalente,
+      rango: [cien(equivalente * 0.95), cien(equivalente * 1.06)],
+    };
+  }
+
   function sumPrice(bookings) {
     var t = 0;
     (bookings || []).forEach(function (b) { t += (b && +b.price) || 0; });
@@ -548,6 +615,7 @@
     firstBookingByEmail: firstBookingByEmail, mFilterPeriod: mFilterPeriod, mKpis: mKpis,
     mFilterPeriodAll: mFilterPeriodAll, median: median,
     mAttendance: mAttendance, mAttendanceCoverage: mAttendanceCoverage, mRevenue: mRevenue,
+    mRealTime: mRealTime, mPriceSim: mPriceSim, PRICE_SIM_MIN_N: PRICE_SIM_MIN_N,
     mMonthlySeries: mMonthlySeries, mWeeklySeries: mWeeklySeries, mByService: mByService,
     mByBarber: mByBarber, mNewVsReturning: mNewVsReturning, mMonthlyExportRows: mMonthlyExportRows,
     svgLine: svgLine, toCSV: toCSV

@@ -620,3 +620,95 @@ test('mRevenue excluye no_show, pero mFilterPeriod sí lo conserva como reserva'
 test('mRevenue con período vacío devuelve 0', () => {
   assert.strictEqual(M.mRevenue([]), 0);
 });
+
+// ═══════════ P2: tiempo real, desviación y precio equivalente ═══════════
+const done = (over) => at(Object.assign({ status: 'completed', actualDur: 50, durSource: 'timer' }, over));
+
+test('mRealTime usa la MEDIANA, no el promedio', () => {
+  // 45,45,50,50,240 -> mediana 50, promedio 86
+  const r = M.mRealTime(periodo([
+    done({ actualDur: 45 }), done({ actualDur: 45 }), done({ actualDur: 50 }),
+    done({ actualDur: 50 }), done({ actualDur: 240 }),
+  ]), { groupBy: 'svc' });
+  assert.strictEqual(r.length, 1);
+  assert.strictEqual(r[0].medianMin, 50);
+  assert.strictEqual(r[0].n, 5);
+});
+
+test('mRealTime calcula la desviación contra lo planificado', () => {
+  const r = M.mRealTime(periodo([done({ dur: 45, actualDur: 53 }), done({ dur: 45, actualDur: 53 })]), { groupBy: 'svc' });
+  // (53 - 45) / 45 = 0.1777...
+  assert.ok(Math.abs(r[0].deviationPct - 8 / 45) < 1e-9, String(r[0].deviationPct));
+  assert.strictEqual(r[0].planMin, 45);
+});
+
+test('mRealTime: solo entran las completed con actualDur > 0', () => {
+  const r = M.mRealTime(periodo([
+    done({ actualDur: 50 }),
+    at({ status: 'completed', actualDur: 0 }),
+    at({ status: 'completed' }),
+    at({ status: 'no_show' }),
+    at({ status: 'pending' }),
+  ]), { groupBy: 'svc' });
+  assert.strictEqual(r[0].n, 1);
+});
+
+test('mRealTime: servicio sin ninguna atención cerrada no aparece', () => {
+  const r = M.mRealTime(periodo([at({ svcId: 'barba', svcName: 'Barba', status: 'pending' })]), { groupBy: 'svc' });
+  assert.deepStrictEqual(r, []);
+});
+
+test('mRealTime: plan 0 -> deviationPct null, sin división por cero', () => {
+  const r = M.mRealTime(periodo([done({ dur: 0, actualDur: 50 }), done({ dur: 0, actualDur: 50 })]), { groupBy: 'svc' });
+  assert.strictEqual(r[0].deviationPct, null);
+  assert.ok(Number.isFinite(r[0].ingresoHoraReal));
+});
+
+// Excluirlas sesgaría hacia las atenciones que el barbero cerró a tiempo,
+// que son justo las más cortas. Se cuentan aparte, no se descartan.
+test('mRealTime cuenta las cerradas a mano pero NO las excluye de la mediana', () => {
+  const r = M.mRealTime(periodo([
+    done({ actualDur: 40 }), done({ actualDur: 60, durSource: 'manual' }), done({ actualDur: 50 }),
+  ]), { groupBy: 'svc' });
+  assert.strictEqual(r[0].n, 3);
+  assert.strictEqual(r[0].nManual, 1);
+  assert.strictEqual(r[0].medianMin, 50);
+});
+
+test('mRealTime: ingreso por hora real usa la mediana', () => {
+  const r = M.mRealTime(periodo([done({ price: 18000, actualDur: 60 }), done({ price: 18000, actualDur: 60 })]), { groupBy: 'svc' });
+  assert.strictEqual(r[0].ingresoHoraReal, 18000);
+});
+
+test('mRealTime ordena por cantidad de atenciones medidas, desc', () => {
+  const r = M.mRealTime(periodo([
+    done({ svcId: 'a', svcName: 'A' }),
+    done({ svcId: 'b', svcName: 'B' }), done({ svcId: 'b', svcName: 'B' }),
+  ]), { groupBy: 'svc' });
+  assert.deepStrictEqual(r.map(x => x.key), ['b', 'a']);
+});
+
+// El ejemplo del PDF §5: $18.000 / 45 min planificados, mediana real 53 min.
+// Productividad esperada $24.000/h, real ~$20.377/h, equivalente ~$21.200,
+// y el rango comercial que muestra es $20.000-$22.000.
+test('mPriceSim reproduce el ejemplo del PDF', () => {
+  const row = { n: 32, planMin: 45, medianMin: 53, price: 18000 };
+  const sim = M.mPriceSim(row);
+  assert.strictEqual(sim.objetivoHora, 24000);
+  assert.ok(Math.abs(sim.equivalente - 21200) < 60, String(sim.equivalente));
+  assert.ok(sim.rango[0] < sim.equivalente && sim.equivalente < sim.rango[1], JSON.stringify(sim.rango));
+  assert.strictEqual(sim.rango[0] % 100, 0, 'redondeado a la centena');
+  assert.strictEqual(sim.rango[1] % 100, 0);
+});
+
+// PDF §6: bajo 20 atenciones medidas no se recomienda precio.
+test('mPriceSim devuelve null bajo la muestra mínima', () => {
+  assert.strictEqual(M.mPriceSim({ n: 19, planMin: 45, medianMin: 53, price: 18000 }), null);
+  assert.ok(M.mPriceSim({ n: 20, planMin: 45, medianMin: 53, price: 18000 }));
+});
+
+test('mPriceSim devuelve null sin datos utilizables', () => {
+  assert.strictEqual(M.mPriceSim({ n: 30, planMin: 0, medianMin: 53, price: 18000 }), null);
+  assert.strictEqual(M.mPriceSim({ n: 30, planMin: 45, medianMin: null, price: 18000 }), null);
+  assert.strictEqual(M.mPriceSim(null), null);
+});

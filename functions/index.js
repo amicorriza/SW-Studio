@@ -7,6 +7,7 @@ const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 const { sendBookingEmails, sendReminderEmail, sendReminderResponseEmail } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
 const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./shared/availability.js');
@@ -14,6 +15,7 @@ const { resolveCreateBooking } = require('./createBooking.js');
 const { resolveBusinessTz, resolveBufferMin, dateKeyInZone } = require('./shared/timezone.js');
 const { searchPlaceId, fetchPlaceDetails, isFresh } = require('./googleReviews.js');
 const { REMINDER_LEAD_MS, REMINDER_WINDOW_MS, generateReminderToken, findBookingsNeedingReminder } = require('./reminders.js');
+const { ATTENDANCE_ACTIONS, applyAction, computeNudges, SNOOZE_MS } = require('./shared/attendance.js');
 
 const app = initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -672,5 +674,162 @@ exports.syncGoogleReviews = onCall(
       // configurando esto, así que viaja al panel en vez de un genérico.
       throw new HttpsError('unavailable', err.message || 'No se pudo consultar Google.');
     }
+  }
+);
+
+// ═══════════════ MEDICIÓN DE LA ATENCIÓN REAL (PWA /barbero) ═══════════════
+// Fase 1 del reporte de KPI: Llegó / No llegó / Iniciar / Finalizar. Todo
+// pasa por callables con Admin SDK -- igual que createBooking y
+// getAvailability -- en vez de abrir `bookings` a un rol nuevo en
+// firestore.rules. Las reglas son admin-o-nada y no tienen ningún predicado
+// por-usuario; expresar ahí la pertenencia de una cita a un barbero, más la
+// validación campo a campo de cada transición, sería CEL duplicado y frágil
+// (ya costó caro una vez: una clave ausente en una regla produce un
+// evaluation error, no un `false`).
+
+// Resuelve el profesional a partir del usuario autenticado. El vínculo es
+// staff/{id}.uid, que escribe linkStaffAccount. Devuelve null si no hay
+// ninguno: un usuario de Auth sin ficha de staff no es un barbero.
+async function resolveStaffFor(db, request) {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Tenés que iniciar sesión.');
+  const snap = await db.collection('staff').where('uid', '==', request.auth.uid).limit(1).get();
+  if (snap.empty) return null;
+  return { id: snap.docs[0].id, ...snap.docs[0].data() };
+}
+
+function isAdminRequest(request) {
+  const auth = request.auth;
+  return !!auth && (auth.token.admin === true || auth.uid === ADMIN_UID_FALLBACK);
+}
+
+// La agenda del día del barbero que llama. Devuelve solo los campos que la
+// PWA pinta -- no toda la reserva.
+exports.getMyDay = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const db = getFirestore(app);
+    const staff = await resolveStaffFor(db, request);
+    if (!staff) throw new HttpsError('permission-denied', 'Esta cuenta no está vinculada a ningún profesional.');
+
+    const businessInfoSnap = await db.collection('businessInfo').doc('main').get();
+    const tz = resolveBusinessTz(businessInfoSnap.exists ? businessInfoSnap.data() : null);
+    const dayKey = dateKeyOf(request.data && request.data.date) || dateKeyInZone(new Date(), tz);
+    const { end } = dayBoundsOf(dayKey);
+
+    // Rango sobre `date` + igualdad sobre `barberId`: lo cubre el índice
+    // compuesto bookings(date, barberId) que ya existe. El >= / < además
+    // captura las reservas del admin, cuyo `date` trae sufijo 'T...Z'.
+    const snap = await db.collection('bookings')
+      .where('barberId', '==', staff.id)
+      .where('date', '>=', dayKey)
+      .where('date', '<', end)
+      .get();
+
+    const bookings = snap.docs.map((d) => {
+      const b = d.data();
+      return {
+        id: d.id, code: b.code || '', name: b.name || '', time: b.time || '',
+        dur: b.dur || 0, svcName: b.svcName || '', price: b.price || 0,
+        status: b.status || 'pending', arrivedAt: b.arrivedAt || null,
+        startedAt: b.startedAt || null, endedAt: b.endedAt || null,
+        actualDur: Number.isFinite(b.actualDur) ? b.actualDur : null,
+        nudgeEndCount: b.nudgeEndCount || 0,
+      };
+    }).sort((x, y) => String(x.time).localeCompare(String(y.time)));
+
+    return { staffId: staff.id, name: staff.name || '', date: dayKey, bookings };
+  }
+);
+
+// Aplica una acción de asistencia. La hora la pone SIEMPRE el servidor: el
+// reloj del teléfono del barbero no es fuente de verdad, y de ahí salen los
+// KPI de tiempo real y desviación.
+exports.markAttendance = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const db = getFirestore(app);
+    const { bookingId, action, at, reason } = request.data || {};
+    if (!bookingId || ATTENDANCE_ACTIONS.indexOf(action) === -1) {
+      throw new HttpsError('invalid-argument', 'Falta la cita o la acción no es válida.');
+    }
+
+    const isAdmin = isAdminRequest(request);
+    const staff = isAdmin ? null : await resolveStaffFor(db, request);
+    if (!isAdmin && !staff) {
+      throw new HttpsError('permission-denied', 'Esta cuenta no está vinculada a ningún profesional.');
+    }
+    // Corregir una hora ya registrada es una operación de auditoría: la hace
+    // el admin desde la Agenda, no el barbero desde el teléfono.
+    if (at && !isAdmin) throw new HttpsError('permission-denied', 'Solo el panel puede corregir una hora.');
+
+    const ref = db.collection('bookings').doc(String(bookingId));
+
+    return db.runTransaction(async (tx) => {
+      // Dentro de la transacción solo tx.get(), nunca db.get() suelto --
+      // invariante del proyecto.
+      const doc = await tx.get(ref);
+      if (!doc.exists) throw new HttpsError('not-found', 'Esa cita ya no existe.');
+      const b = doc.data();
+
+      // Un barbero solo marca sus propias citas; el admin, cualquiera.
+      if (!isAdmin && b.barberId !== staff.id) {
+        throw new HttpsError('permission-denied', 'Esa cita no es tuya.');
+      }
+
+      const patch = applyAction(b, action, new Date(), {
+        by: isAdmin ? 'admin' : staff.id,
+        reason: reason || null,
+        atISO: at || null,
+        snoozeMs: SNOOZE_MS,
+      });
+
+      // Idempotente por diseño: un segundo toque de la misma notificación
+      // (o el mismo enlace profundo abierto dos veces) cae acá y no pisa la
+      // hora original.
+      if (!patch) return { ok: true, already: true, status: b.status || 'pending' };
+
+      tx.update(ref, patch);
+      return {
+        ok: true,
+        already: false,
+        status: patch.status || b.status || 'pending',
+        actualDur: Number.isFinite(patch.actualDur) ? patch.actualDur : null,
+      };
+    });
+  }
+);
+
+// Vincula una cuenta de Firebase Auth (creada a mano en la consola) con la
+// ficha de un profesional. Evita pegar UIDs a mano en el panel, que es
+// exactamente el tipo de dato que se copia mal una vez y nadie nota.
+exports.linkStaffAccount = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    assertAdmin(request);
+    const db = getFirestore(app);
+    const { staffId, email } = request.data || {};
+    if (!staffId || !email) throw new HttpsError('invalid-argument', 'Falta el profesional o el correo.');
+
+    let user;
+    try {
+      user = await getAuth(app).getUserByEmail(String(email).trim().toLowerCase());
+    } catch {
+      throw new HttpsError('not-found', 'No existe ninguna cuenta con ese correo. Creala primero en Firebase Auth.');
+    }
+
+    const ref = db.collection('staff').doc(String(staffId));
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Ese profesional no existe.');
+
+    // Un mismo UID vinculado a dos fichas rompería resolveStaffFor (que toma
+    // la primera que encuentre) de forma silenciosa y difícil de rastrear.
+    const dup = await db.collection('staff').where('uid', '==', user.uid).get();
+    const otra = dup.docs.find((d) => d.id !== String(staffId));
+    if (otra) {
+      throw new HttpsError('already-exists', `Esa cuenta ya está vinculada a ${otra.data().name || otra.id}.`);
+    }
+
+    await ref.update({ uid: user.uid, authEmail: user.email || '' });
+    return { ok: true, uid: user.uid };
   }
 );

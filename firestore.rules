@@ -90,5 +90,24 @@ service cloud.firestore {
 
     // Log de actividad: solo admin
     match /adminLog/{id} { allow read, write: if isAdmin(); }
+
+    // Tokens de FCM del dispositivo de cada profesional (PWA /barbero,
+    // medición de la atención real 2026-09). Es el ÚNICO lugar del repo
+    // donde alguien que no es admin escribe directo a Firestore, y es
+    // deliberado: un dato por-usuario, sin PII, con un predicado de una sola
+    // igualdad. Todo el resto de la PWA (leer la agenda, marcar asistencia)
+    // pasa por callables con Admin SDK -- ver getMyDay y markAttendance en
+    // functions/index.js -- justamente para no tener que expresar en CEL la
+    // pertenencia de una cita a un barbero ni validar campo a campo.
+    //
+    // La lectura también se restringe al dueño: un token de FCM es una
+    // credencial de envío (quien lo tiene puede notificar a ese teléfono),
+    // no un dato compartible entre colegas.
+    //
+    // El scheduler NUNCA confía en lo que se escriba acá para saber de quién
+    // es el dispositivo: deriva uid -> staffId leyendo `staff` con Admin SDK.
+    match /staffDevices/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
   }
 }

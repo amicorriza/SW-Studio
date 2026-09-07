@@ -2,7 +2,7 @@
 import { db, storage, functions } from './firebase-init.js';
 import {
   collection, getDocs, getDoc, doc, setDoc, deleteDoc, deleteField,
-  writeBatch, onSnapshot,
+  writeBatch, onSnapshot, arrayUnion,
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import {
   ref, uploadBytes, getDownloadURL, deleteObject,
@@ -314,6 +314,48 @@ async function syncGoogleReviews(force = false) {
   return data;
 }
 
+// ═══ MEDICIÓN DE LA ATENCIÓN REAL (PWA /barbero + respaldo del admin) ═══
+// Ninguna de estas escribe a `bookings` desde el cliente: todo pasa por
+// callables con Admin SDK, igual que createBooking. La única excepción es
+// saveMyPushToken, que escribe el token del propio dispositivo (ver el
+// match /staffDevices/{uid} en firestore.rules).
+
+// Agenda del día del barbero autenticado. Sin `date` devuelve hoy en la
+// zona horaria del negocio, resuelta server-side.
+async function getMyDay(date) {
+  const call = httpsCallable(functions, 'getMyDay');
+  const { data } = await call({ date: date || null });
+  return data; // { staffId, name, date, bookings: [...] }
+}
+
+// action ∈ 'arrive' | 'no_show' | 'start' | 'end' | 'snooze' | 'cancel'.
+// `opts.at` (corregir la hora de cierre) y `opts.reason` son admin-only.
+// Idempotente: repetir una acción ya aplicada devuelve already:true sin
+// pisar la hora original.
+async function markAttendance(bookingId, action, opts) {
+  const call = httpsCallable(functions, 'markAttendance');
+  const { data } = await call({ bookingId, action, ...(opts || {}) });
+  return data; // { ok, already, status, actualDur }
+}
+
+// Vincula una cuenta de Firebase Auth ya creada con la ficha de un
+// profesional. Admin-only.
+async function linkStaffAccount(staffId, email) {
+  const call = httpsCallable(functions, 'linkStaffAccount');
+  const { data } = await call({ staffId, email });
+  return data; // { ok, uid }
+}
+
+// arrayUnion y no un set del array completo: el barbero puede tener el
+// teléfono y una tablet, y dos dispositivos registrándose casi a la vez no
+// deben pisarse. Los tokens muertos los purga el scheduler cuando FCM los
+// rechaza.
+async function saveMyPushToken(uid, token) {
+  await setDoc(doc(db, 'staffDevices', uid), {
+    tokens: arrayUnion(token), updatedAt: new Date().toISOString(),
+  }, { merge: true });
+}
+
 window.SWData = {
   loadAdmin, saveAdmin, loadCatalog, getBookings, saveBooking, deleteBooking, subscribeBookings, createBooking,
   getPatients, savePatients, deletePatient,
@@ -322,6 +364,7 @@ window.SWData = {
   getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
   loadGoogleReviews, saveManualReviews, syncGoogleReviews,
   getBookingForReminderAction, respondToBookingReminder,
+  getMyDay, markAttendance, linkStaffAccount, saveMyPushToken,
 };
 export {
   loadAdmin, saveAdmin, loadCatalog, getBookings, saveBooking, deleteBooking, subscribeBookings, createBooking,
@@ -331,4 +374,5 @@ export {
   getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
   loadGoogleReviews, saveManualReviews, syncGoogleReviews,
   getBookingForReminderAction, respondToBookingReminder,
+  getMyDay, markAttendance, linkStaffAccount, saveMyPushToken,
 };

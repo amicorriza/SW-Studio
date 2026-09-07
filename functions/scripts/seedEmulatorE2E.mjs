@@ -49,12 +49,17 @@ console.log('victoria uid:', victoria.uid);
 const DIA = { open: true, start: '10:00', end: '20:00', break: { start: '13:00', end: '14:00' } };
 const semana = [null, DIA, DIA, DIA, DIA, DIA, DIA]; // 0 = domingo cerrado
 
-await db.collection('staff').doc('victoria').set({
-  uid: victoria.uid, authEmail: victoria.email, status: 'active', schedule: semana,
-}, { merge: true });
-await db.collection('staff').doc('esteban').set({
-  uid: esteban.uid, authEmail: esteban.email, status: 'active', schedule: semana,
-}, { merge: true });
+await db.collection('staff').doc('victoria').set({ status: 'active', schedule: semana }, { merge: true });
+await db.collection('staff').doc('esteban').set({ status: 'active', schedule: semana }, { merge: true });
+
+// El vínculo con Auth va APARTE: staff tiene lectura pública y ahí el uid y
+// el correo del profesional quedarían legibles por cualquiera.
+await db.collection('staffAccounts').doc('victoria').set({
+  uid: victoria.uid, authEmail: victoria.email, linkedAt: new Date().toISOString(),
+});
+await db.collection('staffAccounts').doc('esteban').set({
+  uid: esteban.uid, authEmail: esteban.email, linkedAt: new Date().toISOString(),
+});
 
 // ── 3. businessInfo: avisos activados, 10 min de anticipación ──
 await db.collection('businessInfo').doc('main').set({

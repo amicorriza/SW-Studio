@@ -689,7 +689,7 @@ exports.syncGoogleReviews = onCall(
 // evaluation error, no un `false`).
 
 // Resuelve el profesional a partir del usuario autenticado. El vínculo es
-// staff/{id}.uid, que escribe linkStaffAccount. Devuelve null si no hay
+// staffAccounts/{staffId}, que escribe linkStaffAccount. Devuelve null si no hay
 // ninguno: un usuario de Auth sin ficha de staff no es un barbero.
 async function resolveStaffFor(db, request) {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Tenés que iniciar sesión.');
@@ -912,14 +912,18 @@ exports.staffAttendanceNudges = onSchedule(
       // uid -> staffId se deriva del lado del servidor leyendo `staff`.
       // NUNCA se confía en un staffId que haya escrito el cliente en
       // staffDevices: ahí solo se leen los tokens del dueño del documento.
-      const staffSnap = await db.collection('staff').get();
+      // El uid se lee de staffAccounts, NO del doc de staff: ese es de
+      // lectura pública y por eso ya no guarda el vínculo. Buscarlo en el
+      // lugar viejo no daría error -- simplemente no encontraría a nadie y
+      // los avisos dejarían de salir sin que nada lo reporte.
+      const cuentasSnap = await db.collection('staffAccounts').get();
       const tokensByStaff = {};
-      await Promise.all(staffSnap.docs.map(async (s) => {
-        const uid = s.data().uid;
+      await Promise.all(cuentasSnap.docs.map(async (c) => {
+        const uid = c.data().uid;
         if (!uid) return;
         const dev = await db.collection('staffDevices').doc(uid).get();
         const tokens = dev.exists ? (dev.data().tokens || []) : [];
-        if (tokens.length) tokensByStaff[s.id] = { uid, tokens };
+        if (tokens.length) tokensByStaff[c.id] = { uid, tokens };
       }));
 
       const nowISO = now.toISOString();

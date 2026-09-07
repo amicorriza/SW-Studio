@@ -66,7 +66,16 @@ check('con nudgesEnabled:false no se escribe ningún marcador', !d.nudgeUpcoming
 
 // ── 3. Con un token muerto: falla el envío, no la corrida ──
 await patchDoc('businessInfo/main', { nudgesEnabled: true }, adm);
-const vic = await getDoc('staff/victoria', adm);
+// El uid sale de staffAccounts, no del doc de staff: ese es de lectura
+// pública y ya no guarda el vínculo. Si el scheduler lo buscara en el lugar
+// viejo no daría error, simplemente no encontraría a nadie y los avisos
+// dejarían de salir en silencio -- por eso este test lo cubre.
+const cuenta = await getDoc('staffAccounts/victoria', adm);
+check('el vínculo de la cuenta vive en staffAccounts', !!(cuenta && cuenta.uid), cuenta);
+const staffDoc = await getDoc('staff/victoria', adm);
+check('el doc público de staff NO guarda uid ni correo',
+  staffDoc && !staffDoc.uid && !staffDoc.authEmail, Object.keys(staffDoc || {}));
+const vic = cuenta;
 
 // El token lo escribe SU PROPIO dispositivo, no el admin: la regla de
 // staffDevices/{uid} exige request.auth.uid == uid. Que el admin no pueda es

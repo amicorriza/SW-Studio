@@ -188,8 +188,17 @@ falla ya ocurrió de verdad en el trabajo de recordatorios
 | `linkStaffAccount` | `onCall` (admin) | `{staffId, email}` → `getUserByEmail` → escribe `uid` + `authEmail`. Reusa `assertAdmin` (`functions/index.js:29`). |
 | `staffAttendanceNudges` | `onSchedule` | Cada 2 min. Molde: `refreshGoogleReviews`. |
 
-`staffAttendanceNudges` consulta `bookings where date in [ayer, hoy]` — **campo simple, sin
-índice compuesto nuevo** —, filtra con `computeNudges`, arma el mapa uid→staffId leyendo
+### Índice compuesto nuevo
+
+`getMyDay` combina una igualdad (`barberId`) con un rango (`date`), y Firestore exige que el
+campo de igualdad vaya **primero** en el índice compuesto. El que ya existe,
+`bookings(date, barberId)`, **no** sirve para esa consulta: se agrega `bookings(barberId, date)`
+a `firestore.indexes.json`. Se declara acá y no se descubre al desplegar — es el mismo tropiezo
+que el proyecto ya tuvo con `scheduleBlocks`. Mientras el índice se construye, la app del
+barbero devuelve error al cargar la agenda.
+
+`staffAttendanceNudges`, en cambio, consulta solo por rango de `date` — campo simple, sin índice
+compuesto —, filtra con `computeNudges`, arma el mapa uid→staffId leyendo
 `staff` con Admin SDK (nunca confía en lo que escribió el cliente), envía con
 `sendEachForMulticast()` y escribe los marcadores de dedupe. Un fallo por reserva se aísla; un
 fallo de la corrida se loguea y **no se relanza**. Los tokens que Firebase reporta como

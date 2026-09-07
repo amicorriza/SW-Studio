@@ -802,8 +802,11 @@ exports.getMyDay = onCall({ region: 'southamerica-east1' }, async (request) => {
   const dayKey = dateKeyOf(request.data && request.data.date) || dateKeyInZone(new Date(), tz);
   const { end } = dayBoundsOf(dayKey);
 
-  // Rango sobre `date` (campo simple, sin índice compuesto). El >= / <
-  // cubre además las reservas del admin, cuyo date trae sufijo 'T...Z'.
+  // CORRECCIÓN (hallada al revisar, ya aplicada): esto NO lo cubre el índice
+  // bookings(date, barberId) que ya existía. Con una igualdad (barberId) más
+  // un rango (date), Firestore exige el campo de igualdad PRIMERO, así que
+  // hace falta bookings(barberId, date) -- agregado a firestore.indexes.json.
+  // El >= / < cubre además las reservas del admin, cuyo date trae 'T...Z'.
   const snap = await db.collection('bookings')
     .where('barberId', '==', staff.id)
     .where('date', '>=', dayKey)

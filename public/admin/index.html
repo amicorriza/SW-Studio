@@ -163,27 +163,54 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 
 /* STAT CARDS */
 .a-dash-kpis{
-  display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));
-  gap:10px;margin-bottom:20px
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));
+  gap:12px;margin-bottom:24px
 }
 .a-sc{
-  background:#fff;border-radius:11px;padding:14px 16px;
+  background:#fff;border-radius:11px;padding:16px;
   background-image:linear-gradient(#fff,#fff),var(--a-steel-b);
   background-origin:border-box;background-clip:padding-box,border-box;
   border:2px solid transparent
 }
-.a-scl{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.32em;text-transform:uppercase;color:var(--a-sd);margin-bottom:4px}
+/* Etiqueta: a 9px con .32em de tracking las letras se separaban tanto que se
+   perdía la palabra. Baja el tracking y sube medio punto el cuerpo. */
+.a-scl{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--a-sd);margin-bottom:6px}
+
+/* El número va en TINTA SÓLIDA, no con el degradado acero.
+   El degradado (5 paradas de gris) hacía que el contraste cambiara dentro
+   del mismo número -- los dígitos del medio quedaban casi gris claro -- y
+   volvía imposible señalar si un valor es bueno o malo. El acero se conserva
+   donde sí funciona: el borde de la tarjeta.
+   tabular-nums para que los dígitos no bailen al comparar tarjetas. */
 .a-scv{
-  font-family:'Orbitron',sans-serif;font-size:22px;font-weight:600;
-  background:linear-gradient(115deg,#3A4452 0%,#7A8494 35%,#A8B2BE 50%,#6A7888 70%,#1E2530 100%);
-  background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent
+  font-family:'Orbitron',sans-serif;font-size:27px;font-weight:600;
+  line-height:1.05;letter-spacing:-.01em;color:var(--a-txt);
+  font-variant-numeric:tabular-nums
 }
-.a-scs{font-size:11px;color:var(--a-meta);margin-top:3px}
+.a-scs{font-size:11.5px;color:var(--a-meta);margin-top:5px;line-height:1.35}
+
+/* Valencia: el acento va en una regla lateral fina y en el subtítulo, nunca
+   en el número. Un número rojo grita; una regla roja informa y deja que el
+   dato siga siendo legible. Un solo acento por tarjeta. */
+.a-sc{position:relative;overflow:hidden}
+.a-sc.tono-ok::before,.a-sc.tono-aviso::before,.a-sc.tono-alerta::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:3px
+}
+.a-sc.tono-ok::before{background:var(--a-ok)}
+.a-sc.tono-aviso::before{background:var(--a-warn)}
+.a-sc.tono-alerta::before{background:var(--a-err)}
+.a-sc.tono-ok .a-scs{color:var(--a-ok)}
+.a-sc.tono-aviso .a-scs{color:var(--a-warn)}
+.a-sc.tono-alerta .a-scs{color:var(--a-err)}
 
 /* SECTION HEADER */
 .a-sh{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap}
-.a-st{font-family:'Orbitron',sans-serif;font-size:14px;font-weight:600;color:var(--a-txt)}
-.a-ss{font-size:11.5px;color:var(--a-meta);margin-top:2px}
+/* Escala explícita, para que nada compite:
+     número KPI 27 · título de sección 15 · etiqueta 10 · prosa 11.5.
+     El título lleva tracking positivo y el número negativo: aunque
+     compartan familia (Orbitron es la marca), se leen como cosas distintas. */
+.a-st{font-family:'Orbitron',sans-serif;font-size:15px;font-weight:600;letter-spacing:.02em;color:var(--a-txt)}
+.a-ss{font-size:11.5px;color:var(--a-meta);margin-top:3px;line-height:1.4}
 
 /* TABLE */
 .a-tw{
@@ -279,6 +306,13 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
 /* Acceso a la app del barbero, en la ficha de Personal */
 .a-stlink{display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:9px;padding-top:9px;border-top:1px solid var(--a-g1)}
 .a-btn-sm{padding:5px 10px;font-size:10px}
+/* Aire ENTRE secciones del dashboard. Los títulos quedaban pegados a la nota
+   de la sección anterior: dentro de un grupo va junto, entre grupos suelto. */
+#a-dash .a-sh{margin-top:34px}
+#a-dash .a-dash-bar + .a-sh,#a-dash .a-dash-kpis + .a-sh{margin-top:26px}
+#a-dash > div:first-child{margin-top:0}
+#a-dash .a-dash-note{margin-top:8px}
+
 /* ── Tiempo planificado vs. real (Dashboard, vista en detalle) ── */
 .a-tvr{align-items:center}
 .a-tvr-bars{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
@@ -306,11 +340,13 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
 .a-heat tbody th{text-align:right}
 .a-heat td{width:30px;height:26px;text-align:center;border-radius:4px;color:#fff;font-weight:600}
 .a-heat-na{background:var(--a-g1)}
-.a-heat-1{background:#EDF0F3;color:var(--a-meta)}
-.a-heat-2{background:#C8D0DA;color:var(--a-txt)}
-.a-heat-3{background:#9AAABB}
-.a-heat-4{background:#6A7888}
-.a-heat-5{background:var(--a-ink)}
+.a-heat-1{background:#F4F6F8;color:#B0B8C2}
+.a-heat-2{background:#DDE3E9;color:var(--a-meta)}
+.a-heat-3{background:#C2CBD5;color:var(--a-txt)}
+.a-heat-4{background:#A3AEBB;color:var(--a-txt)}
+.a-heat-5{background:#7F8B9A}
+.a-heat-6{background:#5A6675}
+.a-heat-7{background:var(--a-ink)}
 
 /* ── Tarjetas de recomendación ── */
 .a-ins-wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:16px 0 6px}
@@ -449,7 +485,7 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
 .a-dash-stack-seg{height:100%}
 .a-dash-stack-new{background:var(--a-ink)}
 .a-dash-stack-ret{background:linear-gradient(90deg,#6A7888,#9AAABB,#C8D0DA)}
-.a-dash-delta{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;white-space:nowrap}
+.a-dash-delta{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.06em;white-space:nowrap;font-variant-numeric:tabular-nums}
 .a-dash-delta.up{color:var(--a-ok)}
 .a-dash-delta.down{color:var(--a-err)}
 .a-dash-delta.flat{color:var(--a-meta)}
@@ -1937,9 +1973,39 @@ function dashDelta(val, asPoints){
   return '<span class="a-dash-delta '+cls+'">'+arrow+' '+txt+'</span>';
 }
 
-function dashKpiCard(label, value, sub){
-  return '<div class="a-sc"><div class="a-scl">'+esc(label)+'</div><div class="a-scv">'+value+'</div>'+
-    (sub ? '<div class="a-scs">'+sub+'</div>' : '')+'</div>';
+// `tono` ∈ '' | 'ok' | 'aviso' | 'alerta'. Solo lo llevan los KPI que TIENEN
+// una lectura buena o mala. Ventas o cantidad de reservas no la tienen: que
+// suban o bajen depende del mes, y pintarlas de color sería inventar un
+// juicio que el dato no sostiene.
+function dashKpiCard(label, value, sub, tono){
+  return '<div class="a-sc'+(tono ? ' tono-'+tono : '')+'">'+
+    '<div class="a-scl">'+esc(label)+'</div>'+
+    '<div class="a-scv">'+value+'</div>'+
+    (sub ? '<div class="a-scs">'+sub+'</div>' : '')+
+  '</div>';
+}
+
+// Umbrales alineados con los del motor de recomendaciones (insights.js):
+// si una tarjeta se pone en alerta, la recomendación correspondiente dispara
+// con el mismo criterio. Sin datos medidos no hay tono -- gris es "todavía no
+// se sabe", que es distinto de "está bien".
+function tonoAsistencia(pct){
+  if(pct == null) return '';
+  if(pct >= 0.92) return 'ok';
+  if(pct >= 0.85) return 'aviso';
+  return 'alerta';
+}
+function tonoNoShow(pct){
+  if(pct == null) return '';
+  if(pct <= 0.08) return 'ok';
+  if(pct <= 0.15) return 'aviso';
+  return 'alerta';
+}
+function tonoOcupacion(pct){
+  if(pct == null) return '';
+  if(pct > 0.85) return 'aviso';      // saturada: es una oportunidad, no un logro
+  if(pct < 0.45) return 'alerta';     // capacidad sin vender
+  return 'ok';
 }
 
 function renderDash(){
@@ -2111,9 +2177,11 @@ function renderDash(){
       dashKpiCard('Ventas del período', fmtCLP(ingresoReal), cmp ? dashDelta(deltaIngresoReal, false) : '')+
       dashKpiCard('Reservas', String(kpis.citas), cmp ? dashDelta(kpis.deltas.citas, false) : '')+
       dashKpiCard('Asistencia real', pctTxt(att.asistenciaPct),
-        medidas ? att.atendidas+' de '+medidas+' medidas' : 'sin datos aún')+
+        medidas ? att.atendidas+' de '+medidas+' medidas' : 'sin datos aún',
+        tonoAsistencia(att.asistenciaPct))+
       dashKpiCard('No-show', pctTxt(att.noShowPct),
-        medidas ? att.noShow+' inasistencias' : 'sin datos aún')+
+        medidas ? att.noShow+' inasistencias' : 'sin datos aún',
+        tonoNoShow(att.noShowPct))+
       dashKpiCard('Ticket promedio', fmtCLP(ticketReal), cmp ? dashDelta(deltaTicketReal, false) : '')+
     '</div>';
 
@@ -2258,12 +2326,17 @@ function renderDash(){
   // 6c · Asistencia y confirmación
   html += '<div class="a-sh"><div class="a-st">Asistencia del período</div></div>'+
     '<div class="a-dash-kpis">'+
-      dashKpiCard('Atendidas', String(att.atendidas), medidas ? pctTxt(att.asistenciaPct)+' de las medidas' : 'sin datos aún')+
-      dashKpiCard('No llegó', String(att.noShow), medidas ? pctTxt(att.noShowPct)+' de las medidas' : 'sin datos aún')+
+      dashKpiCard('Atendidas', String(att.atendidas),
+        medidas ? pctTxt(att.asistenciaPct)+' de las medidas' : 'sin datos aún',
+        tonoAsistencia(att.asistenciaPct))+
+      dashKpiCard('No llegó', String(att.noShow),
+        medidas ? pctTxt(att.noShowPct)+' de las medidas' : 'sin datos aún',
+        tonoNoShow(att.noShowPct))+
       dashKpiCard('Canceladas', String(att.canceladas), pctTxt(att.cancelPct)+' del total')+
       dashKpiCard('Sin registrar', String(att.sinMarcar), att.total ? Math.round((att.sinMarcar/att.total)*100)+'% del total' : '')+
       dashKpiCard('Ocupación efectiva', pctTxt(occ.pct),
-        occ.disponibles ? Math.round(occ.atendidos/60)+'h de '+Math.round(occ.disponibles/60)+'h disponibles' : 'sin horarios configurados')+
+        occ.disponibles ? Math.round(occ.atendidos/60)+'h de '+Math.round(occ.disponibles/60)+'h disponibles' : 'sin horarios configurados',
+        tonoOcupacion(occ.pct))+
     '</div>';
   var notasAsis = [];
   if(lateStarts.pct != null){
@@ -2304,7 +2377,11 @@ function renderDash(){
         return '<tr><th>'+DN[d]+'</th>'+horas.map(function(h){
           var c = cel[d+'|'+h];
           if(!c || c.pct == null) return '<td class="a-heat-na" title="Cerrado"></td>';
-          var lvl = c.pct >= .85 ? 5 : c.pct >= .65 ? 4 : c.pct >= .45 ? 3 : c.pct > 0 ? 2 : 1;
+          // Siete pasos, con tres en el tramo 0-45%: una barbería que recién
+          // arranca vive ahí, y con la escala gruesa el mapa entero salía del
+          // mismo gris y no se distinguía una franja floja de una muerta.
+          var lvl = c.pct >= .85 ? 7 : c.pct >= .65 ? 6 : c.pct >= .45 ? 5
+                  : c.pct >= .30 ? 4 : c.pct >= .15 ? 3 : c.pct > 0 ? 2 : 1;
           return '<td class="a-heat-'+lvl+'" title="'+DN[d]+' '+((h<10?'0':'')+h)+':00 · '+Math.round(c.pct*100)+'%">'+
             Math.round(c.pct*100)+'</td>';
         }).join('')+'</tr>';

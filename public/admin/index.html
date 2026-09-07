@@ -279,6 +279,53 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
 /* Acceso a la app del barbero, en la ficha de Personal */
 .a-stlink{display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:9px;padding-top:9px;border-top:1px solid var(--a-g1)}
 .a-btn-sm{padding:5px 10px;font-size:10px}
+/* ── Tiempo planificado vs. real (Dashboard, vista en detalle) ── */
+.a-tvr{align-items:center}
+.a-tvr-bars{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+.a-tvr-bar{display:flex;align-items:center;gap:8px}
+/* La etiqueta va después de la PISTA, no del relleno: si va después del
+   relleno, una barra cerca del 100% la empuja encima de la columna de
+   desviación. Mismo idioma que .a-bar-track/.a-bar-fill del panel. */
+.a-tvr-track{flex:1;min-width:40px;height:11px;background:var(--a-g1);border-radius:3px;overflow:hidden}
+.a-tvr-fill{height:11px;border-radius:3px;min-width:2px}
+.a-tvr-fill.plan{background:var(--a-sl)}
+.a-tvr-fill.real{background:var(--a-sd)}
+.a-tvr-fill.real.over{background:var(--a-warn)}
+.a-tvr-fill.real.under{background:var(--a-info)}
+.a-tvr-bar span{width:62px;flex-shrink:0;font-size:10px;color:var(--a-meta);white-space:nowrap}
+.a-tvr-dev{width:126px;padding-left:10px;text-align:right;font-weight:600;font-size:13px;flex-shrink:0}
+.a-tvr-dev.over{color:var(--a-warn)}
+.a-tvr-dev.under{color:var(--a-info)}
+.a-tvr-dev small{display:block;font-weight:400;font-size:10px;color:var(--a-meta);white-space:nowrap}
+
+/* ── Mapa de ocupación por día y hora ── */
+.a-heat-wrap{overflow-x:auto;padding:2px}
+.a-heat{border-collapse:separate;border-spacing:2px;font-size:10px}
+.a-heat th{font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--a-sd);padding:2px 4px;font-size:9px}
+.a-heat tbody th{text-align:right}
+.a-heat td{width:30px;height:26px;text-align:center;border-radius:4px;color:#fff;font-weight:600}
+.a-heat-na{background:var(--a-g1)}
+.a-heat-1{background:#EDF0F3;color:var(--a-meta)}
+.a-heat-2{background:#C8D0DA;color:var(--a-txt)}
+.a-heat-3{background:#9AAABB}
+.a-heat-4{background:#6A7888}
+.a-heat-5{background:var(--a-ink)}
+
+/* ── Tarjetas de recomendación ── */
+.a-ins-wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:16px 0 6px}
+.a-ins{border:1px solid var(--a-g2);border-left-width:4px;border-radius:10px;padding:14px 16px;background:#fff}
+.a-ins-prioridad{border-left-color:var(--a-warn);background:#FFFCF5}
+.a-ins-oportunidad{border-left-color:var(--a-info);background:#F5F9FD}
+.a-ins-positivo{border-left-color:var(--a-ok);background:#F5FBF7}
+.a-ins-mute{border-left-color:var(--a-g3);background:var(--a-off)}
+.a-ins-k{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;
+  letter-spacing:.24em;text-transform:uppercase;color:var(--a-sd);margin-bottom:5px}
+.a-ins-t{font-size:14.5px;font-weight:600;line-height:1.3;margin-bottom:5px}
+.a-ins-d{font-size:12.5px;color:var(--a-body);line-height:1.5}
+.a-ins-o{margin:9px 0 0;padding-left:17px;font-size:12.5px;color:var(--a-body);line-height:1.6}
+.a-ins-f{margin-top:10px;font-size:10.5px;color:var(--a-meta);font-style:italic}
+
 /* Banner de atenciones sin cerrar (Agenda) */
 .a-review{background:#FFFCF5;border:1px solid #E2C48A;border-radius:10px;padding:14px 16px;margin-bottom:16px}
 .a-review-t{font-weight:600;font-size:14px;color:var(--a-warn);margin-bottom:3px}
@@ -1485,6 +1532,7 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
      (como js/data.js): expone window.SWMetrics y es require()-able por Node.
      No toca el DOM ni Firestore. Debe cargar ANTES del IIFE de abajo. -->
 <script src="/js/metrics.js"></script>
+<script src="/js/insights.js"></script>
 <script>
 (function(){
 'use strict';
@@ -1520,6 +1568,8 @@ var rmSelectedBarber = null;
 // tendencias y desgloses); dashPeriod/dashFrom/dashTo/dashCompare acotan solo
 // KPIs y los desgloses por servicio/barbero/retención; dashTrendMetric y
 // dashSvcGroup son locales a su sección.
+var dashView = 'simple';   // 'simple' | 'detalle' -- el PDF pide que la
+                           // operación diaria parta siempre de la simple
 var dashMode = 'realizado';       // 'realizado' | 'agendado'
 var dashPeriod = 'month';         // 'month'|'lastMonth'|'last3'|'year'|'custom'
 var dashFrom = '', dashTo = '';   // rango libre, 'YYYY-MM-DD'
@@ -1918,11 +1968,70 @@ function renderDash(){
   }
 
   var cmp = dashCompare;
+
+  // ── Datos de la atención real (P2). Todo sobre la misma cache, sin I/O. ──
+  var allPeriodBk = X.mFilterPeriodAll(ALL, { from:win.from, to:win.to, mode:dashMode, today:today });
+  var att = X.mAttendance(allPeriodBk);
+  var cov = X.mAttendanceCoverage(periodBk);
+
+  // Ingreso que excluye los no-show, y su Δ calculado con la MISMA
+  // definición: mezclar un ingreso "sin no-show" con un Δ que sí los cuenta
+  // daría un porcentaje que no corresponde a los números de al lado.
+  var ingresoReal = X.mRevenue(periodBk);
+  var ingresoRealPrev = cmp ? X.mRevenue(prevBk) : null;
+  var deltaIngresoReal = (ingresoRealPrev == null || ingresoRealPrev === 0)
+    ? null : (ingresoReal - ingresoRealPrev) / ingresoRealPrev;
+
+  // Ticket = ventas / atenciones pagadas (PDF §4). Mientras no haya
+  // asistencia registrada cae al ticket sobre reservas, que es el de hoy.
+  // Su Δ se calcula con la MISMA definición, igual que el de ventas: mostrar
+  // un ticket "por atención pagada" con un Δ medido sobre reservas daría un
+  // porcentaje que no se corresponde con el número de arriba.
+  var ticketDe = function(bks, a){
+    if(!bks.length) return null;
+    return a.atendidas > 0 ? Math.round(X.mRevenue(bks) / a.atendidas)
+                           : Math.round(X.mRevenue(bks) / bks.length);
+  };
+  var ticketReal = ticketDe(periodBk, att) || 0;
+  var deltaTicketReal = null;
+  if(cmp && prevBk.length){
+    var attPrev = X.mAttendance(X.mFilterPeriodAll(ALL, { from:win.prevFrom, to:win.prevTo, mode:dashMode, today:today }));
+    var tPrev = ticketDe(prevBk, attPrev);
+    if(tPrev) deltaTicketReal = (ticketReal - tPrev) / tPrev;
+  }
+
+  // La ventana de ocupación se recorta a la misma que ve el modo Realizado:
+  // contar la disponibilidad de días que todavía no ocurrieron hundiría el
+  // porcentaje sin que eso signifique nada.
+  var occTo = win.to;
+  if(dashMode === 'realizado'){
+    var ayer = X.addDaysYMD(today, -1);
+    if(ayer < occTo) occTo = ayer;
+  }
+  var occRange = { from:win.from, to:(occTo < win.from ? '' : occTo) };
+  var blocks = getScheduleBlocks();
+  var occ = X.mOccupancy(periodBk, D.staff, blocks, occRange);
+  var heat = X.mHeatmap(periodBk, D.staff, blocks, occRange);
+  var realBySvc = X.mRealTime(periodBk, { groupBy:'svc' });
+  var real = dashSvcGroup === 'cat' ? X.mRealTime(periodBk, { groupBy:'cat' }) : realBySvc;
+
+  var medidas = att.atendidas + att.noShow;
+  var cards = (window.SWInsights ? window.SWInsights.evaluateInsights({
+    medidas: medidas, attendance: att, coverage: cov,
+    realTime: realBySvc, occupancy: occ, heatmap: heat, kpis: kpis,
+    priceSim: X.mPriceSim,
+  }) : []);
+
+  var pctTxt = function(v){ return v == null ? '—' : Math.round(v*100)+'%'; };
   var html = '';
 
-  // 1 · Barra de período
+  // 1 · Barra de período (compartida por las dos vistas)
   var presets = [['month','Este mes'],['lastMonth','Mes pasado'],['last3','Últimos 3 meses'],['year','Este año'],['custom','Rango libre']];
   html += '<div class="a-dash-bar">'+
+    '<div class="a-vtoggle">'+
+      '<button type="button" id="a-dash-view-s" class="'+(dashView==='simple'?'a-on':'')+'">Vista simple</button>'+
+      '<button type="button" id="a-dash-view-d" class="'+(dashView==='detalle'?'a-on':'')+'">Ver detalle</button>'+
+    '</div>'+
     '<select class="a-in" id="a-dash-period" style="width:auto">'+presets.map(function(o){
       return '<option value="'+o[0]+'"'+(dashPeriod===o[0]?' selected':'')+'>'+o[1]+'</option>';
     }).join('')+'</select>'+
@@ -1938,6 +2047,55 @@ function renderDash(){
     '</div>'+
   '</div>';
 
+  // Pie de nota que dice cuánto del número es MEDIDO y cuánto inferido. Es lo
+  // que permite que los KPI cambien de significado sin que parezca un error.
+  var notaCobertura;
+  if(cov.total === 0){
+    notaCobertura = 'Sin reservas en el período.';
+  } else if(cov.medidas === 0){
+    notaCobertura = 'Ingresos estimados con precio de catálogo. Ninguna cita del período tiene asistencia registrada todavía, '+
+      'así que se asume que toda cita pasada ocurrió — los profesionales la registran desde la app /barbero.';
+  } else if(cov.pct < 1){
+    notaCobertura = 'Ingresos estimados con precio de catálogo. '+Math.round(cov.pct*100)+'% de las citas del período '+
+      '('+cov.medidas+' de '+cov.total+') tiene asistencia registrada; el resto se asume atendido.';
+  } else {
+    notaCobertura = 'Ingresos estimados con precio de catálogo. Todas las citas del período tienen asistencia registrada.';
+  }
+
+  if(dashView === 'simple'){
+    // ═══ VISTA SIMPLE: 5 KPI, 1 gráfico, 1 alerta, 1 sugerencia ═══
+    // El PDF (§9) es explícito en no pasar de 5 KPI acá, y en §4 relega
+    // retención, ingreso/hora y horas débiles a la vista en detalle.
+    html += '<div class="a-dash-kpis">'+
+      dashKpiCard('Ventas del período', fmtCLP(ingresoReal), cmp ? dashDelta(deltaIngresoReal, false) : '')+
+      dashKpiCard('Reservas', String(kpis.citas), cmp ? dashDelta(kpis.deltas.citas, false) : '')+
+      dashKpiCard('Asistencia real', pctTxt(att.asistenciaPct),
+        medidas ? att.atendidas+' de '+medidas+' medidas' : 'sin datos aún')+
+      dashKpiCard('No-show', pctTxt(att.noShowPct),
+        medidas ? att.noShow+' inasistencias' : 'sin datos aún')+
+      dashKpiCard('Ticket promedio', fmtCLP(ticketReal), cmp ? dashDelta(deltaTicketReal, false) : '')+
+    '</div>';
+
+    html += '<div class="a-sh"><div class="a-st">Ingresos por semana</div></div>'+
+      '<div class="a-dash-svgwrap">'+X.svgLine(weekly.map(function(w){
+        return { label:w.weekStart.slice(5), value:w.ingresos, current:w.current };
+      }), { fmt:fmtCLP })+'</div>';
+
+    html += '<div class="a-ins-wrap">'+(cards.length
+      ? cards.map(dashInsightCard).join('')
+      : '<div class="a-ins a-ins-mute">'+
+          '<div class="a-ins-t">Todavía no hay suficientes atenciones medidas</div>'+
+          '<div class="a-ins-d">Llevas '+medidas+' registradas. Desde 10 el panel empieza a señalar desviaciones, '+
+          'y desde 20 puede sugerir ajustes de precio.</div>'+
+        '</div>')+'</div>';
+
+    html += '<div class="a-dash-note">'+esc(notaCobertura)+'</div>';
+    host.innerHTML = html;
+    dashBindShared(X, today, firstSeen);
+    return;
+  }
+
+  // ═══ VISTA EN DETALLE ═══
   // 2 · Fila de KPIs
   var ingSub = cmp ? dashDelta(kpis.deltas.ingresos, false) : '';
   var citSub = cmp ? dashDelta(kpis.deltas.citas, false) : '';
@@ -2022,6 +2180,88 @@ function renderDash(){
     }).join('');
   }
 
+  // 6b · Tiempo planificado vs. tiempo real (barras agrupadas)
+  html += '<div class="a-sh"><div class="a-st">Tiempo planificado vs. tiempo real</div>'+
+    '<div class="a-ss">Mediana del tiempo real, no promedio: resiste una atención excepcionalmente larga.</div></div>';
+  if(!real.length){
+    html += '<div class="a-empty">Todavía no hay atenciones cerradas en el período. '+
+      'Los profesionales las registran desde la app <strong>/barbero</strong>.</div>';
+  } else {
+    var maxMin = 1;
+    real.forEach(function(r){ maxMin = Math.max(maxMin, r.planMin||0, r.medianMin||0); });
+    html += '<div class="a-tw" style="padding:14px 16px;overflow:visible">'+real.map(function(r){
+      var label = dashSvcGroup==='cat' ? (CN[r.key] || r.key || 'Sin categoría') : r.label;
+      var wPlan = Math.round(((r.planMin||0)/maxMin)*100);
+      var wReal = Math.round(((r.medianMin||0)/maxMin)*100);
+      var desv = r.deviationPct == null ? '—'
+        : (r.deviationPct > 0 ? '+' : '') + Math.round(r.deviationPct*100)+'%';
+      var cls = r.deviationPct == null ? '' : (r.deviationPct > 0.10 ? ' over' : (r.deviationPct < -0.10 ? ' under' : ''));
+      return '<div class="a-bar-row a-tvr">'+
+        '<div class="a-bar-lbl" title="'+esc(label)+'">'+esc(label)+'</div>'+
+        '<div class="a-tvr-bars">'+
+          '<div class="a-tvr-bar"><div class="a-tvr-track"><div class="a-tvr-fill plan" style="width:'+wPlan+'%"></div></div>'+
+            '<span>'+Math.round(r.planMin||0)+' plan</span></div>'+
+          '<div class="a-tvr-bar"><div class="a-tvr-track"><div class="a-tvr-fill real'+cls+'" style="width:'+wReal+'%"></div></div>'+
+            '<span>'+Math.round(r.medianMin||0)+' real</span></div>'+
+        '</div>'+
+        '<div class="a-tvr-dev'+cls+'">'+desv+'<small>'+r.n+' medidas'+(r.nManual?' · '+r.nManual+' a mano':'')+'</small></div>'+
+      '</div>';
+    }).join('')+'</div>';
+  }
+
+  // 6c · Asistencia y confirmación
+  html += '<div class="a-sh"><div class="a-st">Asistencia del período</div></div>'+
+    '<div class="a-dash-kpis">'+
+      dashKpiCard('Atendidas', String(att.atendidas), medidas ? pctTxt(att.asistenciaPct)+' de las medidas' : 'sin datos aún')+
+      dashKpiCard('No llegó', String(att.noShow), medidas ? pctTxt(att.noShowPct)+' de las medidas' : 'sin datos aún')+
+      dashKpiCard('Canceladas', String(att.canceladas), pctTxt(att.cancelPct)+' del total')+
+      dashKpiCard('Sin registrar', String(att.sinMarcar), att.total ? Math.round((att.sinMarcar/att.total)*100)+'% del total' : '')+
+      dashKpiCard('Ocupación efectiva', pctTxt(occ.pct),
+        occ.disponibles ? Math.round(occ.atendidos/60)+'h de '+Math.round(occ.disponibles/60)+'h disponibles' : 'sin horarios configurados')+
+    '</div>';
+  if(occ.sinHorario.length){
+    html += '<div class="a-dash-note">Sin horario configurado, excluidos de la ocupación: '+esc(occ.sinHorario.join(', '))+'.</div>';
+  }
+
+  // 6d · Mapa de ocupación por día y franja (las "horas débiles" del reporte)
+  html += '<div class="a-sh"><div class="a-st">Ocupación por día y hora</div>'+
+    '<div class="a-ss">Más oscuro = más ocupado. Las franjas claras son capacidad que no se vendió.</div></div>';
+  if(!heat.length){
+    html += '<div class="a-empty">Sin horarios configurados para el período.</div>';
+  } else {
+    var horas = [], dows = [];
+    heat.forEach(function(c){
+      if(horas.indexOf(c.hour) === -1) horas.push(c.hour);
+      if(dows.indexOf(c.dow) === -1) dows.push(c.dow);
+    });
+    horas.sort(function(a,b){ return a-b; });
+    // Lunes primero, domingo al final -- misma convención de semana que las
+    // series semanales del panel.
+    dows.sort(function(a,b){ return ((a+6)%7) - ((b+6)%7); });
+    var DN = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+    var cel = {};
+    heat.forEach(function(c){ cel[c.dow+'|'+c.hour] = c; });
+    html += '<div class="a-heat-wrap"><table class="a-heat"><thead><tr><th></th>'+
+      horas.map(function(h){ return '<th>'+(h<10?'0':'')+h+'</th>'; }).join('')+'</tr></thead><tbody>'+
+      dows.map(function(d){
+        return '<tr><th>'+DN[d]+'</th>'+horas.map(function(h){
+          var c = cel[d+'|'+h];
+          if(!c || c.pct == null) return '<td class="a-heat-na" title="Cerrado"></td>';
+          var lvl = c.pct >= .85 ? 5 : c.pct >= .65 ? 4 : c.pct >= .45 ? 3 : c.pct > 0 ? 2 : 1;
+          return '<td class="a-heat-'+lvl+'" title="'+DN[d]+' '+((h<10?'0':'')+h)+':00 · '+Math.round(c.pct*100)+'%">'+
+            Math.round(c.pct*100)+'</td>';
+        }).join('')+'</tr>';
+      }).join('')+'</tbody></table></div>'+
+      '<div class="a-dash-note">Valores en % de ocupación. Las celdas vacías son horas cerradas o bloqueadas.'+
+      (occ.estimados ? ' '+Math.round(occ.estimados/60)+'h del total son estimadas con la duración planificada, no medidas.' : '')+'</div>';
+  }
+
+  // 6e · Recomendaciones (las mismas que ve la vista simple)
+  if(cards.length){
+    html += '<div class="a-sh"><div class="a-st">Qué conviene mirar</div></div>'+
+      '<div class="a-ins-wrap">'+cards.map(dashInsightCard).join('')+'</div>';
+  }
+
   // 7 · Retención — nuevos vs recurrentes por mes (últimos 6, ventana fija)
   html += '<div class="a-sh"><div class="a-st">Clientes nuevos vs recurrentes — últimos 6 meses</div></div>'+
     '<div class="a-tw" style="padding:14px 16px;overflow:visible">'+ret.series.map(function(r){
@@ -2043,23 +2283,13 @@ function renderDash(){
   // 8 · Exportar
   html += '<div style="margin:18px 0 4px"><button class="a-btn a-btn-g" id="a-dash-csv">⬇ Exportar CSV</button></div>';
 
-  // 9 · Pie de nota
-  html += '<div class="a-dash-note">Ingresos estimados con precio de catálogo. "Realizado" asume que toda cita pasada ocurrió — aún no se registra asistencia.</div>';
+  // 9 · Pie de nota (dinámico según la cobertura de asistencia)
+  html += '<div class="a-dash-note">'+esc(notaCobertura)+'</div>';
 
   host.innerHTML = html;
+  dashBindShared(X, today, firstSeen);
 
-  // ── listeners: mutan la variable de módulo y re-renderizan (sin persistir) ──
-  g('a-dash-period').addEventListener('change', function(){
-    dashPeriod = this.value;
-    if(dashPeriod !== 'custom'){ dashFrom = ''; dashTo = ''; }
-    renderDash();
-  });
-  var dFrom = g('a-dash-from'), dTo = g('a-dash-to');
-  if(dFrom) dFrom.addEventListener('change', function(){ dashFrom = this.value; renderDash(); });
-  if(dTo) dTo.addEventListener('change', function(){ dashTo = this.value; renderDash(); });
-  g('a-dash-cmp').addEventListener('change', function(){ dashCompare = this.checked; renderDash(); });
-  g('a-dash-mode-real').addEventListener('click', function(){ dashMode = 'realizado'; renderDash(); });
-  g('a-dash-mode-agen').addEventListener('click', function(){ dashMode = 'agendado'; renderDash(); });
+  // ── listeners propios de la vista en detalle ──
   g('a-dash-tm-ing').addEventListener('click', function(){ dashTrendMetric = 'ingresos'; renderDash(); });
   g('a-dash-tm-cit').addEventListener('click', function(){ dashTrendMetric = 'citas'; renderDash(); });
   var sgS = g('a-dash-sg-svc'), sgC = g('a-dash-sg-cat');
@@ -2081,6 +2311,46 @@ function renderDash(){
       btn.disabled = false; btn.textContent = orig;
     }
   });
+}
+
+// Listeners de la barra de período, que existe en las DOS vistas. Se extrajo
+// para que la vista simple pueda retornar temprano sin duplicarlos: todos
+// mutan una variable de módulo y re-renderizan, nada se persiste.
+function dashBindShared(X, today, firstSeen){
+  g('a-dash-view-s').addEventListener('click', function(){ dashView = 'simple'; renderDash(); });
+  g('a-dash-view-d').addEventListener('click', function(){ dashView = 'detalle'; renderDash(); });
+  g('a-dash-period').addEventListener('change', function(){
+    dashPeriod = this.value;
+    if(dashPeriod !== 'custom'){ dashFrom = ''; dashTo = ''; }
+    renderDash();
+  });
+  var dFrom = g('a-dash-from'), dTo = g('a-dash-to');
+  if(dFrom) dFrom.addEventListener('change', function(){ dashFrom = this.value; renderDash(); });
+  if(dTo) dTo.addEventListener('change', function(){ dashTo = this.value; renderDash(); });
+  g('a-dash-cmp').addEventListener('change', function(){ dashCompare = this.checked; renderDash(); });
+  g('a-dash-mode-real').addEventListener('click', function(){ dashMode = 'realizado'; renderDash(); });
+  g('a-dash-mode-agen').addEventListener('click', function(){ dashMode = 'agendado'; renderDash(); });
+}
+
+// Tarjeta de recomendación. La leyenda del pie no es decorativa: el reporte
+// (§8) pide que cada tarjeta declare que es una sugerencia y que el sistema
+// no cambia nada por su cuenta.
+var INS_LABEL = { prioridad:'Prioridad', oportunidad:'Oportunidad', positivo:'Buen desempeño' };
+var INS_CONF = {
+  recolectando:'recolectando información', preliminar:'tendencia preliminar',
+  suficiente:'datos suficientes', alta:'confianza alta',
+};
+function dashInsightCard(c){
+  return '<div class="a-ins a-ins-'+esc(c.tipo)+'">'+
+    '<div class="a-ins-k">'+esc(INS_LABEL[c.tipo] || c.tipo)+'</div>'+
+    '<div class="a-ins-t">'+esc(c.titulo)+'</div>'+
+    '<div class="a-ins-d">'+esc(c.dato)+'</div>'+
+    (c.opciones && c.opciones.length
+      ? '<ul class="a-ins-o">'+c.opciones.map(function(o){ return '<li>'+esc(o)+'</li>'; }).join('')+'</ul>'
+      : '')+
+    '<div class="a-ins-f">'+esc(INS_CONF[c.confianza] || c.confianza)+
+      ' · sugerencia basada en datos; no modifica la configuración.</div>'+
+  '</div>';
 }
 
 // ═══ BOOKINGS HELPERS ═══

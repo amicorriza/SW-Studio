@@ -47,6 +47,8 @@ await page.addInitScript(() => {
   const at = (deltaDays) => { const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()+deltaDays, 12)); return ymd(d); };
   const monthBack = (m, day) => { const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth()-m, day, 12)); return ymd(d); };
 
+  const DIA = { open:true, start:'10:00', end:'20:00', break:{ start:'13:00', end:'14:00' } };
+
   const SVCS = [
     { svcId:'corte', svcName:'Corte de cabello', svcCat:'c', price:14000, dur:45 },
     { svcId:'barba', svcName:'Perfilado de barba', svcCat:'b', price:9000, dur:30 },
@@ -90,12 +92,44 @@ await page.addInitScript(() => {
   // declined en el mes actual: no debe aportar a nada
   BK.push({ code:'SW-DEC', name:'Declinada', email:'ben@x.cl', svcId:'aseso', svcName:'Asesoría de imagen', svcCat:'a', price:25000, dur:60, barberId:'victoria', barberName:'Victoria', date: monthBack(0, 3), time:'11:00', status:'declined', club:'guest' });
 
+  // ── P2: citas con asistencia REAL registrada, en el mes en curso ──
+  // 'Corte de cabello' se pasa del plan (45 -> mediana 53) para que dispare
+  // la regla de sobretiempo; 'Perfilado de barba' queda dentro del plan.
+  const REALES = [53, 50, 53, 58, 53, 45, 53, 56, 53, 50, 53, 60, 53, 48, 53,
+                  55, 53, 47, 53, 52, 53, 49, 53, 51, 53, 46, 53, 54, 53, 50];
+  REALES.forEach((real, k) => {
+    BK.push({
+      code:'SW-R'+k, name:'Atendido '+k, email:'r'+(k%7)+'@x.cl',
+      svcId:'corte', svcName:'Corte de cabello', svcCat:'c', price:14000, dur:45,
+      barberId: BARB[k%2].id, barberName: BARB[k%2].name,
+      date: monthBack(0, 1 + (k % 20)), time: (10 + (k % 8)) + ':00',
+      status:'completed', actualDur: real, durSource: k === 3 ? 'manual' : 'timer',
+      startedAt:'2026-09-01T13:00:00.000Z', endedAt:'2026-09-01T13:53:00.000Z',
+      club:'guest',
+    });
+  });
+  // Tres inasistencias: 3/33 medidas = 9%, sobre el umbral de 8%.
+  for(let k = 0; k < 3; k++){
+    BK.push({ code:'SW-NS'+k, name:'No vino '+k, email:'ns'+k+'@x.cl',
+      svcId:'corte', svcName:'Corte de cabello', svcCat:'c', price:14000, dur:45,
+      barberId:'victoria', barberName:'Victoria', date: monthBack(0, 2 + k), time:'12:00',
+      status:'no_show', noShowAt:'2026-09-01T15:00:00.000Z', club:'guest' });
+  }
+  // Cancelada: no debe contar como ingreso ni como demanda.
+  BK.push({ code:'SW-CAN', name:'Canceló', email:'can@x.cl',
+    svcId:'corte', svcName:'Corte de cabello', svcCat:'c', price:14000, dur:45,
+    barberId:'victoria', barberName:'Victoria', date: monthBack(0, 8), time:'12:00',
+    status:'cancelled', cancelledAt:'2026-09-01T15:00:00.000Z', club:'guest' });
+
   window.__BK = BK;
   window.SWAuth = { signIn: async () => ({uid:'test'}), signOut: async () => {}, onChange: () => () => {} };
   window.SWData = {
     loadAdmin: async () => ({
       services: SVCS.map(s => ({ ...s, id:s.svcId, name:s.svcName, cat:s.svcCat, status:'active' })),
-      staff: BARB.map(b => ({ ...b, status:'active', photo:'', schedule:[null] })),
+      // Horario real de lunes a sábado: sin esto mOccupancy no tiene
+      // disponibilidad y el heatmap sale vacío.
+      staff: BARB.map(b => ({ ...b, status:'active', photo:'',
+        schedule: [null, DIA, DIA, DIA, DIA, DIA, DIA] })),
       info: { name:'Scissor White', addr:'Cochrane 635', tz:'America/Santiago' },
       log: [], schedule: [],
     }),
@@ -121,14 +155,101 @@ await page.waitForTimeout(200);
 
 check('sin errores JS al cargar el Dashboard', errors.length === 0, errors.slice(0,4));
 
+// ══════════ VISTA SIMPLE (el default) ══════════
+const simple = await page.evaluate(() => ({
+  viewSOn: document.getElementById('a-dash-view-s').classList.contains('a-on'),
+  kpis: [...document.querySelectorAll('#a-dash .a-dash-kpis .a-scl')].map(e => e.textContent.trim()),
+  svgs: document.querySelectorAll('#a-dash .a-dash-svgwrap svg').length,
+  insights: document.querySelectorAll('#a-dash .a-ins').length,
+  // Lo que el PDF manda al detalle NO debe estar acá.
+  csv: !!document.getElementById('a-dash-csv'),
+  retencion: document.querySelectorAll('#a-dash .a-dash-stack').length,
+  heat: document.querySelectorAll('#a-dash .a-heat').length,
+  nota: (document.querySelector('#a-dash .a-dash-note') || {}).textContent || '',
+}));
+check('arranca en la vista simple', simple.viewSOn, simple.viewSOn);
+check('la vista simple tiene exactamente 5 KPI', simple.kpis.length === 5, simple.kpis);
+check('son los 5 KPI que pide el reporte',
+  JSON.stringify(simple.kpis) === JSON.stringify(['Ventas del período','Reservas','Asistencia real','No-show','Ticket promedio']),
+  simple.kpis);
+check('un solo gráfico en la vista simple', simple.svgs === 1, simple.svgs);
+check('la vista simple no trae retención, CSV ni heatmap',
+  !simple.csv && simple.retencion === 0 && simple.heat === 0, simple);
+check('con 33 atenciones medidas aparecen recomendaciones', simple.insights >= 1, simple.insights);
+check('el pie declara la cobertura de asistencia', /asistencia registrada/.test(simple.nota), simple.nota.slice(0,140));
+
+// Los KPI de asistencia se calculan sobre las citas MEDIDAS, no sobre el
+// total. Se comparan contra un recomputo independiente con el propio
+// SWMetrics en vez de un valor fijo: el modo por defecto es "Realizado", así
+// que qué citas entran depende de la fecha en que corra el test.
+const asis = await page.evaluate(() => {
+  const X = window.SWMetrics, BK = window.__BK, tz = 'America/Santiago';
+  const today = X.bizToday(tz);
+  const mb = X.monthBounds(today.slice(0,7));
+  const opts = { from:mb.from, to:mb.to, mode:'realizado', today };
+  const att = X.mAttendance(X.mFilterPeriodAll(BK, opts));
+  const cov = X.mAttendanceCoverage(X.mFilterPeriod(BK, opts));
+  const pintado = Object.fromEntries([...document.querySelectorAll('#a-dash .a-dash-kpis .a-sc')]
+    .map(c => [c.querySelector('.a-scl').textContent.trim(), c.querySelector('.a-scv').textContent.trim()]));
+  const p = v => v == null ? '—' : Math.round(v*100)+'%';
+  return {
+    pintado, medidas: att.atendidas + att.noShow,
+    esperadoAsis: p(att.asistenciaPct), esperadoNs: p(att.noShowPct),
+    esperadoVentas: '$' + X.mRevenue(X.mFilterPeriod(BK, opts)).toLocaleString('es-CL'),
+    coverage: cov.pct,
+  };
+});
+check('hay asistencia medida en el fixture', asis.medidas >= 10, asis.medidas);
+check('Asistencia real coincide con el recomputo', asis.pintado['Asistencia real'] === asis.esperadoAsis, asis);
+check('No-show coincide con el recomputo', asis.pintado['No-show'] === asis.esperadoNs, asis);
+check('Ventas del período excluye los no-show', asis.pintado['Ventas del período'] === asis.esperadoVentas, asis);
+check('la cobertura de asistencia es parcial en el fixture', asis.coverage > 0 && asis.coverage < 1, asis.coverage);
+
+const insCards = await page.evaluate(() => [...document.querySelectorAll('#a-dash .a-ins')].map(c => ({
+  tipo: [...c.classList].find(x => x.startsWith('a-ins-') && x !== 'a-ins-wrap'),
+  t: (c.querySelector('.a-ins-t')||{}).textContent || '',
+  f: (c.querySelector('.a-ins-f')||{}).textContent || '',
+})));
+check('toda recomendación aclara que no modifica la configuración',
+  insCards.length > 0 && insCards.every(c => /no modifica la configuración/.test(c.f)), insCards);
+check('no hay más de 3 recomendaciones', insCards.length <= 3, insCards.length);
+
+// ══════════ VISTA EN DETALLE ══════════
+await page.click('#a-dash-view-d');
+await page.waitForTimeout(200);
+
+const detalle = await page.evaluate(() => ({
+  viewDOn: document.getElementById('a-dash-view-d').classList.contains('a-on'),
+  tvr: document.querySelectorAll('#a-dash .a-tvr').length,
+  heatCells: document.querySelectorAll('#a-dash .a-heat td').length,
+  heatRows: document.querySelectorAll('#a-dash .a-heat tbody tr').length,
+  kpiRows: document.querySelectorAll('#a-dash .a-dash-kpis').length,
+  dev: (document.querySelector('#a-dash .a-tvr-dev') || {}).textContent || '',
+  ocupacion: [...document.querySelectorAll('#a-dash .a-dash-kpis .a-scl')].some(e => /Ocupación/.test(e.textContent)),
+  dias: [...document.querySelectorAll('#a-dash .a-heat tbody th')].map(e => e.textContent.trim()),
+  horas: [...document.querySelectorAll('#a-dash .a-heat thead th')].map(e => e.textContent.trim()).filter(Boolean),
+}));
+check('el toggle deja activa la vista en detalle', detalle.viewDOn, detalle);
+check('aparece tiempo planificado vs real', detalle.tvr >= 1, detalle.tvr);
+check('la desviación del corte es +18% (45 plan, 53 mediana)', /\+18%/.test(detalle.dev), detalle.dev);
+// El fixture cierra los domingos (schedule[0] es null), así que el mapa no
+// debe tener nunca una fila de domingo -- eso es invariante, a diferencia de
+// cuántos días de semana caen en el rango, que depende de la fecha de hoy.
+check('el mapa tiene entre 1 y 6 filas', detalle.heatRows >= 1 && detalle.heatRows <= 6, detalle.heatRows);
+check('el mapa no muestra el domingo, que está cerrado', !detalle.dias.includes('Dom'), detalle.dias);
+check('las columnas del mapa son las horas de atención (10-19)',
+  detalle.horas[0] === '10' && detalle.horas[detalle.horas.length-1] === '19', detalle.horas);
+check('el mapa tiene celdas', detalle.heatCells > 0, detalle.heatCells);
+check('aparece el KPI de ocupación efectiva', detalle.ocupacion, detalle);
+
 const layout = await page.evaluate(() => ({
-  kpis: document.querySelectorAll('#a-dash .a-dash-kpis .a-sc').length,
+  kpis: document.querySelectorAll('#a-dash .a-dash-kpis')[0].querySelectorAll('.a-sc').length,
   svgs: document.querySelectorAll('#a-dash .a-dash-svgwrap svg').length,
   retRows: document.querySelectorAll('#a-dash .a-dash-stack').length,
   periodOpts: document.querySelectorAll('#a-dash-period option').length,
   hasCsv: !!document.getElementById('a-dash-csv'),
 }));
-check('5 tarjetas de KPI', layout.kpis === 5, layout.kpis);
+check('la fila principal del detalle mantiene sus 5 KPI', layout.kpis === 5, layout.kpis);
 check('2 gráficos SVG (12 meses + 12 semanas)', layout.svgs === 2, layout.svgs);
 check('retención con 6 barras apiladas', layout.retRows === 6, layout.retRows);
 check('selector de período con 5 presets', layout.periodOpts === 5, layout.periodOpts);
@@ -220,7 +341,19 @@ check('el CSV arranca con BOM', csv.charCodeAt(0) === 0xFEFF, csv.charCodeAt(0))
 check('el CSV tiene header + 12 meses', lines.length === 13, lines.length);
 check('el header del CSV es el esperado', lines[0].replace(/^﻿/, '').startsWith('Mes,Citas,Ingresos CLP'), lines[0]);
 
-await page.locator('#adm-p-dashboard').screenshot({ path: path.join(OUT, 'admin-dashboard.png') }).catch(()=>{});
+// Captura acotada de las secciones nuevas del detalle: un screenshot del
+// panel completo mide varios miles de píxeles y no sirve para revisar nada.
+await page.evaluate(() => {
+  const sh = [...document.querySelectorAll('#a-dash .a-sh')].find(e => /Tiempo planificado/.test(e.textContent));
+  if(sh) sh.scrollIntoView({ block:'start' });
+});
+await page.waitForTimeout(250);
+await page.screenshot({ path: path.join(OUT, 'admin-dashboard-detalle.png') }).catch(()=>{});
+// La vista simple es la pantalla principal del panel: se captura aparte para
+// poder revisarla a ojo.
+await page.click('#a-dash-view-s');
+await page.waitForTimeout(200);
+await page.locator('#adm-p-dashboard').screenshot({ path: path.join(OUT, 'admin-dashboard-simple.png') }).catch(()=>{});
 
 console.log(fails === 0 ? '\n== TODO OK ==' : `\n== ${fails} FALLAS ==`);
 await browser.close(); server.close();

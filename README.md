@@ -347,16 +347,27 @@ El índice `bookings(barberId, date)` es nuevo y tarda unos minutos en
 construirse; hasta que termine, la app del barbero da error al cargar la
 agenda. Las reglas solo suman el bloque `staffDevices/{uid}`.
 
-Después las funciones, **con los nombres explícitos** (ver el comando completo
-en [Deploy](#deploy) — sin nombres, el CLI ofrece borrar `api`, que es de otra
-rama):
+Después las funciones. **Hay que desplegar las quince, no solo las nuevas** —
+el comando completo está en [Deploy](#deploy).
 
-```bash
-firebase deploy --project scissor-white --only   functions:getMyDay,functions:markAttendance,functions:linkStaffAccount,functions:staffAttendanceNudges
-```
+> **Un despliegue parcial sería una regresión.** `functions/shared/availability.js`
+> cambió: ahora `computeAvailability` filtra por `BLOCKING_STATUSES`. En lo que
+> está desplegado hoy no filtra por estado **en absoluto**, así que toda reserva
+> ocupa el horario. Si se despliegan solo las funciones nuevas, el admin nuevo
+> cancela una cita (queda como `cancelled`, ya no se borra) pero el
+> `getAvailability` viejo la sigue contando como ocupada: **ese horario no se
+> libera nunca** en el widget público. Hoy cancelar sí lo libera, porque borra
+> el documento. Lo mismo aplica a `onBookingWritten` y `onScheduleBlockWritten`,
+> que recalculan `availability/{fecha}` con la misma función.
 
-`staffAttendanceNudges` queda instalada pero **en no-op**: sin
-`businessInfo.nudgesEnabled` no manda nada. Desplegar no es activar.
+Los nombres van explícitos siempre: sin ellos el CLI ofrece borrar `api`, que
+pertenece a otra rama.
+
+Esto instala además dos trabajos de Cloud Scheduler nuevos
+(`sendBookingReminders` y `staffAttendanceNudges`), que con
+`refreshGoogleReviews` suman tres — el tope de la cuota gratuita. **Los dos
+quedan en no-op**: sin `remindersEnabled` ni `nudgesEnabled` no mandan nada.
+Desplegar no es activar.
 
 ### 2. Front-end a un canal de preview, NO a producción
 

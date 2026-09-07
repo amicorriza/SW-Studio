@@ -248,6 +248,24 @@ async function getAvailability(date, barberId) {
   return data; // { barberBusy, activeBarberIds }
 }
 
+// Recordatorio de citas: lee el resumen de una reserva para pintar
+// confirmar-cita.html, vía Cloud Function (el cliente no puede leer
+// `bookings` directo -- ver firestore.rules). Nunca devuelve reminderToken.
+async function getBookingForReminderAction(code, token) {
+  const call = httpsCallable(functions, 'getBookingForReminderAction');
+  const { data } = await call({ code, token });
+  return data; // { code, date, time, svcName, barberName, status }
+}
+
+// Aplica la respuesta del cliente (confirmar/declinar) al recordatorio.
+// `action` es 'confirm' | 'decline'. Idempotente: un segundo tap del mismo
+// link devuelve { already: true, status } sin volver a escribir.
+async function respondToBookingReminder(code, token, action) {
+  const call = httpsCallable(functions, 'respondToBookingReminder');
+  const { data } = await call({ code, token, action });
+  return data; // { ok, already, status }
+}
+
 // Disponibilidad real en tiempo real, vía la vista materializada
 // `availability/{YYYY-MM-DD}` que mantiene la Cloud Function
 // onBookingWritten (nunca contiene PII, solo rangos ocupados derivados —
@@ -303,6 +321,7 @@ window.SWData = {
   loadSiteImages, saveSiteImage, deleteSiteImage,
   getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
   loadGoogleReviews, saveManualReviews, syncGoogleReviews,
+  getBookingForReminderAction, respondToBookingReminder,
 };
 export {
   loadAdmin, saveAdmin, loadCatalog, getBookings, saveBooking, deleteBooking, subscribeBookings, createBooking,
@@ -311,4 +330,5 @@ export {
   loadSiteImages, saveSiteImage, deleteSiteImage,
   getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
   loadGoogleReviews, saveManualReviews, syncGoogleReviews,
+  getBookingForReminderAction, respondToBookingReminder,
 };

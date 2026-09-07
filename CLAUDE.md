@@ -27,9 +27,12 @@ Estado conocido, a verificar antes de tocar nada:
   copia CEL muerta (documentación) y isValidEmail() como el único gate real
   del camino de escritura directa del admin -- esa brecha (el admin no pasa
   por isValidBookingPayload) sigue sin cerrar, es trabajo aparte.
-  Estado: functions/shared/status.js centraliza DEFAULT_BOOKING_STATUS
-  ('pending'), pero sigue sin existir ninguna transición de estado en el
-  repo -- eso no cambió con este goal.
+  Estado: functions/shared/status.js centraliza BOOKING_STATUSES
+  ('pending'/'confirmed'/'declined') y DEFAULT_BOOKING_STATUS ('pending').
+  Primera transición de estado real del repo: pending -> confirmed/declined,
+  vía el recordatorio de citas (functions/reminders.js,
+  exports.respondToBookingReminder en functions/index.js). Cancelar sigue
+  siendo deleteDoc (destruye el registro) -- eso no cambió con este goal.
 - isAdmin() es custom claim admin:true O UN UID ESCRITO A MANO, repetido en cuatro
   archivos: firestore.rules, storage.rules (x2), functions/index.js.
 - buildBookingDoc() escribe status:'pending' fijo y nada lo cambia jamás.
@@ -45,9 +48,11 @@ Estado conocido, a verificar antes de tocar nada:
   y se persiste al primer guardado. `updatedAt` (ISO) se setea en cada
   alta/edición/duplicado/ajuste masivo. Reordenar a mano (arrastrar / ↑↓)
   solo con filtro "Todos" + orden manual.
-- computeAvailability no filtra por status.
-- Despliegue manual con ocho nombres de función a mano; createBooking ya quedó
-  fuera de esa lista una vez y se congeló en silencio.
+- computeAvailability excluye status:'declined' de barberBusy (recordatorio
+  de citas, 2026-09); 'pending' y 'confirmed' siguen ocupando el horario
+  igual que antes.
+- Despliegue manual con once nombres de función a mano (ver README.md);
+  createBooking ya quedó fuera de esa lista una vez y se congeló en silencio.
 
 INVARIANTES — ningún goal puede romperlos:
 - La zona horaria del negocio gobierna, nunca la del navegador (IANA, zonedInstant()).
@@ -60,10 +65,16 @@ INVARIANTES — ningún goal puede romperlos:
 PROHIBIDO en todas las etapas 0 y A:
 - Migrar a React, Vue o cualquier framework.
 - Reescribir los HTML monolíticos: sustituir funciones, no reestructurar.
-- Implementar holds, recordatorios, autogestión o WhatsApp (eso es etapa B y C).
 - Tocar el módulo de reseñas de Google.
 - Cambiar el diseño visual.
 - Desplegar a producción. Todo va a staging; los despliegues los hace Aldo.
+
+Nota (2026-09-01): el proyecto avanzó a etapa B/C -- "holds, recordatorios,
+autogestión o WhatsApp" dejó de estar prohibido. El recordatorio de citas
+(confirmar/declinar 24h antes) ya está implementado (ver
+docs/superpowers/specs/2026-09-01-recordatorio-citas-design.md); holds,
+autogestión completa (modificar/cancelar) y WhatsApp como canal siguen sin
+construirse, pero ya no están bloqueados por etapa.
 
 REGLA DE TRABAJO: si el repo contradice algo de este contexto, detente y avísame
 antes de escribir código. No improvises sobre una suposición equivocada.

@@ -46,6 +46,28 @@ test('acepta una reserva válida y arma el doc final (status/emailStatus/src cor
   assert.strictEqual(result.doc.src, 'callable');
 });
 
+test('el doc trae un reminderToken de 32 hex desde la creación -- así el email inicial ya puede ofrecer confirmar/declinar', () => {
+  const result = resolveCreateBooking({
+    businessTz: TZ,
+    payload: basePayload(), now: NOW, service: SERVICE, staff: staffList(),
+    bookingsForDay: [], scheduleBlocksForDay: [],
+  });
+  assert.strictEqual(result.ok, true);
+  assert.match(result.doc.reminderToken, /^[0-9a-f]{32}$/);
+});
+
+test('dos reservas creadas seguidas obtienen reminderToken distintos', () => {
+  const a = resolveCreateBooking({
+    businessTz: TZ, payload: basePayload(), now: NOW, service: SERVICE, staff: staffList(),
+    bookingsForDay: [], scheduleBlocksForDay: [],
+  });
+  const b = resolveCreateBooking({
+    businessTz: TZ, payload: basePayload({ code: 'SW-TEST2' }), now: NOW, service: SERVICE, staff: staffList(),
+    bookingsForDay: [], scheduleBlocksForDay: [],
+  });
+  assert.notStrictEqual(a.doc.reminderToken, b.doc.reminderToken);
+});
+
 test('el doc siempre trae `tz`, incluso cuando la zona resuelta ES el default -- la ausencia del campo, no su valor, marca "reserva de antes de Fase 2"', () => {
   // TZ acá vale lo mismo que DEFAULT_TZ a propósito: prueba que buildBookingDoc
   // no "ahorra" el campo cuando coincide con el default -- si lo hiciera, un
@@ -320,7 +342,14 @@ test('la zona del CLIENTE no existe como concepto -- mismo payload/businessTz, m
   };
   const asIfClienteSantiago = resolveCreateBooking({ ...args }); // cliente "en" UTC-3/-4 (misma zona que el negocio)
   const asIfClienteTokio = resolveCreateBooking({ ...args }); // cliente "en" UTC+9 -- el payload es idéntico, no hay forma de que esto cambie nada
-  assert.deepStrictEqual(asIfClienteSantiago, asIfClienteTokio);
+  // reminderToken es aleatorio por diseño (32 hex distintos en cada llamada,
+  // ver createBooking.test.js "reminderToken distintos") -- se excluye de
+  // esta comparación puntual, que verifica que TODO LO DEMÁS es idéntico.
+  const { reminderToken: tokenA, ...docA } = asIfClienteSantiago.doc;
+  const { reminderToken: tokenB, ...docB } = asIfClienteTokio.doc;
+  assert.deepStrictEqual({ ...asIfClienteSantiago, doc: docA }, { ...asIfClienteTokio, doc: docB });
+  assert.match(tokenA, /^[0-9a-f]{32}$/);
+  assert.match(tokenB, /^[0-9a-f]{32}$/);
 });
 
 // ── Bordes del día calendario, donde el bug original (hardcodear 'Z') habría

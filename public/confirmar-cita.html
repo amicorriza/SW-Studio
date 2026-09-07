@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confirmar cita — SW Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0A0A; --white:#FAFAFA; --off:#F4F4F4;
+    --g100:#F0F0F0; --g200:#E0E0E0; --g300:#C8C8C8;
+    --text:#111; --body:#1E1E1E; --meta:#505050;
+    --steel-border:linear-gradient(135deg,#A8B2BE 0%,#DFE4EA 50%,#A0AAB8 100%);
+    --steel-dark:#6A7888; --err:#C44545;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--white);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;flex-direction:column}
+  [hidden]{display:none!important}
+
+  header{background:var(--ink);padding:16px 24px;display:flex;align-items:center;justify-content:center;gap:12px}
+  header img{width:34px;height:34px;border-radius:50%;object-fit:cover;background:#fff}
+  header span{font-family:'Audiowide','Orbitron',sans-serif;font-size:15px;letter-spacing:.04em;color:#fff;text-transform:uppercase}
+
+  main{flex:1;display:flex;align-items:center;justify-content:center;padding:32px 20px}
+  .cc-card{width:100%;max-width:460px;text-align:center}
+
+  .cc-msg{font-size:15px;color:var(--body);line-height:1.6}
+  .cc-msg.err{color:var(--err);font-weight:500}
+
+  .cc-icon{
+    width:64px;height:64px;border-radius:50%;margin:0 auto 20px;
+    background-image:linear-gradient(#fff,#fff),var(--steel-border);
+    background-origin:border-box;background-clip:padding-box,border-box;
+    border:2px solid transparent;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 8px 28px -8px rgba(120,130,145,.3);color:var(--ink)
+  }
+
+  h1{font-family:'Orbitron',sans-serif;font-size:clamp(20px,4vw,26px);font-weight:500;margin:0 0 10px;line-height:1.15}
+  .cc-sub{font-size:14px;color:var(--body);line-height:1.6;margin:0 0 22px}
+
+  .cc-details{
+    background:#fff;background-image:linear-gradient(#fff,#fff),var(--steel-border);
+    background-origin:border-box;background-clip:padding-box,border-box;
+    border:2px solid transparent;border-radius:14px;
+    text-align:left;padding:18px 22px;margin-bottom:22px
+  }
+  .cc-row{display:flex;flex-direction:column;gap:3px;padding:10px 0;border-bottom:1px solid var(--g100)}
+  .cc-row:last-child{border-bottom:none;padding-bottom:0}
+  .cc-row:first-child{padding-top:0}
+  .cc-lbl{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;color:var(--steel-dark)}
+  .cc-val{font-size:14px;font-weight:500;color:var(--text)}
+
+  .cc-btn{
+    width:100%;font-family:'Barlow Condensed',sans-serif;
+    font-size:12px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;
+    padding:14px 22px;border-radius:7px;border:1.5px solid transparent;
+    cursor:pointer;transition:all .2s
+  }
+  .cc-btn-p{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .cc-btn-p:hover:not(:disabled){background:transparent;color:var(--ink)}
+  .cc-btn-s{background:transparent;color:var(--meta);border-color:var(--g200)}
+  .cc-btn-s:hover{border-color:var(--ink);color:var(--ink)}
+  .cc-btn:disabled{background:var(--g200);color:var(--g300);border-color:var(--g200);cursor:not-allowed}
+</style>
+</head>
+<body>
+<header>
+  <img src="/assets/logo.png" alt="SW Studio">
+  <span>SW Studio</span>
+</header>
+<main>
+  <div class="cc-card">
+    <div id="cc-loading" class="cc-msg">Cargando tu reserva…</div>
+    <div id="cc-error" class="cc-msg err" hidden></div>
+    <div id="cc-summary" hidden>
+      <h1 id="cc-title"></h1>
+      <div class="cc-details">
+        <div class="cc-row"><span class="cc-lbl">Fecha</span><span class="cc-val" id="cc-date"></span></div>
+        <div class="cc-row"><span class="cc-lbl">Hora</span><span class="cc-val" id="cc-time"></span></div>
+        <div class="cc-row"><span class="cc-lbl">Servicio</span><span class="cc-val" id="cc-svc"></span></div>
+        <div class="cc-row"><span class="cc-lbl">Profesional</span><span class="cc-val" id="cc-barber"></span></div>
+      </div>
+      <button class="cc-btn" id="cc-action-btn"></button>
+    </div>
+    <div id="cc-done" hidden>
+      <div class="cc-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 12 10 18 20 6"/></svg>
+      </div>
+      <h1 id="cc-done-h"></h1>
+      <p class="cc-sub" id="cc-done-sub"></p>
+    </div>
+  </div>
+</main>
+<script type="module">
+  import { getBookingForReminderAction, respondToBookingReminder } from './js/data.js';
+
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code') || '';
+  const token = params.get('t') || '';
+  const r = params.get('r') === 'decline' ? 'decline' : 'confirm';
+
+  const els = {
+    loading: document.getElementById('cc-loading'),
+    error: document.getElementById('cc-error'),
+    summary: document.getElementById('cc-summary'),
+    done: document.getElementById('cc-done'),
+    title: document.getElementById('cc-title'),
+    date: document.getElementById('cc-date'),
+    time: document.getElementById('cc-time'),
+    svc: document.getElementById('cc-svc'),
+    barber: document.getElementById('cc-barber'),
+    btn: document.getElementById('cc-action-btn'),
+    doneH: document.getElementById('cc-done-h'),
+    doneSub: document.getElementById('cc-done-sub'),
+  };
+
+  function showError(msg) {
+    els.loading.hidden = true;
+    els.error.hidden = false;
+    els.error.textContent = msg;
+  }
+
+  function showDone(heading, sub) {
+    els.summary.hidden = true;
+    els.done.hidden = false;
+    els.doneH.textContent = heading;
+    els.doneSub.textContent = sub;
+  }
+
+  async function init() {
+    if (!code || !token) {
+      showError('Este link no es válido.');
+      return;
+    }
+    let booking;
+    try {
+      booking = await getBookingForReminderAction(code, token);
+    } catch (e) {
+      showError('No encontramos esa reserva. El link puede haber expirado.');
+      return;
+    }
+
+    els.loading.hidden = true;
+
+    if (booking.status !== 'pending') {
+      showDone(
+        booking.status === 'confirmed' ? '¡Ya estaba confirmada!' : 'Ya avisaste que no ibas a poder ir',
+        booking.status === 'confirmed' ? 'Te esperamos en SW Studio.' : 'Gracias por avisar con tiempo.'
+      );
+      return;
+    }
+
+    els.title.textContent = r === 'confirm' ? '¿Nos confirmas tu asistencia?' : '¿No podrás venir?';
+    els.date.textContent = booking.date;
+    els.time.textContent = booking.time + ' hrs';
+    els.svc.textContent = booking.svcName || '';
+    els.barber.textContent = booking.barberName || '';
+    els.summary.hidden = false;
+
+    els.btn.textContent = r === 'confirm' ? 'Sí, confirmo mi asistencia' : 'No podré ir, declinar cita';
+    els.btn.className = 'cc-btn ' + (r === 'confirm' ? 'cc-btn-p' : 'cc-btn-s');
+    els.btn.addEventListener('click', onAct, { once: true });
+  }
+
+  async function onAct() {
+    els.btn.disabled = true;
+    els.btn.textContent = 'Enviando…';
+    try {
+      await respondToBookingReminder(code, token, r);
+      showDone(
+        r === 'confirm' ? '¡Gracias, te esperamos!' : 'Listo, liberamos tu horario',
+        r === 'confirm' ? 'Nos vemos pronto en SW Studio.' : 'Cuando quieras, puedes agendar otra hora desde el sitio.'
+      );
+    } catch (e) {
+      showError('No pudimos registrar tu respuesta. Intenta de nuevo o escríbenos por WhatsApp.');
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>

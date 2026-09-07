@@ -212,7 +212,7 @@
 // remitente, no autoriza a enviar. No va a Secret Manager ni a
 // functions/.env. Mientras esté vacía, la app funciona completa salvo el
 // push -- el botón "Activar avisos" avisa que falta configurarla.
-const VAPID_KEY = '';
+const VAPID_KEY = 'BOdV3okTX8DlaJ4yj2xf-R3W2ASpooXcWDf5MDGkSsIqhj3InuUlxQobJlQU0s-vUuerpLyRtlzqSOxhd_KQ2gU';
 
 const g = (id) => document.getElementById(id);
 const els = {
@@ -473,23 +473,71 @@ async function applyDeepLink() {
 }
 
 // ── push ──
-async function activarAvisos() {
+// ¿Este dispositivo tiene un token REGISTRADO ahora mismo? No alcanza con
+// que el permiso del navegador esté concedido: el permiso sobrevive a borrar
+// los datos del sitio, a reinstalar la PWA y a que FCM rote el token, y en
+// todos esos casos el permiso sigue en 'granted' con staffDevices vacío.
+let PUSH_LISTO = false;
+
+// register() resuelve apenas el navegador acepta el script, NO cuando el
+// worker está activo, y pedir el token antes falla con "Subscription failed
+// - no active Service Worker". Se espera sobre el registro y no sobre
+// navigator.serviceWorker.ready: ese promise no resuelve de forma confiable
+// en la primera visita (verificado -- usarlo dejaba el registro sin token y
+// sin ningún error). El tope evita que un worker que nunca activa cuelgue la
+// activación para siempre.
+function esperarActivo(reg, msTope) {
+  if (reg.active) return Promise.resolve();
+  return new Promise(function (resolve) {
+    const sw = reg.installing || reg.waiting;
+    if (!sw) return resolve();
+    const t = setTimeout(resolve, msTope || 10000);
+    sw.addEventListener('statechange', function () {
+      if (sw.state === 'activated') { clearTimeout(t); resolve(); }
+    });
+  });
+}
+
+// `silencioso` la usa el arranque para refrescar el token cuando el permiso
+// YA estaba concedido: los tokens de FCM rotan solos, y sin este refresco el
+// dispositivo deja de recibir avisos sin que nadie se entere.
+let PUSH_EN_CURSO = false;
+
+async function activarAvisos(silencioso) {
+  const avisar = (msg, err) => { if (!silencioso) toast(msg, err); };
+
+  // El refresco del arranque y el botón pueden dispararse casi juntos. Dos
+  // register()/getToken() concurrentes se pisan y dejan el registro a medias
+  // -- se ve como "no pasó nada": sin token, sin error y con el botón
+  // todavía ofreciendo activar.
+  if (PUSH_EN_CURSO) { avisar('Activando avisos, esperá un momento…'); return; }
+  PUSH_EN_CURSO = true;
+
+  const soltar = () => { PUSH_EN_CURSO = false; };
+
   if (!('serviceWorker' in navigator) || !('Notification' in window) || !('PushManager' in window)) {
-    toast('Este navegador no soporta avisos. En iPhone hay que agregar la app a la pantalla de inicio primero.', true);
+    soltar();
+    avisar('Este navegador no soporta avisos. En iPhone hay que agregar la app a la pantalla de inicio primero.', true);
     return;
   }
   if (!VAPID_KEY) {
-    toast('Falta configurar la clave VAPID del proyecto. Avisale a quien administra el sitio.', true);
+    soltar();
+    avisar('Falta configurar la clave VAPID del proyecto. Avisale a quien administra el sitio.', true);
     return;
   }
+  // Pedir el permiso sin un gesto del usuario dispara un diálogo de la nada:
+  // iOS lo exige y Chrome lo penaliza. En modo silencioso solo se refresca
+  // el token si el permiso ya estaba dado.
+  if (silencioso && Notification.permission !== 'granted') { soltar(); return; }
+
   try {
-    // El permiso DEBE pedirse desde un gesto del usuario, no al cargar: iOS
-    // lo exige y Chrome penaliza los pedidos automáticos.
-    const permiso = await Notification.requestPermission();
+    const permiso = Notification.permission === 'granted'
+      ? 'granted' : await Notification.requestPermission();
     if (permiso !== 'granted') {
-      toast('No activaste los avisos. Puedes hacerlo más tarde desde este botón.', true);
+      avisar('No activaste los avisos. Puedes hacerlo más tarde desde este botón.', true);
       return;
     }
+
     // Import dinámico: el SDK de messaging solo se descarga si alguien
     // realmente activa los avisos, y una falla acá no toca la agenda.
     const [{ app }, fcm] = await Promise.all([
@@ -497,26 +545,38 @@ async function activarAvisos() {
       import('https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging.js'),
     ]);
     const reg = await navigator.serviceWorker.register('/barbero/sw.js', { scope: '/barbero/' });
+    await esperarActivo(reg);
     const messaging = fcm.getMessaging(app);
     const token = await fcm.getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
-    if (!token) { toast('No se pudo obtener el token de avisos.', true); return; }
+    if (!token) { avisar('No se pudo obtener el token de avisos.', true); return; }
     await window.SWData.saveMyPushToken(USER.uid, token);
     // Con la app abierta, un push no debe apilar una notificación del
     // sistema sobre algo que ya está a la vista: se repinta la agenda.
     fcm.onMessage(messaging, () => { if (USER) loadDay(true); });
-    toast('Avisos activados en este teléfono.');
+    PUSH_LISTO = true;
+    avisar('Avisos activados en este teléfono.');
     pintarBotonPush();
   } catch (e) {
     console.error('activarAvisos', e);
-    toast('No se pudieron activar los avisos: ' + ((e && e.message) || 'error'), true);
+    PUSH_LISTO = false;
+    pintarBotonPush();
+    avisar('No se pudieron activar los avisos: ' + ((e && e.message) || 'error'), true);
+  } finally {
+    soltar();
   }
 }
 
+// El botón refleja si HAY TOKEN, no si hay permiso, y NUNCA se deshabilita.
+// Deshabilitarlo con el permiso concedido dejaba al barbero sin forma de
+// re-registrarse cuando el token se perdía: veía "Avisos activos" y no
+// llegaba nada. Poder tocarlo de nuevo es la única salida de ese estado.
 function pintarBotonPush() {
   const btn = g('b-push');
-  const ok = ('Notification' in window) && Notification.permission === 'granted';
-  btn.textContent = ok ? 'Avisos activos' : 'Activar avisos';
-  btn.disabled = !!ok;
+  if (!('Notification' in window)) {
+    btn.textContent = 'Sin avisos'; btn.disabled = true; return;
+  }
+  btn.textContent = PUSH_LISTO ? 'Avisos activos' : 'Activar avisos';
+  btn.disabled = false;
 }
 
 // ── refresco ──
@@ -555,7 +615,7 @@ g('b-signin').addEventListener('click', async () => {
 g('b-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') g('b-signin').click(); });
 g('b-signout').addEventListener('click', () => window.SWAuth.signOut());
 g('b-refresh').addEventListener('click', () => loadDay());
-g('b-push').addEventListener('click', activarAvisos);
+g('b-push').addEventListener('click', function(){ activarAvisos(false); });
 
 // Los <script type="module"> de arriba son diferidos: ya corrieron cuando
 // dispara DOMContentLoaded, así que acá window.SWAuth/SWData existen.
@@ -576,6 +636,11 @@ document.addEventListener('DOMContentLoaded', () => {
       pintarBotonPush();
       loadDay();
       startPolling();
+      // Si el permiso ya estaba dado, se refresca el token en silencio. Los
+      // de FCM rotan solos; sin esto el teléfono dejaría de recibir avisos
+      // sin ninguna señal visible. No abre ningún diálogo: activarAvisos()
+      // en modo silencioso corta si el permiso no está concedido.
+      activarAvisos(true);
     } else {
       CURRENT = null;
       if (ticker) { clearInterval(ticker); ticker = null; }

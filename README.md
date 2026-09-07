@@ -284,12 +284,18 @@ dispositivo guarda su token de FCM.
 
 ### Puesta en marcha (una vez)
 
-1. **Clave VAPID.** Consola de Firebase → Cloud Messaging → *Web Push
-   certificates* → **Generate key pair**. Copiar la clave pública y pegarla en
-   `VAPID_KEY`, arriba del script de `public/barbero/index.html`. Es pública
-   por diseño, igual que el resto de `firebaseConfig`: **no** va a Secret
-   Manager ni a `functions/.env`. Sin ella la app funciona completa salvo el
-   push.
+1. **Clave VAPID.** Ya está configurada en `public/barbero/index.html`. Si
+   alguna vez hay que regenerarla (Consola → Cloud Messaging → *Web Push
+   certificates*), tener presente que **todos los tokens ya registrados dejan
+   de servir** y cada profesional tiene que volver a tocar "Activar avisos".
+   Es pública por diseño, igual que el resto de `firebaseConfig`: **no** va a
+   Secret Manager ni a `functions/.env`.
+
+   Para verificarla sin desplegar: `node tests/e2e/push-token.mjs` (con el
+   emulador corriendo). Registra un token real contra FCM y comprueba que
+   llegue a `staffDevices`. Abre una ventana de navegador a propósito:
+   Chromium headless deshabilita las notificaciones, y los contextos normales
+   de Playwright son incógnito, donde Chrome no soporta la Push API.
 2. **Una cuenta por barbero.** Consola → Authentication → *Add user* (correo +
    contraseña). Solo crear la cuenta.
 3. **Vincular.** Panel admin → Personal → botón **Vincular cuenta** en la ficha

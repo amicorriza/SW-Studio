@@ -276,6 +276,14 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
 .a-str{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--a-meta);margin-bottom:7px}
 .a-sti{font-size:11.5px;color:var(--a-meta);line-height:1.4;margin-bottom:7px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .a-stgs{display:flex;gap:3px;justify-content:center;flex-wrap:wrap}
+/* Acceso a la app del barbero, en la ficha de Personal */
+.a-stlink{display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:9px;padding-top:9px;border-top:1px solid var(--a-g1)}
+.a-btn-sm{padding:5px 10px;font-size:10px}
+/* Banner de atenciones sin cerrar (Agenda) */
+.a-review{background:#FFFCF5;border:1px solid #E2C48A;border-radius:10px;padding:14px 16px;margin-bottom:16px}
+.a-review-t{font-weight:600;font-size:14px;color:var(--a-warn);margin-bottom:3px}
+.a-review-s{font-size:12px;color:var(--a-meta);margin-bottom:9px}
+.a-review-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12.5px;padding:5px 0;border-top:1px solid #F0E4C8}
 
 /* SCHEDULE */
 #a-sch-tabs{display:flex;gap:5px;margin-bottom:14px;flex-wrap:wrap}
@@ -543,8 +551,24 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
 .a-bk-card-status-tag.confirmed{background:var(--a-ok)}
 .a-bk-card-status-tag.declined{background:var(--a-err)}
 .a-bk-card-status-tag.noresponse{background:var(--a-warn)}
-.a-bk-card.declined{opacity:.55}
-.a-bk-card.declined .a-bk-card-name{text-decoration:line-through}
+.a-bk-card-status-tag.arrived{background:var(--a-info)}
+.a-bk-card-status-tag.inservice{background:var(--a-ink)}
+.a-bk-card-status-tag.completed{background:var(--a-sd)}
+.a-bk-card-status-tag.noshow{background:var(--a-err)}
+.a-bk-card-status-tag.cancelled{background:var(--a-g3);color:var(--a-txt)}
+.a-bk-card-status-tag.review{background:var(--a-warn)}
+/* Los tres estados que liberan el horario se ven igual: la cita ya no ocupa
+   ese espacio, aunque siga dibujada ahí. Mismo tratamiento que ya tenía
+   'declined' solo. */
+.a-bk-card.declined,.a-bk-card.voided{opacity:.55}
+.a-bk-card.declined .a-bk-card-name,.a-bk-card.voided .a-bk-card-name{text-decoration:line-through}
+.a-bk-card.inservice{outline:2px solid var(--a-ink);outline-offset:-2px}
+/* Bloque de asistencia del modal de cita (respaldo de la PWA del barbero) */
+.a-att{border-top:1px solid var(--a-g1);margin-top:14px;padding-top:14px}
+.a-att-hd{display:flex;align-items:baseline;gap:10px;margin-bottom:9px}
+.a-att-hd span:last-child{font-size:12px;color:var(--a-meta)}
+.a-att-btns{display:flex;gap:8px;flex-wrap:wrap}
+.a-att-btns:empty::before{content:'Sin acciones disponibles para este estado.';font-size:12px;color:var(--a-meta)}
 .a-blk-card{
   position:absolute;left:4px;right:4px;
   background:var(--a-ink);color:#fff;
@@ -1024,6 +1048,10 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
         <!-- ─ CALENDAR / APPOINTMENTS ─ -->
         <div class="a-panel" id="adm-p-calendar">
           <div id="a-bk-alert" class="a-alert"></div>
+          <!-- Atenciones que quedaron abiertas. El PDF pide pedir revisión en
+               vez de asumir una duración arbitraria: sin esto, una atención
+               sin cerrar contamina el tiempo real de ese servicio. -->
+          <div id="a-review" class="a-review" style="display:none"></div>
           <div class="a-sh">
             <div><div class="a-st">Agenda de Citas</div><div class="a-ss">Gestiona, mueve y reasigna reservas</div></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -1182,6 +1210,11 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
               <input class="a-in" id="ai-bufferMin" type="number" min="0" step="5">
               <span style="font-size:11px;color:var(--a-meta)">Margen mínimo entre el fin de una cita y el inicio de la siguiente del mismo profesional. 0 = sin margen.</span>
             </div>
+            <div class="a-f">
+              <label class="a-lbl" for="ai-nudgeLeadMin">Avisar al profesional (min antes)</label>
+              <input class="a-in" id="ai-nudgeLeadMin" type="number" min="0" step="5">
+              <span style="font-size:11px;color:var(--a-meta)">Anticipación del aviso "se acerca la hora" en la app del barbero. 0 avisa justo a la hora.</span>
+            </div>
             <button class="a-btn a-btn-p" id="ai-save" style="align-self:flex-start;margin-top:4px">Guardar información</button>
           </div>
 
@@ -1338,9 +1371,15 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
       <div class="a-f"><label class="a-lbl" for="a-bkm-notes">Notas</label><textarea class="a-in a-ta" id="a-bkm-notes" rows="2" placeholder="Observaciones..."></textarea></div>
       <label class="a-chk"><input type="checkbox" id="a-bkm-over"><span>Sobrecupo (permitir agendar aunque haya conflicto de horario)</span></label>
       <div id="a-bkm-conflict" class="a-conflict"></div>
+      <!-- Respaldo de la PWA del barbero: marcar asistencia desde el panel
+           cuando el profesional no tenía el teléfono, o para corregir. -->
+      <div id="a-bkm-att" class="a-att" style="display:none">
+        <div class="a-att-hd"><span class="a-lbl">Atención</span><span id="a-bkm-att-st"></span></div>
+        <div class="a-att-btns" id="a-bkm-att-btns"></div>
+      </div>
     </div>
     <div class="a-mf">
-      <button class="a-btn a-btn-danger" id="a-bkm-del" style="margin-right:auto;display:none">Eliminar cita</button>
+      <button class="a-btn a-btn-danger" id="a-bkm-del" style="margin-right:auto;display:none">Cancelar cita</button>
       <button class="a-btn a-btn-g" data-close="a-bkm">Cancelar</button>
       <button class="a-btn a-btn-p" id="a-bkm-save">Guardar cita</button>
     </div>
@@ -1721,7 +1760,35 @@ function renderBookingsViews(){
   // renderBookingList() incluida acá a propósito: la vista Lista de la
   // Agenda también depende de las reservas, así que la suscripción en
   // tiempo real debe refrescarla junto al resto o queda desactualizada.
-  renderDash(); renderCalendar(); renderBookingList(); updateBadges();
+  renderDash(); renderCalendar(); renderBookingList(); renderReview(); updateBadges();
+}
+
+// Banner de atenciones sin cerrar. Se calcula sobre toda la cache, no solo
+// sobre el día que se está mirando: una atención que quedó abierta anteayer
+// no debe desaparecer solo porque el admin navegó a otra fecha.
+function renderReview(){
+  var host = g('a-review');
+  if(!host) return;
+  var abiertas = getBookings().filter(needsReview);
+  if(!abiertas.length){ host.style.display = 'none'; host.innerHTML = ''; return; }
+  abiertas.sort(function(a,b){ return String(a.startedAt).localeCompare(String(b.startedAt)); });
+  host.style.display = 'block';
+  host.innerHTML =
+    '<div class="a-review-t">'+abiertas.length+' '+(abiertas.length===1?'atención quedó sin cerrar':'atenciones quedaron sin cerrar')+'</div>'+
+    '<div class="a-review-s">Se registró el inicio pero no el fin. Ciérralas para que el tiempo real del servicio sea confiable.</div>'+
+    abiertas.slice(0, 8).map(function(b){
+      return '<div class="a-review-row">'+
+        '<span>'+esc((b.date||'').substring(0,10))+' '+esc(b.time||'')+' · '+esc(b.name||'Cliente')+' · '+esc(b.svcName||'')+'</span>'+
+        '<button class="a-btn a-btn-g a-btn-sm" data-review-open="'+esc(b.code||'')+'">Revisar</button>'+
+      '</div>';
+    }).join('')+
+    (abiertas.length > 8 ? '<div class="a-review-s">y '+(abiertas.length-8)+' más.</div>' : '');
+  host.querySelectorAll('[data-review-open]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var bk = getBookings().find(function(x){ return x.code === btn.dataset.reviewOpen; });
+      if(bk) openBookingModal(bk);
+    });
+  });
 }
 
 // ═══ NAVIGATION ═══
@@ -2049,12 +2116,44 @@ function saveBookingAnd(b, okMsg){
     showAlert('a-bk-alert', 'err', 'No se pudo guardar: ' + ((e && e.code) || 'error desconocido') + '. La cita NO quedó registrada.');
   });
 }
+// SIN USO desde la medición de la atención real (2026-09): cancelar ya no
+// borra. Se conserva la función -- y delBk()/deleteBookingLocal() debajo de
+// ella -- porque el borrado duro sigue siendo la única salida para una
+// reserva creada por error o de prueba, y reescribirla desde cero el día que
+// haga falta es peor que dejarla acá documentada. No la llama nadie.
 function deleteBookingAnd(id, okMsg){
   return deleteBookingLocal(id).then(function(){
     showAlert('a-bk-alert', 'ok', okMsg);
   }).catch(function(e){
     console.error('Error eliminando reserva', e);
     showAlert('a-bk-alert', 'err', 'No se pudo eliminar: ' + ((e && e.code) || 'error desconocido') + '.');
+  });
+}
+
+// Cancelar ARCHIVA: el documento se conserva con status 'cancelled' y el
+// horario queda libre (ver BLOCKING_STATUSES). Antes esto hacía deleteDoc y
+// la cita desaparecía sin rastro, lo que volvía imposible medir la tasa de
+// cancelación y hacía indistinguible una cancelación de un no-show.
+// Va por markAttendance y no por saveBooking para que la transición la
+// valide el servidor, igual que las que marca el barbero.
+function cancelBookingAnd(id, okMsg){
+  return window.SWData.markAttendance(id, 'cancel').then(function(r){
+    showAlert('a-bk-alert', 'ok', (r && r.already) ? 'Esa cita ya estaba cancelada.' : okMsg);
+  }).catch(function(e){
+    console.error('Error cancelando reserva', e);
+    showAlert('a-bk-alert', 'err', 'No se pudo cancelar: ' + ((e && e.message) || 'error desconocido') + '.');
+  });
+}
+
+// Marca de asistencia desde el panel, como respaldo de la PWA (el barbero no
+// tenía el teléfono, o hay que corregir algo). Mismo callable que usa
+// /barbero: el admin puede marcar cualquier cita.
+function markAttendanceAnd(id, action, okMsg){
+  return window.SWData.markAttendance(id, action).then(function(r){
+    showAlert('a-bk-alert', 'ok', (r && r.already) ? 'Eso ya estaba registrado.' : okMsg);
+  }).catch(function(e){
+    console.error('Error marcando asistencia', e);
+    showAlert('a-bk-alert', 'err', 'No se pudo registrar: ' + ((e && e.message) || 'error desconocido') + '.');
   });
 }
 
@@ -2097,6 +2196,104 @@ function deleteScheduleBlockLocal(id){
 // Si cambia allá, tiene que cambiar acá.
 var BLOCKING_STATUSES = ['pending','confirmed','arrived','in_service','completed'];
 function isBlockingStatus(s){ return !s || BLOCKING_STATUSES.indexOf(s) !== -1; }
+
+// Una atención que empezó y debió cerrarse hace más de media hora. Es
+// DERIVADO, no un estado guardado: el PDF pide que el sistema pida revisión
+// en vez de asumir una duración arbitraria, pero una atención cerrada tarde
+// sigue siendo 'completed' y no debe ensuciar el ciclo de estados.
+// Mismo criterio y mismo umbral que la PWA (public/barbero/index.html).
+var REVIEW_GRACE_MIN = 30;
+function needsReview(b){
+  if(!b || b.status !== 'in_service' || !b.startedAt) return false;
+  var t = new Date(b.startedAt).getTime();
+  if(isNaN(t)) return false;
+  return (Date.now() - t) / 60000 > (Number(b.dur)||0) + REVIEW_GRACE_MIN;
+}
+
+// Badge de estado de la tarjeta. El orden importa: un estado real de la
+// atención gana sobre "sin respuesta" del recordatorio, porque
+// reminderSentAt queda seteado para siempre una vez enviado y si no una cita
+// ya atendida seguiría mostrando "Sin respuesta".
+function bkStatusTag(b){
+  if(needsReview(b)) return '<span class="a-bk-card-status-tag review">Sin cerrar</span>';
+  var m = {
+    confirmed:  ['confirmed', '✓ Confirmada'],
+    declined:   ['declined',  '✗ Declinada'],
+    arrived:    ['arrived',   'Llegó'],
+    in_service: ['inservice', 'En atención'],
+    completed:  ['completed', '✓ Atendida'],
+    no_show:    ['noshow',    'No llegó'],
+    cancelled:  ['cancelled', 'Cancelada'],
+  }[b && b.status];
+  if(m) return '<span class="a-bk-card-status-tag '+m[0]+'">'+m[1]+'</span>';
+  if(b && b.reminderSentAt) return '<span class="a-bk-card-status-tag noresponse">Sin respuesta</span>';
+  return '';
+}
+
+function bkStatusClass(b){
+  var s = b && b.status;
+  if(s === 'declined') return ' declined';
+  if(s === 'no_show' || s === 'cancelled') return ' voided';
+  if(s === 'in_service') return ' inservice';
+  return '';
+}
+
+// Qué acciones de asistencia corresponden. Copia deliberada de la tabla FROM
+// de functions/shared/attendance.js -- el servidor la revalida igual, esto
+// solo evita ofrecer botones que van a ser rechazados.
+function attendanceActions(b){
+  var s = (b && b.status) || 'pending';
+  if(s === 'in_service') return [['end','Finalizar atención','a-btn-p']];
+  if(s === 'arrived') return [['start','Iniciar atención','a-btn-p'],['no_show','No llegó','a-btn-g']];
+  if(s === 'pending' || s === 'confirmed'){
+    return [['arrive','Llegó','a-btn-p'],['start','Iniciar','a-btn-g'],['no_show','No llegó','a-btn-g']];
+  }
+  return [];
+}
+
+// Resumen legible del estado de la atención, en la zona del NEGOCIO.
+function attendanceSummary(b){
+  if(!b) return '';
+  if(b.status === 'completed'){
+    var real = Number.isFinite(b.actualDur) ? b.actualDur : null;
+    if(real === null) return 'Atendida';
+    var dif = real - (Number(b.dur)||0);
+    var cmp = dif === 0 ? 'igual a lo planificado'
+      : (dif > 0 ? ('+'+dif+' min sobre lo planificado') : (dif+' min bajo lo planificado'));
+    return 'Atendida · '+real+' min · '+cmp+(b.durSource === 'manual' ? ' · hora corregida a mano' : '');
+  }
+  if(b.status === 'in_service') return 'En curso desde las '+bizTime(b.startedAt);
+  if(b.status === 'arrived') return 'Llegó a las '+bizTime(b.arrivedAt);
+  if(b.status === 'no_show') return 'No llegó';
+  if(b.status === 'cancelled') return 'Cancelada';
+  if(b.status === 'declined') return 'El cliente declinó';
+  return 'Sin registrar';
+}
+
+// Hora de pared en la zona del negocio. Nunca slice() del ISO: eso da UTC.
+function bizTime(iso){
+  if(!iso) return '--:--';
+  var d = new Date(iso);
+  if(isNaN(d.getTime())) return '--:--';
+  try{
+    return new Intl.DateTimeFormat('es-CL', {
+      timeZone: (D.info && D.info.tz) || DEFAULT_TZ,
+      hour:'2-digit', minute:'2-digit', hour12:false,
+    }).format(d);
+  }catch(e){ return '--:--'; }
+}
+
+function renderAttendanceBlock(bk){
+  var wrap = g('a-bkm-att');
+  if(!wrap) return;
+  if(!bk){ wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  g('a-bkm-att-st').textContent = attendanceSummary(bk) + (needsReview(bk) ? ' · sin cerrar' : '');
+  var id = bk.id || bk.code;
+  g('a-bkm-att-btns').innerHTML = attendanceActions(bk).map(function(a){
+    return '<button class="a-btn '+a[2]+'" data-att="'+a[0]+'" data-att-id="'+esc(id)+'">'+esc(a[1])+'</button>';
+  }).join('');
+}
 
 // Check if a proposed booking conflicts with existing ones (same barber, overlapping time).
 // bufferMin (D.info.bufferMin, default 0) es el margen de limpieza contra
@@ -2331,11 +2528,11 @@ function renderBookingList(){
   body.querySelectorAll('[data-lst-del]').forEach(function(btn){
     btn.addEventListener('click', function(){
       var code = btn.dataset.lstDel;
-      openDel('¿Eliminar esta cita? Esta acción no se puede deshacer.', function(){
+      openDel('¿Cancelar esta cita? Se libera el horario y la cita queda registrada como cancelada.', function(){
         var bk = getBookings().find(function(b){return b.code === code});
-        deleteBookingAnd(bk ? (bk.id || bk.code) : code, 'Cita eliminada.');
+        cancelBookingAnd(bk ? (bk.id || bk.code) : code, 'Cita cancelada.');
         refreshBookingViews();
-        log('Eliminó cita', code);
+        log('Canceló cita', code);
       });
     });
   });
@@ -2506,19 +2703,7 @@ function renderCalendar(){
     var dens = height >= 62 ? '' : (height >= 40 ? ' compact' : ' mini');
     var style = 'top:'+top.toFixed(1)+'px;height:'+height.toFixed(1)+'px;'+
                 'left:calc('+left+'% + 4px);width:calc('+w+'% - 8px);';
-    // Badge de status del recordatorio de citas: confirmada/declinada gana
-    // sobre "sin respuesta" -- reminderSentAt queda seteado para siempre
-    // una vez enviado el recordatorio, así que sin este orden de prioridad
-    // una cita ya respondida seguiría mostrando "Sin respuesta" además de
-    // su badge real.
-    var statusTag = '';
-    if(b.status === 'confirmed'){
-      statusTag = '<span class="a-bk-card-status-tag confirmed">✓ Confirmada</span>';
-    } else if(b.status === 'declined'){
-      statusTag = '<span class="a-bk-card-status-tag declined">✗ Declinada</span>';
-    } else if(b.reminderSentAt){
-      statusTag = '<span class="a-bk-card-status-tag noresponse">Sin respuesta</span>';
-    }
+    var statusTag = bkStatusTag(b);
     var inner;
     if(dens === ' mini'){
       inner = '<div class="a-bk-card-line">'+
@@ -2541,7 +2726,7 @@ function renderCalendar(){
                 statusTag+
               '</div>';
     }
-    return '<div class="a-bk-card'+(b.over?' over':'')+(b.status==='declined'?' declined':'')+dens+'" style="'+style+'" '+
+    return '<div class="a-bk-card'+(b.over?' over':'')+bkStatusClass(b)+dens+'" style="'+style+'" '+
              'data-code="'+esc(b.code)+'" '+
              'title="'+esc((b.time||'')+' · '+(b.name||'Cliente')+' · '+(b.svcName||'')+' · '+bn)+'">'+
              inner+
@@ -2661,6 +2846,8 @@ function openBookingModal(bk, presetHour){
 
   // Show/hide delete button
   g('a-bkm-del').style.display = bk ? 'inline-flex' : 'none';
+
+  renderAttendanceBlock(bk);
 
   // Conflict check on changes
   ['a-bkm-barber','a-bkm-date','a-bkm-time','a-bkm-svc','a-bkm-dur'].forEach(function(id){
@@ -2812,14 +2999,31 @@ g('a-bkm-save').addEventListener('click', function(){
   closeModal('a-bkm');
 });
 
+// Botones de asistencia del modal. Delegado, porque el bloque se repinta
+// entero cada vez que se abre una cita.
+g('a-bkm-att-btns').addEventListener('click', function(ev){
+  var btn = ev.target.closest('[data-att]');
+  if(!btn) return;
+  var accion = btn.dataset.att, id = btn.dataset.attId;
+  var textos = { arrive:'Cliente marcado como presente.', start:'Atención iniciada.',
+                 end:'Atención finalizada.', no_show:'Marcada como no llegó.' };
+  btn.disabled = true;
+  markAttendanceAnd(id, accion, textos[accion] || 'Registrado.').then(function(){
+    var bk = getBookings().find(function(b){ return (b.id || b.code) === id; });
+    renderAttendanceBlock(bk);
+    refreshBookingViews();
+    log('Marcó asistencia', (bk && bk.code) || id);
+  });
+});
+
 g('a-bkm-del').addEventListener('click', function(){
   var code = g('a-bkm-id').value;
   if(!code) return;
-  openDel('¿Eliminar esta cita? Esta acción no se puede deshacer.', function(){
+  openDel('¿Cancelar esta cita? Se libera el horario y la cita queda registrada como cancelada.', function(){
     var bk = getBookings().find(function(b){return b.code === code});
-    deleteBookingAnd(bk ? (bk.id || bk.code) : code, 'Cita eliminada.');
+    cancelBookingAnd(bk ? (bk.id || bk.code) : code, 'Cita cancelada.');
     closeModal('a-bkm');
-    log('Eliminó cita', code);
+    log('Canceló cita', code);
   });
 });
 
@@ -3371,8 +3575,19 @@ function renderStaff(){
       (s.days ? '<div class="a-sti">📅 '+esc(s.days)+'</div>' : '')+
       (s.bio ? '<div class="a-sti">'+esc(s.bio)+'</div>' : '')+
       '<div class="a-stgs"><span class="a-tag a-t'+(s.status==='active'?'ok':'no')+'">'+(s.status==='active'?'Activo':'Inactivo')+'</span></div>'+
+      // Acceso a la app del barbero (/barbero). Sin cuenta vinculada, ese
+      // profesional no puede entrar ni recibir avisos de sus citas.
+      '<div class="a-stlink">'+
+        (s.uid
+          ? '<span class="a-sti" title="'+esc(s.authEmail||'')+'">✓ Cuenta vinculada</span>'
+          : '<span class="a-sti" style="color:var(--a-meta)">Sin acceso a la app</span>')+
+        '<button class="a-btn a-btn-g a-btn-sm" data-link-stf="'+esc(s.id)+'">'+(s.uid?'Cambiar':'Vincular cuenta')+'</button>'+
+      '</div>'+
     '</div>';
   }).join('');
+  sg.querySelectorAll('[data-link-stf]').forEach(function(b){
+    b.addEventListener('click', function(){ linkStaffPrompt(b.dataset.linkStf); });
+  });
   sg.querySelectorAll('[data-edit-stf]').forEach(function(b){
     b.addEventListener('click', function(){ openStfModal(D.staff.find(function(s){return s.id===b.dataset.editStf})); });
   });
@@ -3387,6 +3602,32 @@ function renderStaff(){
         showAlert('a-stf-alert','ok','Barbero eliminado.');
       });
     });
+  });
+}
+
+// Vincula la ficha de un barbero con una cuenta de Firebase Auth ya creada
+// (Consola → Authentication → Add user). El UID lo resuelve el servidor a
+// partir del correo: pedirlo a mano acá sería justo el dato que alguien
+// copia mal una vez y nadie nota hasta que el barbero no puede entrar.
+function linkStaffPrompt(staffId){
+  var s = D.staff.find(function(x){ return x.id === staffId; });
+  if(!s) return;
+  var email = window.prompt(
+    'Correo de la cuenta de '+s.name+'\n\n'+
+    'La cuenta tiene que existir ya en Firebase Auth (Consola → Authentication → Add user).',
+    s.authEmail || ''
+  );
+  if(email === null) return;
+  email = email.trim();
+  if(!email) return;
+  window.SWData.linkStaffAccount(staffId, email).then(function(r){
+    s.uid = r.uid; s.authEmail = email;
+    renderStaff();
+    showAlert('a-stf-alert','ok','Cuenta vinculada: '+email);
+    log('Vinculó cuenta', s.name);
+  }).catch(function(e){
+    console.error('linkStaffAccount', e);
+    showAlert('a-stf-alert','err','No se pudo vincular: '+((e && e.message) || 'error desconocido'));
   });
 }
 
@@ -3559,6 +3800,9 @@ function renderSchedule(){
 // <script> plano, sin bundler, no puede importar.
 const DEFAULT_TZ = 'America/Santiago';
 const DEFAULT_BUFFER_MIN = 0;
+// Copia de DEFAULT_NUDGE_LEAD_MIN (functions/shared/timezone.js), mismo
+// motivo de siempre: <script> plano, sin bundler.
+const DEFAULT_NUDGE_LEAD_MIN = 10;
 // Copia deliberada de DEFAULT_BOOKING_STATUS en functions/shared/status.js
 // -- mismo motivo que DEFAULT_TZ arriba: <script> plano, sin bundler, no
 // puede importar. No hay ninguna transición de estado en este panel (ni en
@@ -3599,6 +3843,8 @@ function loadInfo(){
   }
   var bufEl = g('ai-bufferMin');
   if(bufEl) bufEl.value = Number.isFinite(f.bufferMin) ? f.bufferMin : DEFAULT_BUFFER_MIN;
+  var nudgeEl = g('ai-nudgeLeadMin');
+  if(nudgeEl) nudgeEl.value = Number.isFinite(f.nudgeLeadMin) ? f.nudgeLeadMin : DEFAULT_NUDGE_LEAD_MIN;
 }
 g('ai-save').addEventListener('click', async function(){
   D.info = {
@@ -3607,6 +3853,7 @@ g('ai-save').addEventListener('click', async function(){
     slogan: g('ai-slogan').value, desc: g('ai-desc').value,
     tz: g('ai-tz').value,
     bufferMin: parseInt(g('ai-bufferMin').value, 10) || 0,
+    nudgeLeadMin: parseInt(g('ai-nudgeLeadMin').value, 10) || 0,
     // Vacío es un valor válido y significa "resolvelo solo": la Cloud
     // Function busca la ficha por nombre + dirección y persiste acá el id que
     // encuentre, así que si este guardado lo borra, la próxima sincronización

@@ -20,6 +20,19 @@
   var DEFAULT_TZ = 'America/Santiago';
   var YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+  // Estados que no cuentan como demanda ni como ingreso: el cliente declinó
+  // el recordatorio, o la cita se canceló desde el panel.
+  //
+  // 'no_show' NO está acá a propósito. Una cita a la que el cliente no llegó
+  // sigue siendo una reserva, y es el numerador del KPI de no-show que la
+  // medición de la atención real existe para habilitar; excluirla la volvería
+  // incalculable. Que su `price` infle el ingreso es la misma sobreestimación
+  // que ya hay hoy (toda cita pasada se asume atendida) -- se corrige en el
+  // proyecto del dashboard, separando "reservas del período" de "ingresos del
+  // período", que hoy son el mismo filtro.
+  var EXCLUDED_STATUSES = ['declined', 'cancelled'];
+  function isExcluded(status) { return EXCLUDED_STATUSES.indexOf(status) !== -1; }
+
   function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 
   // 'YYYY-MM-DD' desde las partes UTC de un Date. Los Date de este módulo son
@@ -133,7 +146,8 @@
     return out;
   }
 
-  // Reservas del período aplicando Realizado/Agendado y excluyendo 'declined'.
+  // Reservas del período aplicando Realizado/Agendado y excluyendo los
+  // estados que no cuentan (ver EXCLUDED_STATUSES).
   // 'confirmed' y 'pending' se tratan igual. Aísla por reserva las que no parsean.
   function mFilterPeriod(bookings, opts) {
     var o = opts || {};
@@ -141,7 +155,7 @@
     var out = [];
     (bookings || []).forEach(function (b) {
       try {
-        if (b && b.status === 'declined') return;
+        if (b && isExcluded(b.status)) return;
         var d = parseBookingDate(b);
         if (!d) return;
         var dk = ymd(d);
@@ -255,14 +269,15 @@
   }
 
   // Desglose por servicio o categoría. `periodBookings` ya viene acotado por
-  // mFilterPeriod, así que acá solo agrega (y por defensa salta 'declined').
+  // mFilterPeriod, así que acá solo agrega (y por defensa salta los
+  // estados excluidos).
   // ingresoHora agrega solo filas con dur>0; null si ninguna la tiene.
   function mByService(periodBookings, opts) {
     var groupBy = (opts && opts.groupBy) || 'svc';
     var groups = {};
     var totalIngreso = 0;
     (periodBookings || []).forEach(function (b) {
-      if (!b || b.status === 'declined') return;
+      if (!b || isExcluded(b.status)) return;
       var price = (+b.price) || 0;
       var dur = (+b.dur) || 0;
       var key, label;
@@ -293,7 +308,7 @@
   function barberAgg(bookings) {
     var by = {};
     (bookings || []).forEach(function (b) {
-      if (!b || b.status === 'declined') return;
+      if (!b || isExcluded(b.status)) return;
       var id = (b.barberId != null && b.barberId !== '') ? String(b.barberId) : 'unknown';
       var grp = by[id] || (by[id] = { barberId: id, name: b.barberName || '?', total: 0, revenue: 0, svcs: {} });
       grp.total++;
@@ -329,7 +344,7 @@
 
     var sinEmail = 0;
     (bookings || []).forEach(function (b) {
-      if (!b || b.status === 'declined') return;
+      if (!b || isExcluded(b.status)) return;
       var d = parseBookingDate(b);
       if (!d) return;
       var dk = ymd(d);

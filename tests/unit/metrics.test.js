@@ -156,6 +156,43 @@ test('firstBookingByEmail: sin date usable ni createdAt -> se salta, no lanza', 
 
 const PERIOD = { from: '2026-09-01', to: '2026-09-30', today: '2026-09-15' };
 
+// Medición de la atención real (2026-09): cancelled se suma a las
+// exclusiones. no_show NO -- ver el test siguiente.
+test('mFilterPeriod excluye cancelled igual que declined', () => {
+  const bks = [
+    { date: '2026-09-10', price: 1000, status: 'cancelled' },
+    { date: '2026-09-10', price: 1000, status: 'declined' },
+    { date: '2026-09-10', price: 1000, status: 'completed' },
+  ];
+  const r = M.mFilterPeriod(bks, { from: PERIOD.from, to: PERIOD.to, mode: 'agendado', today: PERIOD.today });
+  assert.strictEqual(r.length, 1);
+  assert.strictEqual(r[0].status, 'completed');
+});
+
+// A propósito: una cita a la que el cliente no llegó SIGUE siendo una
+// reserva, y es el numerador del KPI de no-show que el dashboard (P2) va a
+// calcular. Excluirla acá lo volvería incalculable. Que su `price` infle el
+// ingreso es la misma sobreestimación que ya existe hoy (toda cita pasada se
+// asume atendida); P2 la corrige separando "reservas" de "ingresos".
+test('mFilterPeriod NO excluye no_show', () => {
+  const bks = [{ date: '2026-09-10', price: 1000, status: 'no_show' }];
+  const r = M.mFilterPeriod(bks, { from: PERIOD.from, to: PERIOD.to, mode: 'agendado', today: PERIOD.today });
+  assert.strictEqual(r.length, 1);
+});
+
+test('mByService / mByBarber / mNewVsReturning también excluyen cancelled', () => {
+  const bks = [
+    { date: '2026-09-10', price: 1000, dur: 30, svcId: 'x', svcName: 'X', barberId: 'v', barberName: 'V', email: 'a@a.cl', status: 'cancelled' },
+    { date: '2026-09-10', price: 2000, dur: 30, svcId: 'y', svcName: 'Y', barberId: 'v', barberName: 'V', email: 'b@b.cl', status: 'completed' },
+  ];
+  const svc = M.mByService(bks, { groupBy: 'svc' });
+  assert.strictEqual(svc.length, 1);
+  assert.strictEqual(svc[0].key, 'y');
+  const barb = M.mByBarber(bks, []);
+  assert.strictEqual(barb[0].total, 1);
+  assert.strictEqual(barb[0].revenue, 2000);
+});
+
 test('mFilterPeriod: excluye declined en ambos modos', () => {
   const bk = [
     { date: '2026-09-05', status: 'declined', price: 100 },

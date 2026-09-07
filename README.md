@@ -363,6 +363,17 @@ el comando completo está en [Deploy](#deploy).
 Los nombres van explícitos siempre: sin ellos el CLI ofrece borrar `api`, que
 pertenece a otra rama.
 
+> **En PowerShell** (que es donde se despliega este proyecto) el comando va en
+> **una sola línea** y con la lista **entre comillas**. La continuación `\` es
+> de bash: en PowerShell rompe el comando y las líneas siguientes se ejecutan
+> sueltas. Y sin comillas, el CLI avisa *"If you are using PowerShell make sure
+> you place quotes around any comma-separated lists"*.
+>
+> ```powershell
+> firebase deploy --project scissor-white --only "functions:onBookingCreated,functions:createBooking,functions:getClubStatus,functions:getAvailability,functions:onBookingWritten,functions:onScheduleBlockWritten,functions:sendBookingReminders,functions:respondToBookingReminder,functions:getBookingForReminderAction,functions:refreshGoogleReviews,functions:syncGoogleReviews,functions:getMyDay,functions:markAttendance,functions:linkStaffAccount,functions:staffAttendanceNudges"
+> ```
+
+
 Esto instala además dos trabajos de Cloud Scheduler nuevos
 (`sendBookingReminders` y `staffAttendanceNudges`), que con
 `refreshGoogleReviews` suman tres — el tope de la cuota gratuita. **Los dos

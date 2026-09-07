@@ -138,6 +138,10 @@ reservas viejas simplemente no lo tienen y toda lectura debe tolerar su ausencia
 - `staff/{id}.uid` y `staff/{id}.authEmail` — vínculo con Firebase Auth, escritos por
   `linkStaffAccount`.
 - `businessInfo/main.nudgeLeadMin` — default 10, mismo patrón que `bufferMin`.
+- `businessInfo/main.nudgesEnabled` — interruptor de seguridad, default apagado (campo
+  ausente). Mismo patrón que `remindersEnabled`: desplegar deja el Cloud Scheduler instalado
+  pero en no-op, y los avisos recién empiezan cuando alguien lo activa a mano tras verificar en
+  staging. Deploy ≠ activación.
 - `staffDevices/{uid}` — `{ tokens: [...], updatedAt }`. Colección nueva.
 
 ## Arquitectura
@@ -152,15 +156,23 @@ Sin `firebase-admin`, sin I/O, `now` siempre inyectado — mismo molde que
   acción ya está aplicada (idempotencia). `action ∈ 'arrive'|'no_show'|'start'|'end'|
   'snooze'|'cancel'`.
 - `computeNudges(bookings, now, cfg)` → `[{bookingId, kind, barberId, title, body, data}]`,
-  `kind ∈ 'upcoming'|'start'|'end'|'review'`:
+  `kind ∈ 'upcoming'|'start'|'end'`:
   - **upcoming** — instante de la cita en `[now, now + leadMin]`, status `pending|confirmed`,
     sin `nudgeUpcomingAt`. Texto: *"Se acerca la hora de atención con {nombre} a las {hh:mm}"*.
   - **start** — instante de la cita ya pasó, sin `startedAt`, sin `noShowAt`, sin
     `nudgeStartAt`. Texto: *"¿Deseas comenzar la atención para {nombre}?"*.
   - **end** — `startedAt + dur` ya pasó, o `snoozeUntil` ya venció; sin `endedAt`;
-    `nudgeEndCount < MAX_SNOOZE` (6, o sea una hora de insistencia). Texto: *"¿Deseas
-    finalizar la atención?"*.
-  - **review** — una vez al cierre del día: cuántas atenciones quedaron sin cerrar.
+    `nudgeEndCount < MAX_END_NUDGES` (6, o sea una hora de insistencia); y han pasado al menos
+    10 minutos desde `nudgeEndAt`. Ese último piso no es cosmético: sin él el aviso saldría en
+    cada corrida del scheduler —una vibración cada 2 minutos— mientras el barbero no responda,
+    y el tope no lo protegería, porque solo se alcanza si él pospone explícitamente. El
+    contador lo incrementa el scheduler al enviar, nunca `applyAction('snooze')`: con dos
+    fuentes, cada ciclo gastaría dos del tope. Texto: *"¿Deseas finalizar la atención?"*.
+
+**"Por revisar" no genera push.** Es una sección visible en la PWA y en la Agenda del admin
+(atenciones `in_service` cuyo fin planificado pasó hace más de 30 min). Mandar además una
+notificación diaria sería insistir sobre algo que ya está a la vista en las dos pantallas donde
+se trabaja.
 - `resolveNudgeLeadMin(businessInfo)` → calcado de `resolveBufferMin()`, default 10.
 
 Toda reserva se aísla en su propio `try`: un `date` malformado no puede tumbar el lote. Esa

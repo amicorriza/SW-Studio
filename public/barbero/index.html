@@ -335,6 +335,11 @@ function resumen(b) {
     const real = Number.isFinite(b.actualDur) ? b.actualDur : null;
     const plan = Number(b.dur) || 0;
     if (real === null) return 'Atendida';
+    // Menos de un minuto es casi siempre un toque por error (Iniciar y
+    // Finalizar seguidos), no una atención real. Se dice así en vez de
+    // "Duró 0 min · 60 min menos de lo planificado", que suena a error del
+    // sistema. El promedio ya la excluye (metrics.js exige actualDur > 0).
+    if (real < 1) return 'Atendida · duró menos de un minuto, no entra en el promedio';
     const dif = real - plan;
     const cmp = dif === 0 ? 'igual a lo planificado'
       : (dif > 0 ? `${dif} min más de lo planificado` : `${-dif} min menos de lo planificado`);

@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "test": "node --test \"tests/unit/**/*.test.js\"",
-    "test:rules": "firebase emulators:exec --only firestore \"vitest run tests/rules\""
+    "test:rules": "firebase emulators:exec --only firestore \"vitest run tests/rules\"",
+    "test:e2e": "node tests/e2e/todos.mjs"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^3.0.4",

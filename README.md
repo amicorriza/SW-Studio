@@ -157,6 +157,35 @@ node tests/browser/barbero.mjs            # PWA del barbero (/barbero/)
 node tests/browser/admin-asistencia.mjs   # asistencia y cancelar-sin-borrar
 ```
 
+Estos tres **stubbean `window.SWData`**: verifican la interfaz, no la
+integración. Para el camino completo hay pruebas end-to-end contra el
+emulador, con Firebase Auth, callables y Firestore de verdad:
+
+```bash
+firebase emulators:start --project scissor-white   # en otra terminal
+npm run test:e2e
+```
+
+`test:e2e` resiembra antes de cada suite, y eso **no es opcional**: las tres
+mutan las mismas reservas (cerrar una atención, marcar un no-show, cancelar),
+así que sin limpiar se pisan entre ellas. Las suites son:
+
+| Suite | Qué cubre |
+|---|---|
+| `tests/e2e/callables.mjs` | `getMyDay`, `markAttendance`, `linkStaffAccount`: permisos, idempotencia, transiciones inválidas, corrección de horas admin-only, y que cancelar conserve el documento |
+| `tests/e2e/nudges.mjs` | selección de avisos sobre datos reales, el interruptor `nudgesEnabled`, y que un token muerto no aborte la corrida ni deje marcadores |
+| `tests/e2e/navegador.mjs` | recorrido clic a clic: la PWA completa (incluida la sesión que sobrevive una recarga en frío), el Dashboard con datos reales, y que la Agenda refleje lo que se marcó desde el teléfono |
+
+Los datos de prueba los siembra `functions/scripts/seedEmulatorE2E.mjs`: crea
+las cuentas (`admin@scissorwhite.cl` / `admin123`, `victoria@scissorwhite.cl`
+/ `barbero123`), las vincula al staff, deja horarios coherentes y siembra
+citas de hoy más un histórico ya medido.
+
+> **La entrega del push no se puede probar localmente**: no existe emulador de
+> FCM, así que el envío siempre falla en el emulador (y las pruebas verifican
+> justamente que eso no rompa nada). Probarlo de verdad exige un teléfono
+> contra staging.
+
 ## Deploy
 
 > **`functions/.env` rompe el deploy de funciones.** Cloud Run rechaza que

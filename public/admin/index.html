@@ -2540,6 +2540,9 @@ function attendanceSummary(b){
   if(b.status === 'completed'){
     var real = Number.isFinite(b.actualDur) ? b.actualDur : null;
     if(real === null) return 'Atendida';
+    // Igual que en la PWA: menos de un minuto es un toque por error, no una
+    // atención. El promedio ya la excluye (metrics.js exige actualDur > 0).
+    if(real < 1) return 'Atendida · duró menos de un minuto, no entra en el promedio';
     var dif = real - (Number(b.dur)||0);
     var cmp = dif === 0 ? 'igual a lo planificado'
       : (dif > 0 ? ('+'+dif+' min sobre lo planificado') : (dif+' min bajo lo planificado'));

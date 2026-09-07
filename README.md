@@ -94,13 +94,15 @@ scissor-white/
 │   ├── admin/index.html  # panel de administración (ruta /admin/)
 │   ├── robots.txt        # Disallow: /admin/
 │   ├── js/               # firebase-init.js, data.js (Firestore), auth.js (login),
-│   │                     #   metrics.js (agregaciones puras del Dashboard —
-│   │                     #   <script> clásico, NO habla con Firestore, require-able por Node)
+│   │                     #   metrics.js (agregaciones puras del Dashboard) e
+│   │                     #   insights.js (motor de recomendaciones) — <script>
+│   │                     #   clásicos, no hablan con Firestore, require-ables por Node
+│   ├── barbero/          # PWA del profesional: index.html, manifest, sw.js, íconos
 │   └── assets/email/     # logo.png, salon.png — imágenes del email de confirmación
 ├── functions/            # Cloud Functions v2 (ver arriba)
 │   ├── email.js          # render del template de email + envío vía Resend
 │   ├── patients.js       # upsert de clientes + conteo Club SW
-│   ├── shared/           # availability.js, timezone.js, validate.js, status.js
+│   ├── shared/           # availability.js, timezone.js, validate.js, status.js, attendance.js
 │   ├── scripts/          # reconcileCatalog, backfillAvailability, setAdminClaim
 │   └── test/             # node --test (sin emulador)
 ├── seed/                 # carga inicial a Firestore

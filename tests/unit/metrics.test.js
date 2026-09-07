@@ -712,3 +712,109 @@ test('mPriceSim devuelve null sin datos utilizables', () => {
   assert.strictEqual(M.mPriceSim({ n: 30, planMin: 45, medianMin: null, price: 18000 }), null);
   assert.strictEqual(M.mPriceSim(null), null);
 });
+
+// ═══════════ P2: ocupación efectiva y mapa de horas ═══════════
+// 2026-09-07 es LUNES (dow 1). Se fija a propósito para que el fixture no
+// dependa del día en que corran los tests.
+const LUN = '2026-09-07';
+const DIA = { open: true, start: '10:00', end: '20:00' };            // 600 min
+const DIA_BREAK = { open: true, start: '10:00', end: '20:00', break: { start: '13:00', end: '14:00' } };
+const sched = (lunes) => [null, lunes, null, null, null, null, null]; // 0=domingo
+const RANGO = { from: LUN, to: LUN };
+
+test('el fixture de ocupación cae en lunes', () => {
+  assert.strictEqual(new Date(LUN + 'T12:00:00Z').getUTCDay(), 1);
+});
+
+test('mOccupancy descuenta la colación de los minutos disponibles', () => {
+  const staff = [{ id: 'v', status: 'active', schedule: sched(DIA_BREAK) }];
+  const o = M.mOccupancy([], staff, [], RANGO);
+  assert.strictEqual(o.disponibles, 540, '600 menos 60 de colación');
+  assert.strictEqual(o.atendidos, 0);
+  assert.strictEqual(o.pct, 0);
+});
+
+test('mOccupancy: una cita de 45 min sobre 540 disponibles', () => {
+  const staff = [{ id: 'v', status: 'active', schedule: sched(DIA_BREAK) }];
+  const bks = [at({ date: LUN, time: '10:00', barberId: 'v', status: 'completed', actualDur: 45 })];
+  const o = M.mOccupancy(bks, staff, [], RANGO);
+  assert.strictEqual(o.atendidos, 45);
+  assert.ok(Math.abs(o.pct - 45 / 540) < 1e-9);
+  assert.strictEqual(o.estimados, 0, 'tenía actualDur, no se estimó');
+});
+
+test('mOccupancy usa dur cuando no hay actualDur, y lo reporta como estimado', () => {
+  const staff = [{ id: 'v', status: 'active', schedule: sched(DIA) }];
+  const bks = [at({ date: LUN, barberId: 'v', dur: 30, status: 'pending' })];
+  const o = M.mOccupancy(bks, staff, [], RANGO);
+  assert.strictEqual(o.atendidos, 30);
+  assert.strictEqual(o.estimados, 30);
+});
+
+test('mOccupancy: día cerrado no aporta disponibilidad', () => {
+  const staff = [{ id: 'v', status: 'active', schedule: sched({ open: false, start: '10:00', end: '20:00' }) }];
+  const o = M.mOccupancy([], staff, [], RANGO);
+  assert.strictEqual(o.disponibles, 0);
+  assert.strictEqual(o.pct, null, 'sin disponibilidad no hay porcentaje, nunca Infinity');
+});
+
+test('mOccupancy: barbero sin horario configurado se aísla en sinHorario', () => {
+  const staff = [
+    { id: 'v', status: 'active', schedule: sched(DIA) },
+    { id: 'e', status: 'active' },
+  ];
+  const o = M.mOccupancy([], staff, [], RANGO);
+  assert.deepStrictEqual(o.sinHorario, ['e']);
+  assert.strictEqual(o.disponibles, 600, 'solo cuenta el que sí tiene horario');
+});
+
+test('mOccupancy ignora al barbero inactivo', () => {
+  const staff = [
+    { id: 'v', status: 'active', schedule: sched(DIA) },
+    { id: 'e', status: 'inactive', schedule: sched(DIA) },
+  ];
+  assert.strictEqual(M.mOccupancy([], staff, [], RANGO).disponibles, 600);
+});
+
+test('mOccupancy descuenta los bloqueos puntuales del día', () => {
+  const staff = [{ id: 'v', status: 'active', schedule: sched(DIA) }];
+  const blocks = [{ date: LUN, barberId: 'v', start: '10:00', end: '20:00' }];
+  const o = M.mOccupancy([], staff, blocks, RANGO);
+  assert.strictEqual(o.disponibles, 0);
+  assert.strictEqual(o.pct, null);
+});
+
+test('mOccupancy: un bloqueo de otro día no descuenta nada', () => {
+  const staff = [{ id: 'v', status: 'active', schedule: sched(DIA) }];
+  const blocks = [{ date: '2026-09-08', barberId: 'v', start: '10:00', end: '20:00' }];
+  assert.strictEqual(M.mOccupancy([], staff, blocks, RANGO).disponibles, 600);
+});
+
+test('mOccupancy sin staff no lanza ni divide por cero', () => {
+  assert.doesNotThrow(() => M.mOccupancy([], [], [], RANGO));
+  assert.strictEqual(M.mOccupancy([], [], [], RANGO).pct, null);
+  assert.strictEqual(M.mOccupancy(null, null, null, RANGO).pct, null);
+});
+
+test('mHeatmap devuelve una celda por día-hora con disponibilidad', () => {
+  const staff = [{ id: 'v', status: 'active', schedule: sched(DIA) }];
+  const h = M.mHeatmap([], staff, [], RANGO);
+  assert.strictEqual(h.length, 10, 'de 10:00 a 20:00 son 10 bloques');
+  assert.ok(h.every(c => c.dow === 1));
+  assert.ok(h.every(c => c.ocupados === 0 && c.pct === 0));
+});
+
+test('mHeatmap asigna la cita a su franja horaria', () => {
+  const staff = [{ id: 'v', status: 'active', schedule: sched(DIA) }];
+  const bks = [at({ date: LUN, time: '15:00', barberId: 'v', status: 'completed', actualDur: 60 })];
+  const h = M.mHeatmap(bks, staff, [], RANGO);
+  const c15 = h.find(c => c.hour === 15);
+  assert.strictEqual(c15.ocupados, 60);
+  assert.strictEqual(c15.pct, 1);
+  assert.strictEqual(h.find(c => c.hour === 16).ocupados, 0);
+});
+
+test('mHeatmap sin reservas ni staff no lanza', () => {
+  assert.doesNotThrow(() => M.mHeatmap([], [], [], RANGO));
+  assert.deepStrictEqual(M.mHeatmap([], [], [], RANGO), []);
+});

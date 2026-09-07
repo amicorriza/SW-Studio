@@ -317,6 +317,171 @@
     };
   }
 
+  // ── Ocupación efectiva (PDF §5: minutos atendidos / minutos disponibles) ──
+  //
+  // Todo en minutos-desde-medianoche, igual que functions/shared/availability.js
+  // y checkConflict() del admin: la comparación es zona-invariante por
+  // construcción dentro del mismo día calendario.
+
+  function toMin(hhmm) {
+    var m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || ''));
+    if (!m) return null;
+    return (+m[1]) * 60 + (+m[2]);
+  }
+
+  // Día de semana (0=domingo) de una clave 'YYYY-MM-DD'. Mediodía UTC para
+  // que ningún DST corra el día, igual que el resto del módulo.
+  function dowOf(key) {
+    var d = new Date(key + 'T12:00:00Z');
+    return isNaN(d.getTime()) ? null : d.getUTCDay();
+  }
+
+  function eachDay(from, to, fn) {
+    if (!YMD_RE.test(String(from || '')) || !YMD_RE.test(String(to || ''))) return;
+    var key = from, guard = 0;
+    while (key <= to && guard++ < 800) {
+      fn(key);
+      key = addDaysYMD(key, 1);
+    }
+  }
+
+  // Tramos disponibles de un barbero en un día: su horario menos la colación
+  // y menos los bloqueos puntuales. Devuelve [{start,end}] en minutos.
+  function freeSpansFor(staffMember, dayKey, blocks) {
+    var dow = dowOf(dayKey);
+    var day = (dow != null && Array.isArray(staffMember.schedule)) ? staffMember.schedule[dow] : null;
+    if (!day || !day.open) return [];
+    var start = toMin(day.start), end = toMin(day.end);
+    if (start == null || end == null || end <= start) return [];
+
+    var cortes = [];
+    if (day.break && day.break.start && day.break.end) {
+      cortes.push([toMin(day.break.start), toMin(day.break.end)]);
+    }
+    (blocks || []).forEach(function (blk) {
+      if (!blk || blk.barberId !== staffMember.id) return;
+      if (String(blk.date || '').slice(0, 10) !== dayKey) return;
+      cortes.push([toMin(blk.start), toMin(blk.end)]);
+    });
+
+    var spans = [{ start: start, end: end }];
+    cortes.forEach(function (c) {
+      if (c[0] == null || c[1] == null || c[1] <= c[0]) return;
+      var next = [];
+      spans.forEach(function (s) {
+        if (c[1] <= s.start || c[0] >= s.end) { next.push(s); return; }
+        if (c[0] > s.start) next.push({ start: s.start, end: Math.min(c[0], s.end) });
+        if (c[1] < s.end) next.push({ start: Math.max(c[1], s.start), end: s.end });
+      });
+      spans = next;
+    });
+    return spans;
+  }
+
+  // Barberos activos con horario utilizable. Los activos SIN `schedule` se
+  // devuelven aparte en vez de contarse con disponibilidad 0: si entraran al
+  // cálculo darían una ocupación absurda (o una división por cero), y el
+  // panel debe poder decir "a este le falta configurar el horario".
+  function usableStaff(staff) {
+    var ok = [], sinHorario = [];
+    (staff || []).forEach(function (s) {
+      if (!s || s.status !== 'active') return;
+      if (!Array.isArray(s.schedule) || !s.schedule.length) { sinHorario.push(s.id); return; }
+      ok.push(s);
+    });
+    return { ok: ok, sinHorario: sinHorario };
+  }
+
+  // Minutos que ocupó una reserva: los reales si se midieron, si no los
+  // planificados (y en ese caso suman a `estimados`, que el panel reporta).
+  function bookedMinutes(b) {
+    var real = +b.actualDur;
+    if (Number.isFinite(real) && real > 0) return { min: real, estimado: 0 };
+    var plan = (+b.dur) || 0;
+    return { min: plan, estimado: plan };
+  }
+
+  function mOccupancy(periodBookings, staff, blocks, opts) {
+    var o = opts || {};
+    var u = usableStaff(staff);
+    var disponibles = 0;
+    eachDay(o.from, o.to, function (dayKey) {
+      u.ok.forEach(function (s) {
+        freeSpansFor(s, dayKey, blocks).forEach(function (sp) { disponibles += sp.end - sp.start; });
+      });
+    });
+
+    var atendidos = 0, estimados = 0;
+    var activos = {};
+    u.ok.forEach(function (s) { activos[s.id] = true; });
+    (periodBookings || []).forEach(function (b) {
+      try {
+        if (!b || !activos[b.barberId]) return;
+        if (b.status === 'no_show') return; // no ocupó el sillón
+        var m = bookedMinutes(b);
+        atendidos += m.min;
+        estimados += m.estimado;
+      } catch (e) { /* aislar */ }
+    });
+
+    return {
+      atendidos: atendidos, disponibles: disponibles, estimados: estimados,
+      sinHorario: u.sinHorario,
+      pct: disponibles > 0 ? atendidos / disponibles : null,
+    };
+  }
+
+  // Ocupación por día de semana y bloque horario -- las "horas débiles" del
+  // PDF (§7 regla 6). Una celda por (dow, hora) con disponibilidad real.
+  function mHeatmap(periodBookings, staff, blocks, opts) {
+    var o = opts || {};
+    var u = usableStaff(staff);
+    var celdas = {};
+    var key = function (dow, h) { return dow + '|' + h; };
+    var touch = function (dow, h) {
+      if (!celdas[key(dow, h)]) celdas[key(dow, h)] = { dow: dow, hour: h, ocupados: 0, disponibles: 0 };
+      return celdas[key(dow, h)];
+    };
+
+    eachDay(o.from, o.to, function (dayKey) {
+      var dow = dowOf(dayKey);
+      if (dow == null) return;
+      u.ok.forEach(function (s) {
+        freeSpansFor(s, dayKey, blocks).forEach(function (sp) {
+          for (var h = Math.floor(sp.start / 60); h < Math.ceil(sp.end / 60); h++) {
+            var lo = Math.max(sp.start, h * 60), hi = Math.min(sp.end, (h + 1) * 60);
+            if (hi > lo) touch(dow, h).disponibles += hi - lo;
+          }
+        });
+      });
+    });
+
+    var activos = {};
+    u.ok.forEach(function (s) { activos[s.id] = true; });
+    (periodBookings || []).forEach(function (b) {
+      try {
+        if (!b || !activos[b.barberId] || b.status === 'no_show') return;
+        var d = parseBookingDate(b);
+        if (!d) return;
+        var dow = dowOf(ymd(d));
+        var start = toMin(b.time);
+        if (dow == null || start == null) return;
+        var mins = bookedMinutes(b).min;
+        var end = start + mins;
+        for (var h = Math.floor(start / 60); h < Math.ceil(end / 60); h++) {
+          var lo = Math.max(start, h * 60), hi = Math.min(end, (h + 1) * 60);
+          if (hi > lo && celdas[key(dow, h)]) celdas[key(dow, h)].ocupados += hi - lo;
+        }
+      } catch (e) { /* aislar */ }
+    });
+
+    return Object.keys(celdas).map(function (k) {
+      var c = celdas[k];
+      c.pct = c.disponibles > 0 ? c.ocupados / c.disponibles : null;
+      return c;
+    }).sort(function (a, b) { return a.dow - b.dow || a.hour - b.hour; });
+  }
+
   function sumPrice(bookings) {
     var t = 0;
     (bookings || []).forEach(function (b) { t += (b && +b.price) || 0; });
@@ -616,6 +781,7 @@
     mFilterPeriodAll: mFilterPeriodAll, median: median,
     mAttendance: mAttendance, mAttendanceCoverage: mAttendanceCoverage, mRevenue: mRevenue,
     mRealTime: mRealTime, mPriceSim: mPriceSim, PRICE_SIM_MIN_N: PRICE_SIM_MIN_N,
+    mOccupancy: mOccupancy, mHeatmap: mHeatmap,
     mMonthlySeries: mMonthlySeries, mWeeklySeries: mWeeklySeries, mByService: mByService,
     mByBarber: mByBarber, mNewVsReturning: mNewVsReturning, mMonthlyExportRows: mMonthlyExportRows,
     svgLine: svgLine, toCSV: toCSV

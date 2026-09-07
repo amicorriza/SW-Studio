@@ -300,8 +300,10 @@ dispositivo guarda su token de FCM.
    contraseña). Solo crear la cuenta.
 3. **Vincular.** Panel admin → Personal → botón **Vincular cuenta** en la ficha
    del barbero, y escribir ese correo. El UID lo resuelve el servidor
-   (`linkStaffAccount`) y lo guarda en `staff/{id}.uid`. Sin este paso, el
-   barbero entra pero ve "esta cuenta no está vinculada".
+   (`linkStaffAccount`) y lo guarda en `staffAccounts/{staffId}` — **no** en
+   `staff/{id}`, que es de lectura pública y dejaría el correo y el UID del
+   profesional a la vista de cualquiera. Sin este paso, el barbero entra pero
+   ve "esta cuenta no está vinculada".
 4. **Activar los avisos.** `businessInfo/main.nudgesEnabled = true`, a mano en
    Firestore. Hasta entonces `staffAttendanceNudges` corre cada 2 minutos y no
    manda nada — mismo interruptor que `remindersEnabled`. **Desplegar no es

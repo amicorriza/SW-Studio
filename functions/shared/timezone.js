@@ -16,6 +16,7 @@
 
 const DEFAULT_TZ = 'America/Santiago';
 const DEFAULT_BUFFER_MIN = 0;
+const DEFAULT_NUDGE_LEAD_MIN = 10;
 
 // businessInfo.tz ausente (negocios existentes, o el campo nunca se guardó)
 // -> DEFAULT_TZ. Único punto de este fallback en todo el código -- explícito
@@ -29,6 +30,14 @@ function resolveBusinessTz(businessInfo) {
 // fallback, explícito en el llamador (index.js), nunca disperso.
 function resolveBufferMin(businessInfo) {
   return (businessInfo && Number.isFinite(businessInfo.bufferMin)) ? businessInfo.bufferMin : DEFAULT_BUFFER_MIN;
+}
+
+// Minutos de anticipación del aviso "se acerca la hora" que recibe el
+// profesional en la PWA (medición de la atención real, 2026-09). Mismo
+// patrón que resolveBufferMin: default en código, override opcional en
+// businessInfo/main desde el panel Info del admin.
+function resolveNudgeLeadMin(businessInfo) {
+  return (businessInfo && Number.isFinite(businessInfo.nudgeLeadMin)) ? businessInfo.nudgeLeadMin : DEFAULT_NUDGE_LEAD_MIN;
 }
 
 // 'YYYY-MM-DD' + 'HH:MM', interpretados como hora de PARED en `tz`, ->
@@ -93,5 +102,6 @@ function timeKeyInZone(instant, tz) {
 
 module.exports = {
   DEFAULT_TZ, resolveBusinessTz, DEFAULT_BUFFER_MIN, resolveBufferMin,
+  DEFAULT_NUDGE_LEAD_MIN, resolveNudgeLeadMin,
   zonedInstant, dateKeyInZone, timeKeyInZone,
 };

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { DEFAULT_TZ, resolveBusinessTz, zonedInstant, dateKeyInZone, timeKeyInZone } = require('../shared/timezone.js');
+const { DEFAULT_TZ, resolveBusinessTz, resolveNudgeLeadMin, zonedInstant, dateKeyInZone, timeKeyInZone } = require('../shared/timezone.js');
 
 test('DEFAULT_TZ es America/Santiago', () => {
   assert.strictEqual(DEFAULT_TZ, 'America/Santiago');
@@ -119,4 +119,15 @@ test('timeKeyInZone normaliza medianoche a "00:00", no "24:00"', () => {
   // 03:00 UTC = medianoche exacta en America/Punta_Arenas (GMT-3 fijo).
   const instant = new Date('2026-06-15T03:00:00.000Z');
   assert.strictEqual(timeKeyInZone(instant, 'America/Punta_Arenas'), '00:00');
+});
+
+// Medición de la atención real (2026-09): mismo patrón de fallback que
+// resolveBufferMin -- default en código, override en businessInfo/main.
+test('resolveNudgeLeadMin: default 10 cuando falta businessInfo o el campo', () => {
+  assert.strictEqual(resolveNudgeLeadMin(null), 10);
+  assert.strictEqual(resolveNudgeLeadMin(undefined), 10);
+  assert.strictEqual(resolveNudgeLeadMin({}), 10);
+  assert.strictEqual(resolveNudgeLeadMin({ nudgeLeadMin: 15 }), 15);
+  assert.strictEqual(resolveNudgeLeadMin({ nudgeLeadMin: 0 }), 0, '0 es un valor válido: avisar justo a la hora');
+  assert.strictEqual(resolveNudgeLeadMin({ nudgeLeadMin: 'x' }), 10);
 });

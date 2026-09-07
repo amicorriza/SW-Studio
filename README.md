@@ -149,7 +149,9 @@ Test de navegador del Dashboard (requiere Playwright, no es dependencia del repo
 
 ```bash
 npm i -D playwright && npx playwright install chromium
-node tests/browser/dashboard.mjs
+node tests/browser/dashboard.mjs          # Dashboard de métricas
+node tests/browser/barbero.mjs            # PWA del barbero (/barbero/)
+node tests/browser/admin-asistencia.mjs   # asistencia y cancelar-sin-borrar
 ```
 
 ## Deploy
@@ -199,6 +201,49 @@ runbook en `docs/`). El template de email vive en `functions/email.js`
 (`renderClientEmail`); sus imágenes deben existir publicadas en
 `https://scissorwhite.cl/assets/email/` — los clientes de correo bloquean
 imágenes embebidas (data-URI).
+
+## App del barbero (`/barbero/`)
+
+PWA instalable donde el profesional ve su agenda del día y registra qué pasó
+con cada cita: **Llegó / No llegó / Iniciar atención / Finalizar atención**.
+De ahí salen la asistencia real, el tiempo real por servicio y la desviación
+respecto de lo planificado — los KPI que el Dashboard todavía no puede
+calcular. Ver `docs/superpowers/specs/2026-09-06-medicion-atencion-real-design.md`.
+
+No habla con Firestore: todo pasa por callables (`getMyDay`,
+`markAttendance`). La única excepción es `staffDevices/{uid}`, donde cada
+dispositivo guarda su token de FCM.
+
+### Puesta en marcha (una vez)
+
+1. **Clave VAPID.** Consola de Firebase → Cloud Messaging → *Web Push
+   certificates* → **Generate key pair**. Copiar la clave pública y pegarla en
+   `VAPID_KEY`, arriba del script de `public/barbero/index.html`. Es pública
+   por diseño, igual que el resto de `firebaseConfig`: **no** va a Secret
+   Manager ni a `functions/.env`. Sin ella la app funciona completa salvo el
+   push.
+2. **Una cuenta por barbero.** Consola → Authentication → *Add user* (correo +
+   contraseña). Solo crear la cuenta.
+3. **Vincular.** Panel admin → Personal → botón **Vincular cuenta** en la ficha
+   del barbero, y escribir ese correo. El UID lo resuelve el servidor
+   (`linkStaffAccount`) y lo guarda en `staff/{id}.uid`. Sin este paso, el
+   barbero entra pero ve "esta cuenta no está vinculada".
+4. **Activar los avisos.** `businessInfo/main.nudgesEnabled = true`, a mano en
+   Firestore. Hasta entonces `staffAttendanceNudges` corre cada 2 minutos y no
+   manda nada — mismo interruptor que `remindersEnabled`. **Desplegar no es
+   activar.** La anticipación del aviso se ajusta en el panel Info
+   (*"Avisar al profesional (min antes)"*, default 10).
+5. **En el teléfono**, el barbero entra a `scissorwhite.cl/barbero/`, y toca
+   **Activar avisos**.
+
+> **iPhone:** el push web exige **iOS 16.4 o superior** *y* que la app se haya
+> agregado a la pantalla de inicio (Compartir → *Agregar a inicio*). Abierta
+> como pestaña de Safari no llega ninguna notificación — es una restricción
+> del sistema, no un problema de la app. En Android funciona directo desde
+> Chrome, aunque conviene instalarla igual.
+
+Los íconos (192/512 y el *maskable*) se regeneran con
+`node scripts/make-barbero-icons.mjs`.
 
 ## Reseñas de Google
 

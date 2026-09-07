@@ -11,6 +11,12 @@ public/js/metrics.js     agregaciones puras del Dashboard de métricas (KPIs,
                          ingresos por servicio, tendencias). NO toca Firestore
                          ni el DOM; <script> clásico sin bundler, require-able
                          por Node. Tests en tests/unit/metrics.test.js (`npm test`).
+public/barbero/          PWA instalable del profesional: agenda del día y los
+                         cuatro botones (Llegó / No llegó / Iniciar / Finalizar),
+                         más push por FCM. index.html + manifest + sw.js, todo
+                         vanilla. NO habla con Firestore: todo por callables
+                         (getMyDay, markAttendance). Íconos generados por
+                         scripts/make-barbero-icons.mjs.
 functions/               callables y triggers
 firestore.rules, storage.rules
 
@@ -27,16 +33,22 @@ Estado conocido, a verificar antes de tocar nada:
   copia CEL muerta (documentación) y isValidEmail() como el único gate real
   del camino de escritura directa del admin -- esa brecha (el admin no pasa
   por isValidBookingPayload) sigue sin cerrar, es trabajo aparte.
-  Estado: functions/shared/status.js centraliza BOOKING_STATUSES
-  ('pending'/'confirmed'/'declined') y DEFAULT_BOOKING_STATUS ('pending').
-  Primera transición de estado real del repo: pending -> confirmed/declined,
-  vía el recordatorio de citas (functions/reminders.js,
-  exports.respondToBookingReminder en functions/index.js). Cancelar sigue
-  siendo deleteDoc (destruye el registro) -- eso no cambió con este goal.
+  Estado: functions/shared/status.js centraliza los ocho BOOKING_STATUSES
+  (pending, confirmed, declined, arrived, in_service, completed, no_show,
+  cancelled) y BLOCKING_STATUSES, que es el criterio ÚNICO de "esta reserva
+  ocupa el horario" -- lista blanca a propósito, ver el comentario del
+  archivo. Las transiciones válidas viven en functions/shared/attendance.js
+  (canTransition/applyAction, puro y testeable sin emulador); el I/O lo hace
+  exports.markAttendance. "Revisar" NO es un estado: es derivado (in_service
+  cuyo fin planificado ya pasó con más de 30 min de holgura), y lo calculan
+  igual la PWA y el admin.
 - isAdmin() es custom claim admin:true O UN UID ESCRITO A MANO, repetido en cuatro
   archivos: firestore.rules, storage.rules (x2), functions/index.js.
-- buildBookingDoc() escribe status:'pending' fijo y nada lo cambia jamás.
-- deleteBooking() hace deleteDoc: cancelar destruye el registro.
+- buildBookingDoc() sigue escribiendo status:'pending'; lo que cambia después
+  son las transiciones (recordatorio y medición de la atención real).
+- Cancelar YA NO borra: escribe status:'cancelled' vía markAttendance y
+  conserva el documento. deleteBooking()/deleteBookingAnd() siguen en el
+  código, sin uso, para el borrado duro de una reserva de prueba.
 - log() escribe en memoria; saveAdmin() solo persiste services, staff y businessInfo.
   adminLog nunca se escribe desde el panel.
 - Panel de Servicios: la acción por defecto es "Retirar" (status:'inactive'),
@@ -48,10 +60,19 @@ Estado conocido, a verificar antes de tocar nada:
   y se persiste al primer guardado. `updatedAt` (ISO) se setea en cada
   alta/edición/duplicado/ajuste masivo. Reordenar a mano (arrastrar / ↑↓)
   solo con filtro "Todos" + orden manual.
-- computeAvailability excluye status:'declined' de barberBusy (recordatorio
-  de citas, 2026-09); 'pending' y 'confirmed' siguen ocupando el horario
-  igual que antes.
-- Despliegue manual con once nombres de función a mano (ver README.md);
+- computeAvailability y checkConflict() del admin usan isBlockingStatus()
+  (functions/shared/status.js; el admin mantiene una copia deliberada por ser
+  <script> plano). declined, no_show y cancelled liberan el horario; una
+  reserva SIN status lo ocupa, que es el default seguro.
+- Acceso del equipo: staff/{id}.uid vincula la ficha con una cuenta de
+  Firebase Auth. Lo escribe exports.linkStaffAccount desde el panel Personal;
+  la cuenta se crea a mano en la consola. staffDevices/{uid} guarda los
+  tokens de FCM y es el ÚNICO lugar donde alguien que no es admin escribe
+  directo a Firestore.
+- staffAttendanceNudges (onSchedule, cada 2 min) manda los avisos, pero NO
+  envía nada salvo businessInfo.nudgesEnabled === true -- mismo interruptor
+  que remindersEnabled. Deploy != activación.
+- Despliegue manual con quince nombres de función a mano (ver README.md);
   createBooking ya quedó fuera de esa lista una vez y se congeló en silencio.
 
 INVARIANTES — ningún goal puede romperlos:
@@ -72,9 +93,17 @@ PROHIBIDO en todas las etapas 0 y A:
 Nota (2026-09-01): el proyecto avanzó a etapa B/C -- "holds, recordatorios,
 autogestión o WhatsApp" dejó de estar prohibido. El recordatorio de citas
 (confirmar/declinar 24h antes) ya está implementado (ver
-docs/superpowers/specs/2026-09-01-recordatorio-citas-design.md); holds,
+docs/superpowers/specs/2026-09-01-recordatorio-citas-design.md), y también la
+medición de la atención real con PWA y push
+(docs/superpowers/specs/2026-09-06-medicion-atencion-real-design.md). Holds,
 autogestión completa (modificar/cancelar) y WhatsApp como canal siguen sin
 construirse, pero ya no están bloqueados por etapa.
+
+Pendiente inmediato (proyectos 2 y 3 del reporte de KPI, ver ese spec): el
+Dashboard con vista simple / vista en detalle y los seis KPI que la medición
+recién habilita (asistencia real, no-show, tiempo real, desviación,
+ingreso/hora real, ocupación), y después el motor de recomendaciones
+semanales.
 
 REGLA DE TRABAJO: si el repo contradice algo de este contexto, detente y avísame
 antes de escribir código. No improvises sobre una suposición equivocada.

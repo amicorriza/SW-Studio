@@ -827,10 +827,24 @@ exports.linkStaffAccount = onCall(
     if (!staffId || !email) throw new HttpsError('invalid-argument', 'Falta el profesional o el correo.');
 
     let user;
+    const correo = String(email).trim().toLowerCase();
     try {
-      user = await getAuth(app).getUserByEmail(String(email).trim().toLowerCase());
-    } catch {
-      throw new HttpsError('not-found', 'No existe ninguna cuenta con ese correo. Creala primero en Firebase Auth.');
+      user = await getAuth(app).getUserByEmail(correo);
+    } catch (e) {
+      // Este catch se tragaba TODO y siempre culpaba al correo. Cuando la causa
+      // real era otra -- el service account sin permiso sobre Identity Toolkit,
+      // la API sin habilitar, un fallo de red -- mandaba al admin a crear en
+      // Auth una cuenta que ya existía, y no dejaba ni una línea de log para
+      // desmentirlo. Ahora el código real siempre va al log, y solo el caso
+      // genuino conserva el mensaje amable.
+      logger.error('linkStaffAccount getUserByEmail', {
+        code: (e && e.code) || null, message: (e && e.message) || String(e), correo,
+      });
+      if (e && e.code === 'auth/user-not-found') {
+        throw new HttpsError('not-found', 'No existe ninguna cuenta con ese correo. Creala primero en Firebase Auth.');
+      }
+      throw new HttpsError('internal',
+        `No se pudo consultar Firebase Auth (${(e && e.code) || 'sin código'}). El detalle quedó en los logs de linkStaffAccount.`);
     }
 
     const ref = db.collection('staff').doc(String(staffId));

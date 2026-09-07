@@ -71,11 +71,19 @@ Estado conocido, a verificar antes de tocar nada:
   (functions/shared/status.js; el admin mantiene una copia deliberada por ser
   <script> plano). declined, no_show y cancelled liberan el horario; una
   reserva SIN status lo ocupa, que es el default seguro.
-- Acceso del equipo: staff/{id}.uid vincula la ficha con una cuenta de
-  Firebase Auth. Lo escribe exports.linkStaffAccount desde el panel Personal;
-  la cuenta se crea a mano en la consola. staffDevices/{uid} guarda los
-  tokens de FCM y es el ÚNICO lugar donde alguien que no es admin escribe
-  directo a Firestore.
+- Acceso del equipo: el vínculo ficha<->cuenta de Auth vive en
+  staffAccounts/{staffId} (admin-only), NO en staff/{id}. staff tiene lectura
+  PÚBLICA porque el widget de reservas necesita nombres, fotos y horarios;
+  guardar ahí el uid y el correo del profesional los dejaría legibles por
+  cualquiera que abra el sitio. Lo escribe exports.linkStaffAccount desde el
+  panel Personal (la cuenta se crea a mano en la consola), y el panel lo lee
+  en un mapa D.staffAccounts aparte -- nunca pegado al objeto de staff,
+  porque saveAdmin() persiste ese array entero y lo devolvería a staff/{id}.
+  staffDevices/{uid} guarda los tokens de FCM y es el ÚNICO lugar donde
+  alguien que no es admin escribe directo a Firestore.
+- Alcances: un barbero NO puede leer `bookings` (regla admin-only) ni escribir
+  `staff`. Ve solo lo suyo vía getMyDay, que filtra por su staffId, y
+  markAttendance rechaza las citas de otro. El admin ve y puede todo.
 - staffAttendanceNudges (onSchedule, cada 2 min) manda los avisos, pero NO
   envía nada salvo businessInfo.nudgesEnabled === true -- mismo interruptor
   que remindersEnabled. Deploy != activación.

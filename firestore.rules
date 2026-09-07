@@ -91,6 +91,13 @@ service cloud.firestore {
     // Log de actividad: solo admin
     match /adminLog/{id} { allow read, write: if isAdmin(); }
 
+    // Vínculo entre una ficha de `staff` y su cuenta de Firebase Auth.
+    // Vive APARTE de staff/{id} a propósito: staff tiene lectura pública
+    // porque el widget de reservas necesita nombres, fotos y horarios, y
+    // guardar ahí el uid y el correo del profesional los dejaría legibles
+    // por cualquiera que abra el sitio. Acá son admin-only.
+    match /staffAccounts/{staffId} { allow read, write: if isAdmin(); }
+
     // Tokens de FCM del dispositivo de cada profesional (PWA /barbero,
     // medición de la atención real 2026-09). Es el ÚNICO lugar del repo
     // donde alguien que no es admin escribe directo a Firestore, y es

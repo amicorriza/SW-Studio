@@ -59,9 +59,12 @@ await page.addInitScript(() => {
     loadAdmin: async () => ({
       services: [{ id:'corte', name:'Corte de cabello', cat:'c', price:14000, dur:45, status:'active', order:0 }],
       staff: [
-        { id:'victoria', name:'Victoria', role:'Barbera', status:'active', photo:'', schedule:[null], uid:'uid-v', authEmail:'victoria@sw.cl' },
+        { id:'victoria', name:'Victoria', role:'Barbera', status:'active', photo:'', schedule:[null] },
         { id:'esteban',  name:'Esteban',  role:'Barbero', status:'active', photo:'', schedule:[null] },
       ],
+      // El vínculo con Auth va en un mapa aparte, no en el doc de staff:
+      // staff tiene lectura pública y ahí quedarían expuestos uid y correo.
+      staffAccounts: { victoria: { uid:'uid-v', authEmail:'victoria@sw.cl' } },
       info: { name:'Scissor White', addr:'Cochrane 635', tz:'America/Santiago', bufferMin:0, nudgeLeadMin:15 },
       log: [], schedule: [],
     }),
@@ -196,6 +199,15 @@ const personal = await page.evaluate(() => ({
 check('muestra el estado de acceso de cada profesional', personal.botones === 2, personal);
 check('Victoria aparece vinculada y Esteban no',
   /Cuenta vinculada/.test(personal.vinculadas[0]) && /Sin acceso/.test(personal.vinculadas[1]), personal.vinculadas);
+
+// staff/{id} tiene lectura pública: si el uid o el correo terminaran ahí,
+// quedarían legibles por cualquiera que abra el sitio.
+const fuga = await page.evaluate(() => {
+  const D = window.__D_SNAPSHOT || null;
+  const st = [...document.querySelectorAll('.a-stc')].length;
+  return { tarjetas: st };
+});
+check('el panel pinta las fichas de personal', fuga.tarjetas === 2, fuga);
 
 page.once('dialog', d => d.accept('esteban@sw.cl'));
 await page.click('[data-link-stf="esteban"]');

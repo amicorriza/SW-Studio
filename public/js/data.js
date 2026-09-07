@@ -19,13 +19,20 @@ async function readCol(name) {
 
 // Carga el objeto D que usa el admin: {services, staff, info, log, schedule}
 async function loadAdmin() {
-  const [services, staff, infoSnap, log] = await Promise.all([
+  const [services, staff, infoSnap, log, accounts] = await Promise.all([
     readCol('services'), readCol('staff'),
     getDocs(collection(db, 'businessInfo')), readCol('adminLog'),
+    readCol('staffAccounts'),
   ]);
   const infoDoc = infoSnap.docs.find(d => d.id === 'main');
+  // El vínculo con Firebase Auth va en un MAPA APARTE, nunca pegado al objeto
+  // de staff: saveAdmin() persiste el array de staff entero, así que un `uid`
+  // colgado ahí volvería a escribirse en staff/{id} -- que tiene lectura
+  // pública -- al primer guardado, deshaciendo el motivo de separarlo.
+  const staffAccounts = {};
+  accounts.forEach(a => { staffAccounts[a.id] = { uid: a.uid, authEmail: a.authEmail }; });
   return {
-    services, staff,
+    services, staff, staffAccounts,
     info: infoDoc ? infoDoc.data() : {},
     log: log.sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 30),
     schedule: [],

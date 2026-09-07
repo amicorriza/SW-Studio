@@ -693,9 +693,14 @@ exports.syncGoogleReviews = onCall(
 // ninguno: un usuario de Auth sin ficha de staff no es un barbero.
 async function resolveStaffFor(db, request) {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Tenés que iniciar sesión.');
-  const snap = await db.collection('staff').where('uid', '==', request.auth.uid).limit(1).get();
-  if (snap.empty) return null;
-  return { id: snap.docs[0].id, ...snap.docs[0].data() };
+  // El vínculo vive en staffAccounts (admin-only), NO en staff/{id}, que
+  // tiene lectura pública para el widget de reservas -- ver firestore.rules.
+  const link = await db.collection('staffAccounts').where('uid', '==', request.auth.uid).limit(1).get();
+  if (link.empty) return null;
+  const staffId = link.docs[0].id;
+  const doc = await db.collection('staff').doc(staffId).get();
+  if (!doc.exists) return null;
+  return { id: doc.id, ...doc.data() };
 }
 
 function isAdminRequest(request) {
@@ -828,13 +833,24 @@ exports.linkStaffAccount = onCall(
 
     // Un mismo UID vinculado a dos fichas rompería resolveStaffFor (que toma
     // la primera que encuentre) de forma silenciosa y difícil de rastrear.
-    const dup = await db.collection('staff').where('uid', '==', user.uid).get();
+    const dup = await db.collection('staffAccounts').where('uid', '==', user.uid).get();
     const otra = dup.docs.find((d) => d.id !== String(staffId));
     if (otra) {
-      throw new HttpsError('already-exists', `Esa cuenta ya está vinculada a ${otra.data().name || otra.id}.`);
+      const ficha = await db.collection('staff').doc(otra.id).get();
+      const nombre = ficha.exists ? (ficha.data().name || otra.id) : otra.id;
+      throw new HttpsError('already-exists', `Esa cuenta ya está vinculada a ${nombre}.`);
     }
 
-    await ref.update({ uid: user.uid, authEmail: user.email || '' });
+    await db.collection('staffAccounts').doc(String(staffId)).set({
+      uid: user.uid, authEmail: user.email || '', linkedAt: new Date().toISOString(),
+    });
+
+    // Limpieza: versiones anteriores guardaban el vínculo en el propio doc de
+    // staff, que es de lectura pública. Si quedó alguno, se borra acá.
+    if (snap.data().uid || snap.data().authEmail) {
+      await ref.update({ uid: FieldValue.delete(), authEmail: FieldValue.delete() });
+    }
+
     return { ok: true, uid: user.uid };
   }
 );

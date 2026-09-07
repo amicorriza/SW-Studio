@@ -1,3 +1,5 @@
+// staffDevices y staffAccounts.
+//
 // staffDevices/{uid} — tokens de FCM del dispositivo de cada profesional
 // (PWA /barbero). Es el ÚNICO lugar del repo donde alguien que no es admin
 // escribe directo a Firestore: un dato por-usuario, sin PII, con una regla
@@ -40,4 +42,26 @@ test('un anónimo no puede escribir ni leer ninguno', async () => {
   const db = env.unauthenticatedContext().firestore();
   await assertFails(setDoc(doc(db, 'staffDevices/uid-victoria'), { tokens: ['t1'] }));
   await assertFails(getDoc(doc(db, 'staffDevices/uid-victoria')));
+});
+
+// staffAccounts: el vínculo entre una ficha de staff y su cuenta de Auth.
+// Vive aparte de staff/{id} porque ese tiene lectura PÚBLICA (el widget de
+// reservas necesita nombres, fotos y horarios) y ahí el uid y el correo del
+// profesional quedarían legibles por cualquiera.
+test('staffAccounts: un anónimo NO puede leerlo', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertFails(getDoc(doc(db, 'staffAccounts/victoria')));
+});
+
+test('staffAccounts: un barbero autenticado tampoco puede leerlo', async () => {
+  const db = env.authenticatedContext('uid-victoria').firestore();
+  await assertFails(getDoc(doc(db, 'staffAccounts/victoria')));
+  await assertFails(setDoc(doc(db, 'staffAccounts/esteban'), { uid: 'uid-victoria' }));
+});
+
+// El contraste que justifica todo: staff SÍ es público, y por eso no puede
+// guardar el vínculo.
+test('staff sigue siendo de lectura pública (lo necesita el widget)', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertSucceeds(getDoc(doc(db, 'staff/victoria')));
 });

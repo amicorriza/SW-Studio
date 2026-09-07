@@ -4022,12 +4022,17 @@ function renderStaff(){
       '<div class="a-stgs"><span class="a-tag a-t'+(s.status==='active'?'ok':'no')+'">'+(s.status==='active'?'Activo':'Inactivo')+'</span></div>'+
       // Acceso a la app del barbero (/barbero). Sin cuenta vinculada, ese
       // profesional no puede entrar ni recibir avisos de sus citas.
-      '<div class="a-stlink">'+
-        (s.uid
-          ? '<span class="a-sti" title="'+esc(s.authEmail||'')+'">✓ Cuenta vinculada</span>'
-          : '<span class="a-sti" style="color:var(--a-meta)">Sin acceso a la app</span>')+
-        '<button class="a-btn a-btn-g a-btn-sm" data-link-stf="'+esc(s.id)+'">'+(s.uid?'Cambiar':'Vincular cuenta')+'</button>'+
-      '</div>'+
+      (function(){
+        // El vínculo vive en D.staffAccounts, no en el doc de staff: ese es
+        // de lectura pública y ahí quedarían expuestos el uid y el correo.
+        var cta = (D.staffAccounts || {})[s.id];
+        return '<div class="a-stlink">'+
+          (cta && cta.uid
+            ? '<span class="a-sti" title="'+esc(cta.authEmail||'')+'">✓ Cuenta vinculada</span>'
+            : '<span class="a-sti" style="color:var(--a-meta)">Sin acceso a la app</span>')+
+          '<button class="a-btn a-btn-g a-btn-sm" data-link-stf="'+esc(s.id)+'">'+(cta && cta.uid?'Cambiar':'Vincular cuenta')+'</button>'+
+        '</div>';
+      })()+
     '</div>';
   }).join('');
   sg.querySelectorAll('[data-link-stf]').forEach(function(b){
@@ -4060,13 +4065,14 @@ function linkStaffPrompt(staffId){
   var email = window.prompt(
     'Correo de la cuenta de '+s.name+'\n\n'+
     'La cuenta tiene que existir ya en Firebase Auth (Consola → Authentication → Add user).',
-    s.authEmail || ''
+    ((D.staffAccounts || {})[staffId] || {}).authEmail || ''
   );
   if(email === null) return;
   email = email.trim();
   if(!email) return;
   window.SWData.linkStaffAccount(staffId, email).then(function(r){
-    s.uid = r.uid; s.authEmail = email;
+    if(!D.staffAccounts) D.staffAccounts = {};
+    D.staffAccounts[staffId] = { uid: r.uid, authEmail: email };
     renderStaff();
     showAlert('a-stf-alert','ok','Cuenta vinculada: '+email);
     log('Vinculó cuenta', s.name);

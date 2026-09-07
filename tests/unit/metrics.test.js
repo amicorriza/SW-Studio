@@ -818,3 +818,149 @@ test('mHeatmap sin reservas ni staff no lanza', () => {
   assert.doesNotThrow(() => M.mHeatmap([], [], [], RANGO));
   assert.deepStrictEqual(M.mHeatmap([], [], [], RANGO), []);
 });
+
+// ═══════════ P3: insumos del motor de recomendaciones ═══════════
+
+// mLateStarts compara HORA DE PARED en la zona del negocio. 13:00Z = 10:00
+// en Santiago (GMT-3 en septiembre), así que una cita agendada 10:00 que
+// arranca 13:09Z llegó 9 minutos tarde.
+const lateBk = (over) => at(Object.assign({
+  date: '2026-09-10', time: '10:00', status: 'completed', actualDur: 45,
+  startedAt: '2026-09-10T13:00:00.000Z',
+}, over));
+const TZCL = 'America/Santiago';
+
+test('mLateStarts: sin atraso no cuenta como tarde', () => {
+  const r = M.mLateStarts(periodo([lateBk()]), { tz: TZCL });
+  assert.strictEqual(r.medidas, 1);
+  assert.strictEqual(r.tarde, 0);
+  assert.strictEqual(r.pct, 0);
+});
+
+test('mLateStarts: 9 min tarde supera el umbral de 8', () => {
+  const r = M.mLateStarts(periodo([lateBk({ startedAt: '2026-09-10T13:09:00.000Z' })]), { tz: TZCL });
+  assert.strictEqual(r.tarde, 1);
+  assert.strictEqual(r.medianaAtrasoMin, 9);
+});
+
+test('mLateStarts: 8 min exactos NO es tarde (el umbral es >8)', () => {
+  const r = M.mLateStarts(periodo([lateBk({ startedAt: '2026-09-10T13:08:00.000Z' })]), { tz: TZCL });
+  assert.strictEqual(r.tarde, 0);
+});
+
+test('mLateStarts: adelantarse no cuenta como atraso', () => {
+  const r = M.mLateStarts(periodo([lateBk({ startedAt: '2026-09-10T12:50:00.000Z' })]), { tz: TZCL });
+  assert.strictEqual(r.tarde, 0);
+  assert.strictEqual(r.medidas, 1);
+});
+
+test('mLateStarts calcula el porcentaje sobre las atenciones iniciadas', () => {
+  const r = M.mLateStarts(periodo([
+    lateBk({ startedAt: '2026-09-10T13:20:00.000Z' }),
+    lateBk({ startedAt: '2026-09-10T13:00:00.000Z' }),
+    lateBk({ startedAt: '2026-09-10T13:01:00.000Z' }),
+    lateBk({ startedAt: '2026-09-10T13:02:00.000Z' }),
+  ]), { tz: TZCL });
+  assert.strictEqual(r.medidas, 4);
+  assert.strictEqual(r.tarde, 1);
+  assert.ok(Math.abs(r.pct - 0.25) < 1e-9);
+});
+
+// Una atención que arrancó otro día calendario es un dato corrupto o cruzó
+// la medianoche: reportar "atraso de 840 minutos" sería peor que ignorarla.
+test('mLateStarts ignora una atención iniciada en otro día', () => {
+  const r = M.mLateStarts(periodo([lateBk({ startedAt: '2026-09-11T13:05:00.000Z' })]), { tz: TZCL });
+  assert.strictEqual(r.medidas, 0);
+  assert.strictEqual(r.pct, null, 'sin muestra no hay porcentaje');
+});
+
+test('mLateStarts ignora las citas que nunca se iniciaron', () => {
+  const r = M.mLateStarts(periodo([at({ status: 'pending' }), at({ status: 'no_show' })]), { tz: TZCL });
+  assert.strictEqual(r.medidas, 0);
+  assert.strictEqual(r.pct, null);
+});
+
+test('mLateStarts no lanza con startedAt basura', () => {
+  assert.doesNotThrow(() => M.mLateStarts(periodo([lateBk({ startedAt: 'no-es-fecha' })]), { tz: TZCL }));
+  assert.strictEqual(M.mLateStarts(periodo([lateBk({ startedAt: 'no-es-fecha' })]), { tz: TZCL }).medidas, 0);
+});
+
+// ── confirmó y no llegó ──
+test('mAttendance separa los no-show que habían confirmado', () => {
+  const a = M.mAttendance(periodoAll([
+    at({ status: 'no_show', respondedAt: '2026-09-09T12:00:00.000Z' }),
+    at({ status: 'no_show', respondedAt: '2026-09-09T12:00:00.000Z' }),
+    at({ status: 'no_show' }),
+    at({ status: 'completed' }),
+  ]));
+  assert.strictEqual(a.noShow, 3);
+  assert.strictEqual(a.noShowConfirmados, 2);
+});
+
+test('mAttendance: sin no-show confirmados devuelve 0, no undefined', () => {
+  assert.strictEqual(M.mAttendance(periodoAll([at({ status: 'completed' })])).noShowConfirmados, 0);
+});
+
+// ── dispersión de duraciones ──
+test('mRealTime reporta cuartiles y dispersión', () => {
+  const r = M.mRealTime(periodo([
+    done({ actualDur: 30 }), done({ actualDur: 40 }), done({ actualDur: 50 }),
+    done({ actualDur: 60 }), done({ actualDur: 70 }),
+  ]), { groupBy: 'svc' });
+  assert.strictEqual(r[0].medianMin, 50);
+  assert.strictEqual(r[0].p25Min, 40);
+  assert.strictEqual(r[0].p75Min, 60);
+  // IQR 20 sobre mediana 50 = 0,40
+  assert.ok(Math.abs(r[0].spread - 0.4) < 1e-9, String(r[0].spread));
+});
+
+test('mRealTime: duraciones muy parejas dan dispersión baja', () => {
+  const r = M.mRealTime(periodo([
+    done({ actualDur: 45 }), done({ actualDur: 46 }), done({ actualDur: 45 }),
+    done({ actualDur: 44 }), done({ actualDur: 45 }),
+  ]), { groupBy: 'svc' });
+  assert.ok(r[0].spread < 0.1, String(r[0].spread));
+});
+
+test('mRealTime: con una sola atención la dispersión es 0, no NaN', () => {
+  const r = M.mRealTime(periodo([done({ actualDur: 50 })]), { groupBy: 'svc' });
+  assert.strictEqual(r[0].spread, 0);
+  assert.ok(Number.isFinite(r[0].p25Min) && Number.isFinite(r[0].p75Min));
+});
+
+// ── ocupación por semana ──
+test('mWeeklyOccupancy devuelve una entrada por semana pedida', () => {
+  const staff = [{ id: 'v', status: 'active', schedule: sched(DIA) }];
+  const w = M.mWeeklyOccupancy([], staff, [], { weeks: 3, today: '2026-09-10' });
+  assert.strictEqual(w.length, 3);
+  assert.ok(w.every(x => /^\d{4}-\d{2}-\d{2}$/.test(x.weekStart)));
+  // Semanas de lunes: la más vieja primero.
+  assert.ok(w[0].weekStart < w[2].weekStart);
+});
+
+test('mWeeklyOccupancy calcula la ocupación de cada semana', () => {
+  const staff = [{ id: 'v', status: 'active', schedule: sched(DIA) }];
+  // Solo abre los lunes: 600 min disponibles por semana.
+  // 2026-08-31 es lunes, dentro de la última semana COMPLETA antes del 09-10.
+  const bks = [at({ date: '2026-08-31', time: '10:00', barberId: 'v', status: 'completed', actualDur: 60 })];
+  const w = M.mWeeklyOccupancy(bks, staff, [], { weeks: 2, today: '2026-09-10' });
+  const ultima = w[w.length - 1];
+  assert.strictEqual(ultima.weekStart, '2026-08-31');
+  assert.ok(Math.abs(ultima.pct - 60 / 600) < 1e-9, JSON.stringify(w));
+  assert.strictEqual(w[0].pct, 0, 'la semana anterior no tuvo citas');
+});
+
+// La semana en curso está a medias por definición: incluirla haría que la
+// regla de "agenda casi llena" viera una caída todos los lunes.
+test('mWeeklyOccupancy excluye la semana en curso', () => {
+  const staff = [{ id: 'v', status: 'active', schedule: sched(DIA) }];
+  const enCurso = [at({ date: '2026-09-07', time: '10:00', barberId: 'v', status: 'completed', actualDur: 60 })];
+  const w = M.mWeeklyOccupancy(enCurso, staff, [], { weeks: 2, today: '2026-09-10' });
+  assert.ok(w.every(x => x.weekStart < '2026-09-07'), JSON.stringify(w.map(x => x.weekStart)));
+  assert.ok(w.every(x => x.atendidos === 0), 'la cita de esta semana no debe contarse');
+});
+
+test('mWeeklyOccupancy sin horarios devuelve pct null, no Infinity', () => {
+  const w = M.mWeeklyOccupancy([], [], [], { weeks: 2, today: '2026-09-10' });
+  assert.ok(w.every(x => x.pct === null), JSON.stringify(w));
+});

@@ -199,6 +199,18 @@
     return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
   }
 
+  // Percentil por interpolación lineal. null con muestra vacía.
+  function percentile(nums, p) {
+    var v = (nums || []).filter(function (n) { return Number.isFinite(n); }).slice()
+      .sort(function (a, b) { return a - b; });
+    if (!v.length) return null;
+    if (v.length === 1) return v[0];
+    var idx = (v.length - 1) * p;
+    var lo = Math.floor(idx), hi = Math.ceil(idx);
+    if (lo === hi) return v[lo];
+    return v[lo] + (v[hi] - v[lo]) * (idx - lo);
+  }
+
   // Reparto por estado del período COMPLETO (usa mFilterPeriodAll).
   //
   // Los porcentajes se calculan sobre las citas con marca real de asistencia
@@ -218,6 +230,15 @@
       // asistencia cerrada, así que cuentan como sin marcar.
       else r.sinMarcar++;
     });
+    // "Confirmó y no llegó" (PDF §7, regla 5): `respondedAt` lo escribe el
+    // flujo de recordatorio al responder. Si hubiera declinado, el estado
+    // sería 'declined' y no 'no_show', así que no_show + respondedAt
+    // significa exactamente eso: confirmó y no vino.
+    r.noShowConfirmados = 0;
+    (allPeriodBookings || []).forEach(function (b) {
+      if (b && b.status === 'no_show' && b.respondedAt) r.noShowConfirmados++;
+    });
+
     var base = r.atendidas + r.noShow;
     r.asistenciaPct = base ? r.atendidas / base : null;
     r.noShowPct = base ? r.noShow / base : null;
@@ -284,9 +305,17 @@
       var medianMin = median(a.reales);
       var planMin = median(a.planes);
       var price = median(a.precios);
+      var p25 = percentile(a.reales, 0.25);
+      var p75 = percentile(a.reales, 0.75);
       return {
         key: a.key, label: a.label, n: a.n, nManual: a.nManual,
         planMin: planMin, medianMin: medianMin, price: price,
+        p25Min: p25, p75Min: p75,
+        // Dispersión relativa: rango intercuartílico sobre la mediana. Se usa
+        // el IQR y no la desviación estándar por el mismo motivo por el que
+        // el tiempo real es mediana (PDF §2): resiste los extremos, que en
+        // una barbería son casos puntuales y no la señal.
+        spread: (medianMin && p25 != null && p75 != null) ? (p75 - p25) / medianMin : 0,
         deviationPct: (planMin && medianMin != null) ? (medianMin - planMin) / planMin : null,
         ingresoHoraReal: medianMin ? price / (medianMin / 60) : null,
         ingresoHoraPlan: planMin ? price / (planMin / 60) : null,
@@ -480,6 +509,69 @@
       c.pct = c.disponibles > 0 ? c.ocupados / c.disponibles : null;
       return c;
     }).sort(function (a, b) { return a.dow - b.dow || a.hour - b.hour; });
+  }
+
+  // Umbral de "inicio tardío" del PDF (§7, regla 11).
+  var LATE_START_MIN = 8;
+
+  // Atenciones que empezaron tarde respecto de su hora agendada.
+  //
+  // Compara HORA DE PARED en la zona del negocio: `b.time` es hora de pared y
+  // `startedAt` es un instante UTC, así que restarlos directo daría el offset
+  // de Chile como "atraso". Si el inicio cae en otro día calendario (dato
+  // corrupto, o una atención que cruzó la medianoche) la reserva se ignora:
+  // reportar un atraso de catorce horas sería peor que no reportar nada.
+  function mLateStarts(periodBookings, opts) {
+    var tz = (opts && opts.tz) || DEFAULT_TZ;
+    var atrasos = [];
+    var medidas = 0, tarde = 0;
+
+    (periodBookings || []).forEach(function (b) {
+      try {
+        if (!b || !b.startedAt) return;
+        var inicio = new Date(b.startedAt);
+        if (isNaN(inicio.getTime())) return;
+
+        var diaCita = ymd(parseBookingDate(b));
+        var diaInicio = dayKeyInZone(inicio, tz);
+        if (!diaCita || !diaInicio || diaCita !== diaInicio) return;
+
+        var agendada = toMin(b.time);
+        if (agendada == null) return;
+
+        var real = toMin(new Intl.DateTimeFormat('es-CL', {
+          timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false,
+        }).format(inicio));
+        if (real == null) return;
+
+        medidas++;
+        var atraso = real - agendada;
+        if (atraso > LATE_START_MIN) { tarde++; atrasos.push(atraso); }
+      } catch (e) { /* aislar */ }
+    });
+
+    return {
+      medidas: medidas, tarde: tarde,
+      pct: medidas ? tarde / medidas : null,
+      medianaAtrasoMin: median(atrasos),
+    };
+  }
+
+  // Ocupación de las últimas N semanas completas (lunes a domingo), la más
+  // vieja primero. La usa la regla de "agenda casi llena", que necesita ver
+  // sostenimiento y no una semana suelta.
+  function mWeeklyOccupancy(bookings, staff, blocks, opts) {
+    var o = opts || {};
+    var weeks = Number.isFinite(o.weeks) ? o.weeks : 3;
+    var today = o.today;
+    var out = [];
+    for (var i = weeks; i >= 1; i--) {
+      var w = weekStartsBack(i, today);
+      var period = mFilterPeriod(bookings, { from: w.from, to: w.to, mode: 'agendado' });
+      var occ = mOccupancy(period, staff, blocks, { from: w.from, to: w.to });
+      out.push({ weekStart: w.from, weekEnd: w.to, pct: occ.pct, atendidos: occ.atendidos, disponibles: occ.disponibles });
+    }
+    return out;
   }
 
   function sumPrice(bookings) {
@@ -782,6 +874,8 @@
     mAttendance: mAttendance, mAttendanceCoverage: mAttendanceCoverage, mRevenue: mRevenue,
     mRealTime: mRealTime, mPriceSim: mPriceSim, PRICE_SIM_MIN_N: PRICE_SIM_MIN_N,
     mOccupancy: mOccupancy, mHeatmap: mHeatmap,
+    mLateStarts: mLateStarts, mWeeklyOccupancy: mWeeklyOccupancy,
+    percentile: percentile, LATE_START_MIN: LATE_START_MIN,
     mMonthlySeries: mMonthlySeries, mWeeklySeries: mWeeklySeries, mByService: mByService,
     mByBarber: mByBarber, mNewVsReturning: mNewVsReturning, mMonthlyExportRows: mMonthlyExportRows,
     svgLine: svgLine, toCSV: toCSV

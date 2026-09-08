@@ -55,6 +55,7 @@ await page.addInitScript(() => {
 
   window.__CALLS = { markAttendance: [], deleteBooking: [], linkStaffAccount: [] };
   window.SWAuth = { signIn: async () => ({uid:'test'}), signOut: async () => {}, onChange: () => () => {} };
+  window.__LOG = [];
   window.SWData = {
     loadAdmin: async () => ({
       services: [{ id:'corte', name:'Corte de cabello', cat:'c', price:14000, dur:45, status:'active', order:0 }],
@@ -72,6 +73,7 @@ await page.addInitScript(() => {
     getPatients: async () => [], getScheduleBlocks: async () => [],
     saveAdmin: async () => {}, saveBooking: async () => {},
     adminSaveBooking: async () => ({ ok: true, id: "x", created: true }),
+    adminLogEvent: async (action, item) => { window.__LOG.push({ action, item }); return { ok: true }; },
     deleteBooking: async (id) => { window.__CALLS.deleteBooking.push(id); },
     markAttendance: async (bookingId, action) => {
       window.__CALLS.markAttendance.push({ bookingId, action });
@@ -222,6 +224,41 @@ check('sin errores JS tras ejercitar todo', errors.length === 0, errors.slice(0,
 await page.click('.an-item[data-p="calendar"]');
 await page.waitForTimeout(300);
 await page.locator('#adm-p-calendar').screenshot({ path: path.join(OUT, 'admin-asistencia.png') }).catch(()=>{});
+
+// ── Actividad ──
+// Hasta el 2026-09-07 log() empujaba a un array en memoria que nadie
+// persistía ni mostraba: 23 llamadas anotando operaciones reales -- borrar un
+// servicio, ajustar precios en masa, vincular una cuenta -- que se perdían al
+// recargar. Ahora van a adminLog por callable y se ven en su propia sección.
+await page.click('.an-item[data-p="activity"]');
+await page.waitForTimeout(300);
+check('existe la sección Actividad', await page.isVisible('#adm-p-activity'));
+check('y el título del panel la nombra',
+  (await page.textContent('#adm-top-title')).trim() === 'Actividad',
+  await page.textContent('#adm-top-title'));
+// Las acciones que los tests de más arriba ya ejecutaron sobre el panel tienen
+// que estar acá. Es más fuerte que comprobar el estado vacío: prueba que el
+// camino real -- una operación del usuario -> log() -> la lista -- funciona.
+const previas = await page.textContent('#a-act-list');
+check('las acciones ya hechas en esta sesión aparecen registradas',
+  /Marcó asistencia/.test(previas) && /Canceló cita/.test(previas), previas.slice(0, 160));
+
+// El script del panel es un IIFE, así que log() no es global y no se puede
+// invocar desde el test. Mejor así: lo que se comprueba es el camino REAL,
+// las acciones que los casos de más arriba ejecutaron por la interfaz.
+const enviadas = await page.evaluate(() => window.__LOG.slice());
+check('cada acción del panel se manda al servidor para quedar registrada',
+  enviadas.length >= 2, enviadas);
+check('con la acción y el detalle, no solo un texto suelto',
+  enviadas.every(e => typeof e.action === 'string' && e.action !== '' && 'item' in e),
+  enviadas.slice(0, 3));
+check('y lo enviado coincide con lo que se ve en la lista',
+  enviadas.some(e => previas.includes(e.action)), enviadas.map(e => e.action));
+
+// La fecha la pinta el panel; la que vale es la del servidor, pero la entrada
+// recién creada se muestra con la local hasta la próxima carga.
+check('cada fila muestra su fecha',
+  /[0-9]{1,2}[-/][0-9]{1,2}[-/][0-9]{2,4}/.test(previas), previas.slice(0, 120));
 
 console.log(fails === 0 ? '\n== TODO OK ==' : `\n== ${fails} FALLAS ==`);
 await browser.close(); server.close();

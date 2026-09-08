@@ -207,7 +207,7 @@ functions:onBookingCreated,functions:createBooking,functions:getClubStatus,\
 functions:getAvailability,functions:onBookingWritten,functions:onScheduleBlockWritten,\
 functions:refreshGoogleReviews,functions:syncGoogleReviews,\
 functions:getMyDay,functions:markAttendance,functions:linkStaffAccount,\
-functions:staffAttendanceNudges,functions:getMyRange,functions:getMyClients,functions:adminSaveBooking,\
+functions:staffAttendanceNudges,functions:getMyRange,functions:getMyClients,functions:adminSaveBooking,functions:adminLogEvent,\
 functions:sendBookingReminders,functions:respondToBookingReminder,functions:getBookingForReminderAction
 ```
 
@@ -368,7 +368,7 @@ El índice `bookings(barberId, date)` es nuevo y tarda unos minutos en
 construirse; hasta que termine, la app del barbero da error al cargar la
 agenda. Las reglas solo suman el bloque `staffDevices/{uid}`.
 
-Después las funciones. **Hay que desplegar las dieciocho, no solo las nuevas** —
+Después las funciones. **Hay que desplegar las diecinueve, no solo las nuevas** —
 el comando completo está en [Deploy](#deploy).
 
 > **Un despliegue parcial sería una regresión.** `functions/shared/availability.js`
@@ -391,7 +391,7 @@ pertenece a otra rama.
 > you place quotes around any comma-separated lists"*.
 >
 > ```powershell
-> firebase deploy --project scissor-white --only "functions:onBookingCreated,functions:createBooking,functions:getClubStatus,functions:getAvailability,functions:onBookingWritten,functions:onScheduleBlockWritten,functions:sendBookingReminders,functions:respondToBookingReminder,functions:getBookingForReminderAction,functions:refreshGoogleReviews,functions:syncGoogleReviews,functions:getMyDay,functions:markAttendance,functions:linkStaffAccount,functions:staffAttendanceNudges,functions:getMyRange,functions:getMyClients,functions:adminSaveBooking"
+> firebase deploy --project scissor-white --only "functions:onBookingCreated,functions:createBooking,functions:getClubStatus,functions:getAvailability,functions:onBookingWritten,functions:onScheduleBlockWritten,functions:sendBookingReminders,functions:respondToBookingReminder,functions:getBookingForReminderAction,functions:refreshGoogleReviews,functions:syncGoogleReviews,functions:getMyDay,functions:markAttendance,functions:linkStaffAccount,functions:staffAttendanceNudges,functions:getMyRange,functions:getMyClients,functions:adminSaveBooking,functions:adminLogEvent"
 > ```
 
 

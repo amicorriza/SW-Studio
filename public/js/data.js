@@ -2,7 +2,7 @@
 import { db, storage, functions } from './firebase-init.js';
 import {
   collection, getDocs, getDoc, doc, setDoc, deleteDoc, deleteField,
-  writeBatch, onSnapshot, arrayUnion,
+  writeBatch, onSnapshot, arrayUnion, query, orderBy, limit,
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import {
   ref, uploadBytes, getDownloadURL, deleteObject,
@@ -17,11 +17,20 @@ async function readCol(name) {
   return snap.docs.map(d => ({ ...d.data(), id: d.id }));
 }
 
+// Últimas entradas del registro de actividad. Con un query acotado y NO con
+// readCol(): esta colección solo crece, y leerla entera en cada carga del
+// panel costaría más lecturas cada día que pasa para pintar siempre 30 filas.
+async function readAdminLog(n = 40) {
+  const q = query(collection(db, 'adminLog'), orderBy('ts', 'desc'), limit(n));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ ...d.data(), id: d.id }));
+}
+
 // Carga el objeto D que usa el admin: {services, staff, info, log, schedule}
 async function loadAdmin() {
   const [services, staff, infoSnap, log, accounts] = await Promise.all([
     readCol('services'), readCol('staff'),
-    getDocs(collection(db, 'businessInfo')), readCol('adminLog'),
+    getDocs(collection(db, 'businessInfo')), readAdminLog(),
     readCol('staffAccounts'),
   ]);
   const infoDoc = infoSnap.docs.find(d => d.id === 'main');
@@ -34,6 +43,8 @@ async function loadAdmin() {
   return {
     services, staff, staffAccounts,
     info: infoDoc ? infoDoc.data() : {},
+    // readAdminLog() ya ordena en el servidor; este sort queda como red para
+    // las entradas viejas, de cuando `ts` no lo escribía nadie y quedaba en 0.
     log: log.sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 30),
     schedule: [],
   };
@@ -349,6 +360,15 @@ async function getMyRange(from, to) {
 // escribía directo a Firestore con el precio y la duración tomados del DOM.
 // El servidor valida el payload y resuelve precio, nombre del servicio y
 // nombre del profesional contra el catálogo.
+// Anota una acción del panel en `adminLog`. La hora y el autor los pone el
+// servidor: un registro de auditoría donde el actor declara quién es no sirve
+// para auditar nada.
+async function adminLogEvent(action, item) {
+  const call = httpsCallable(functions, 'adminLogEvent');
+  const { data } = await call({ action, item });
+  return data;
+}
+
 async function adminSaveBooking(booking) {
   const call = httpsCallable(functions, 'adminSaveBooking');
   const { data } = await call({ booking });
@@ -398,7 +418,7 @@ window.SWData = {
   loadGoogleReviews, saveManualReviews, syncGoogleReviews,
   getBookingForReminderAction, respondToBookingReminder,
   getMyDay, getMyRange, getMyClients, markAttendance, linkStaffAccount, saveMyPushToken,
-  adminSaveBooking,
+  adminSaveBooking, adminLogEvent,
 };
 export {
   loadAdmin, saveAdmin, loadCatalog, getBookings, saveBooking, deleteBooking, subscribeBookings, createBooking,
@@ -409,5 +429,5 @@ export {
   loadGoogleReviews, saveManualReviews, syncGoogleReviews,
   getBookingForReminderAction, respondToBookingReminder,
   getMyDay, getMyRange, getMyClients, markAttendance, linkStaffAccount, saveMyPushToken,
-  adminSaveBooking,
+  adminSaveBooking, adminLogEvent,
 };

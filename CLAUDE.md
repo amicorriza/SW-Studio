@@ -80,8 +80,12 @@ Estado conocido, a verificar antes de tocar nada:
 - Cancelar YA NO borra: escribe status:'cancelled' vía markAttendance y
   conserva el documento. deleteBooking()/deleteBookingAnd() siguen en el
   código, sin uso, para el borrado duro de una reserva de prueba.
-- log() escribe en memoria; saveAdmin() solo persiste services, staff y businessInfo.
-  adminLog nunca se escribe desde el panel.
+- log() hace DOS cosas: anota la acción y guarda el catálogo (admSave()), y
+  muchos llamadores dependen de lo segundo, así que su valor de retorno sigue
+  siendo el de admSave(). La anotación va al callable adminLogEvent y NO se
+  espera: es auditoría, no parte de la operación. La hora y el autor los pone
+  el SERVIDOR. Se ve en el panel Actividad. Antes se perdía al recargar: 23
+  llamadas anotando operaciones reales que nadie persistía ni mostraba.
 - Panel de Servicios: la acción por defecto es "Retirar" (status:'inactive'),
   no borrar. El borrado duro sigue existiendo pero solo sobre servicios ya
   inactivos y tras doble confirmación (escribir el nombre exacto + modal).
@@ -118,7 +122,7 @@ Estado conocido, a verificar antes de tocar nada:
 - staffAttendanceNudges (onSchedule, cada 2 min) manda los avisos, pero NO
   envía nada salvo businessInfo.nudgesEnabled === true -- mismo interruptor
   que remindersEnabled. Deploy != activación.
-- Despliegue manual con dieciocho nombres de función a mano (ver README.md);
+- Despliegue manual con diecinueve nombres de función a mano (ver README.md);
   createBooking ya quedó fuera de esa lista una vez y se congeló en silencio.
 
 INVARIANTES — ningún goal puede romperlos:

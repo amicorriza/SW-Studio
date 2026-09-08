@@ -803,6 +803,39 @@ exports.getMyDay = onCall(
 );
 
 
+// Registro de actividad del panel. Hasta el 2026-09-07, log() en
+// public/admin/index.html escribía en un array en memoria, lo recortaba a 30 y
+// no lo persistía ni lo mostraba en ninguna parte: había 23 llamadas anotando
+// operaciones reales -- borrar un servicio, ajustar precios en masa, vincular
+// una cuenta -- que se perdían al recargar la página.
+//
+// La hora y el autor los pone el SERVIDOR. Un registro de auditoría en el que
+// el propio actor declara quién es y a qué hora actuó no sirve para auditar
+// nada, y el reloj del navegador tampoco es fuente de verdad.
+exports.adminLogEvent = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    assertAdmin(request);
+    const db = getFirestore(app);
+    const { action, item } = request.data || {};
+    if (typeof action !== 'string' || action.trim() === '') {
+      throw new HttpsError('invalid-argument', 'Falta la acción.');
+    }
+    const now = new Date();
+    await db.collection('adminLog').add({
+      action: String(action).slice(0, 120),
+      item: String(item == null ? '' : item).slice(0, 300),
+      // `ts` numérico para ordenar (loadAdmin ya ordenaba por este campo, que
+      // hasta ahora nadie escribía) y `at` ISO para leerlo sin reconstruirlo.
+      ts: now.getTime(),
+      at: now.toISOString(),
+      by: request.auth.uid,
+      byEmail: (request.auth.token && request.auth.token.email) || '',
+    });
+    return { ok: true };
+  }
+);
+
 // Crear o editar una reserva DESDE EL PANEL. Reemplaza la escritura directa a
 // Firestore que hacía public/admin/index.html.
 //

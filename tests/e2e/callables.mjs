@@ -313,4 +313,49 @@ const directo = await fetch(`${FS}/bookings/E2E-DIRECTO`, {
 check('escribir una reserva directo a Firestore ya falla, aun siendo admin',
   directo.status === 403, directo.status);
 
+
+// ═══════════════════ adminLogEvent ═══════════════════
+// La hora y el autor los pone el SERVIDOR: un registro de auditoría donde el
+// propio actor declara quién es y cuándo actuó no sirve para auditar nada.
+const logNoAdm = await call('adminLogEvent', { action: 'Hackeó algo' }, tVic);
+check('adminLogEvent es admin-only',
+  logNoAdm.error && /permission[-_]denied/i.test(JSON.stringify(logNoAdm.error)), logNoAdm.error);
+
+const logSinAccion = await call('adminLogEvent', { item: 'x' }, tAdm);
+check('adminLogEvent exige la acción',
+  logSinAccion.error && /invalid[-_]argument/i.test(JSON.stringify(logSinAccion.error)), logSinAccion.error);
+
+const antesDeLog = Date.now();
+const anotado = await call('adminLogEvent',
+  { action: 'Ajuste masivo de precios', item: '3 servicios' }, tAdm);
+check('adminLogEvent responde ok', anotado.status === 200 && anotado.result && anotado.result.ok,
+  { status: anotado.status, error: anotado.error });
+
+const leerLog = async () => {
+  const r = await fetch(`${FS}/adminLog?pageSize=100`, { headers: { Authorization: `Bearer ${tAdm}` } });
+  const j = await r.json();
+  return (j.documents || []).map((d) => d.fields || {});
+};
+const entradas = await leerLog();
+const mia = entradas.find((f) => (f.action || {}).stringValue === 'Ajuste masivo de precios');
+check('la entrada queda escrita en adminLog', !!mia, entradas.length);
+check('con el detalle', mia && (mia.item || {}).stringValue === '3 servicios', mia && mia.item);
+const ts = mia && Number((mia.ts || {}).integerValue || (mia.ts || {}).doubleValue || 0);
+check('con marca de tiempo del servidor, no del cliente',
+  ts >= antesDeLog && ts <= Date.now() + 5000, ts);
+check('ts es un número ordenable, no un string localizado', Number.isFinite(ts) && ts > 0, ts);
+check('registra QUIÉN lo hizo, resuelto por el servidor',
+  mia && ((mia.by || {}).stringValue || '').length > 0, mia && mia.by);
+check('y con qué cuenta',
+  mia && (mia.byEmail || {}).stringValue === 'admin@scissorwhite.cl', mia && mia.byEmail);
+
+// Un texto gigante no debe poder inflar la colección.
+const largo = await call('adminLogEvent',
+  { action: 'A'.repeat(500), item: 'B'.repeat(2000) }, tAdm);
+check('adminLogEvent acepta el texto largo', largo.status === 200, largo.error);
+const gigante = (await leerLog()).find((f) => ((f.action || {}).stringValue || '').startsWith('AAAA'));
+check('pero lo recorta antes de escribirlo',
+  gigante && gigante.action.stringValue.length <= 120 && gigante.item.stringValue.length <= 300,
+  gigante && { action: gigante.action.stringValue.length, item: gigante.item.stringValue.length });
+
 check.done();

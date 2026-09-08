@@ -480,6 +480,31 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
 
 .a-empty{text-align:center;padding:36px 18px;color:var(--a-meta);font-size:12.5px;line-height:1.55;background:#fff;border-radius:11px;border:1px dashed var(--a-g2)}
 
+/* ═══ ACTIVIDAD ═══ */
+/* Una fila por acción. Sin tarjeta ni borde por fila: son 40 líneas de lectura
+   rápida y encerrar cada una en su caja agrega ruido sin agregar significado.
+   Lo que separa es el espacio y una línea fina, no un contenedor. */
+.a-act{
+  display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+  padding:11px 2px;border-bottom:1px solid var(--a-g1)
+}
+.a-act:last-child{border-bottom:0}
+.a-act-m{min-width:0;flex:1}
+.a-act-m b{font-size:13px;font-weight:600;color:var(--a-txt);display:block}
+.a-act-m span{
+  font-size:12px;color:var(--a-meta);display:block;margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.a-act-t{
+  font-size:11px;color:var(--a-meta);text-align:right;white-space:nowrap;
+  font-variant-numeric:tabular-nums
+}
+.a-act-t small{display:block;font-size:10px;opacity:.75;margin-top:2px}
+@media (max-width: 560px){
+  .a-act{flex-direction:column;gap:3px}
+  .a-act-t{text-align:left}
+}
+
 /* ═══ DASHBOARD MÉTRICAS ═══ */
 .a-dash-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:18px}
 .a-dash-bar label{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--a-body);cursor:pointer}
@@ -1103,6 +1128,10 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
           <span>Personal</span>
           <span class="an-badge" id="anb-staff">0</span>
         </button>
+        <button class="an-item" data-p="activity">
+          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 9h3l2-5 3 10 2-5h4"/></svg>
+          <span>Actividad</span>
+        </button>
         <div class="an-sec">Negocio</div>
         <button class="an-item" data-p="schedule">
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="9" r="7"/><path d="M9 5v4l3 2"/></svg>
@@ -1241,6 +1270,11 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
         </div>
 
         <!-- ─ SERVICES ─ -->
+        <div class="a-panel" id="adm-p-activity">
+          <div class="a-sh"><h2>Actividad reciente</h2><p>Qué se cambió en el panel, cuándo y desde qué cuenta</p></div>
+          <div id="a-act-list"></div>
+        </div>
+
         <div class="a-panel" id="adm-p-services">
           <div id="a-svc-alert" class="a-alert"></div>
           <div class="a-sh">
@@ -1875,10 +1909,60 @@ g('adm-save-btn').addEventListener('click', admSave);
 // toggles de Horarios) la ignoran (fire-and-forget, igual que siempre), pero
 // los handlers que necesitan confirmar el guardado real antes de mostrar
 // "guardado" (a-svc-save, a-stf-save) pueden hacer `await log(...)`.
+// Anota la acción Y guarda el catálogo: hace las dos cosas y muchos llamadores
+// dependen del guardado, así que el valor de retorno sigue siendo el de
+// admSave() y no el del registro.
+//
+// El registro va aparte, al callable adminLogEvent, y NO se espera: es
+// auditoría, no parte de la operación. Si la anotación falla, el cambio del
+// usuario ya se guardó igual y bloquear la interfaz por eso sería peor. El
+// fallo se ve en la consola, no en un modal.
+//
+// Hasta el 2026-09-07 esto solo empujaba a un array en memoria que nadie
+// persistía ni mostraba: 23 llamadas anotando operaciones reales que se
+// perdían al recargar.
 function log(action, item){
-  D.log.unshift({action:action, item:item, date:new Date().toLocaleString('es-CL')});
+  var ahora = new Date();
+  D.log.unshift({
+    action:action, item:item, ts:ahora.getTime(),
+    at:ahora.toISOString(), date:ahora.toLocaleString('es-CL'), byEmail:'tú',
+  });
   if(D.log.length > 30) D.log.pop();
+  if(window.SWData && window.SWData.adminLogEvent){
+    window.SWData.adminLogEvent(action, item).catch(function(e){
+      console.error('No se pudo registrar la actividad', e);
+    });
+  }
   return admSave();
+}
+
+// Fecha del registro: se prefiere `at` (ISO del servidor) sobre `date` (el
+// string localizado que arma el navegador), porque las entradas viejas solo
+// tienen el segundo y las nuevas tienen los dos.
+function actFecha(e){
+  if(e.at){
+    var d = new Date(e.at);
+    if(!isNaN(d.getTime())) return d.toLocaleString('es-CL');
+  }
+  return e.date || '';
+}
+
+function renderActivity(){
+  var box = g('a-act-list');
+  if(!box) return;
+  var filas = (D.log || []).slice(0, 40);
+  if(!filas.length){
+    box.innerHTML = '<div class="a-empty">Todavía no hay actividad registrada.<br>Cada cambio en el panel queda anotado acá.</div>';
+    return;
+  }
+  box.innerHTML = filas.map(function(e){
+    return '<div class="a-act">'
+      + '<div class="a-act-m"><b>' + esc(e.action || '') + '</b>'
+      + (e.item ? '<span>' + esc(e.item) + '</span>' : '') + '</div>'
+      + '<div class="a-act-t">' + esc(actFecha(e))
+      + (e.byEmail ? '<small>' + esc(e.byEmail) + '</small>' : '') + '</div>'
+      + '</div>';
+  }).join('');
 }
 
 function updateBadges(){
@@ -1959,7 +2043,7 @@ function admPnl(p){
   for(var j=0;j<items.length;j++) items[j].classList.remove('an-on');
   var btn = document.querySelector('.an-item[data-p="'+p+'"]');
   if(btn) btn.classList.add('an-on');
-  var T = {dashboard:'Dashboard', calendar:'Agenda', patients:'Clientes', services:'Servicios', staff:'Personal', schedule:'Horarios', info:'Info & Contacto', images:'Imágenes'};
+  var T = {dashboard:'Dashboard', calendar:'Agenda', patients:'Clientes', activity:'Actividad', services:'Servicios', staff:'Personal', schedule:'Horarios', info:'Info & Contacto', images:'Imágenes'};
   g('adm-top-title').textContent = T[p] || p;
   g('adm-scroll').scrollTop = 0;
   // refresh panel-specific data
@@ -1968,6 +2052,7 @@ function admPnl(p){
   if(p==='schedule') renderSchedule();
   if(p==='images') loadSiteImagesUI();
   if(p==='patients') renderPatients();
+  if(p==='activity') renderActivity();
 }
 document.querySelectorAll('.an-item').forEach(function(b){
   b.addEventListener('click', function(){ admPnl(b.dataset.p); });

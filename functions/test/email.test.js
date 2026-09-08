@@ -156,16 +156,23 @@ test('renderReminderEmail incluye ambos botones con code+token+r correctos', () 
   assert.match(subject, /11:00/);
   assert.match(html, /confirmar-cita\.html\?code=SW-AB12345&t=abc123token&r=confirm/);
   assert.match(html, /confirmar-cita\.html\?code=SW-AB12345&t=abc123token&r=decline/);
-  assert.match(html, /CONFIRMAR ASISTENCIA/);
-  assert.match(html, /NO PODRÉ IR/);
+  assert.match(html, /Confirmar asistencia/);
+  assert.match(html, /No podré ir/);
 });
 
-test('renderReminderEmail muestra fecha/hora en la zona de la reserva', () => {
-  const { html } = renderReminderEmail(booking, 'tok');
-  assert.match(html, /MIÉRCOLES/);
-  assert.match(html, />10</);
-  assert.match(html, /JUNIO 2026/);
-  assert.match(html, /11:00 HRS/);
+test('renderReminderEmail usa el diseño 2026-09-08 con fecha en hora de Chile', () => {
+  const { html } = renderReminderEmail(booking, 'abc123token');
+  assert.match(html, /Miércoles 10 de junio de 2026/);
+  assert.match(html, /45 minutos/);
+  assert.match(html, /\$21\.000/);
+  assert.match(html, /assets\/email\/hero-actual\.jpg/);
+  assert.doesNotMatch(html, /data:image/);
+});
+
+test('renderReminderEmail avisa la ventana de 3 horas y la tolerancia de 10 minutos, igual que el correo de reserva', () => {
+  const { html } = renderReminderEmail(booking, 'abc123token');
+  assert.match(html, /hasta 3 horas antes/);
+  assert.match(html, /tolerancia de 10 minutos/);
 });
 
 test('renderReminderEmail escapa el código para evitar inyección de HTML', () => {

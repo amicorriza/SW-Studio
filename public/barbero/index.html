@@ -46,6 +46,18 @@
   .b-brand span{font-family:'Audiowide','Orbitron',sans-serif;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
   .b-who{font-size:12px;color:#9AA3AD;margin-top:6px}
   .b-who b{color:#fff;font-weight:600}
+  /* Barra de días. El objetivo táctil de las flechas es 34px: se usan con el
+     pulgar, de pie y con el teléfono en una mano. */
+  .b-nav{display:flex;align-items:center;gap:8px;margin-top:10px}
+  .b-nav-b{min-width:34px;height:34px;padding:0;font-size:17px;letter-spacing:0}
+  .b-nav-d{
+    flex:1;text-align:center;font-size:13px;color:#E8ECF1;font-weight:600;
+    font-variant-numeric:tabular-nums;text-transform:capitalize
+  }
+  .b-ro{
+    background:#FFF6E5;border:1px solid #F0DFBD;color:var(--warn);
+    border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:12px
+  }
   .b-ghost{
     background:transparent;border:1px solid #3A3A3A;color:#CFCFCF;
     font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;
@@ -158,7 +170,13 @@
     <div class="b-brand"><img src="/barbero/icon-192.png" alt=""><span>SW Barbero</span></div>
     <button class="b-ghost" id="b-refresh">Actualizar</button>
   </div>
-  <div class="b-who">Hola, <b id="b-me">—</b> · <span id="b-date">—</span></div>
+  <div class="b-who">Hola, <b id="b-me">—</b></div>
+  <div class="b-nav">
+    <button class="b-ghost b-nav-b" id="b-prev" aria-label="Día anterior">&lsaquo;</button>
+    <span class="b-nav-d" id="b-date">—</span>
+    <button class="b-ghost b-nav-b" id="b-next" aria-label="Día siguiente">&rsaquo;</button>
+    <button class="b-ghost" id="b-hoy" hidden>Hoy</button>
+  </div>
 </header>
 
 <main>
@@ -174,11 +192,12 @@
 
   <!-- Agenda -->
   <section id="b-app" hidden>
+    <div class="b-ro" id="b-ro" hidden>Estás viendo otro día. Solo se puede marcar la asistencia del día en curso.</div>
     <div id="b-review-wrap" hidden>
       <div class="b-sec-t">Por revisar</div>
       <div id="b-review"></div>
     </div>
-    <div class="b-sec-t" id="b-day-t">Hoy</div>
+    <div class="b-sec-t" id="b-day-t">Agenda</div>
     <div id="b-list"></div>
     <p class="b-note" id="b-foot"></p>
   </section>
@@ -220,14 +239,40 @@ const els = {
   me: g('b-me'), date: g('b-date'), list: g('b-list'),
   review: g('b-review'), reviewWrap: g('b-review-wrap'),
   dayT: g('b-day-t'), foot: g('b-foot'), loginErr: g('b-login-err'),
+  hoy: g('b-hoy'), ro: g('b-ro'),
 };
 
 let CURRENT = null;   // { staffId, name, date, bookings }
+// Día que se está mirando. null = "hoy según el servidor" -- nunca se calcula
+// hoy con el reloj del teléfono: la zona del negocio manda (invariante del
+// proyecto), y getMyDay ya la resuelve. HOY se aprende de esa primera
+// respuesta y es lo que decide si la agenda es editable.
+let DIA = null;
+let HOY = null;
 let USER = null;
 let ticker = null;
 let poller = null;
 
 // ── utilidades ──
+// Aritmética de calendario sobre la clave, en UTC a propósito: sumar días con
+// un Date local metería el horario de verano del navegador en una fecha que
+// ya viene resuelta en la zona del negocio.
+const DIAS_S = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const MESES_S = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function claveMasDias(clave, n) {
+  const p = String(clave).split('-').map(Number);
+  const t = new Date(Date.UTC(p[0], p[1] - 1, p[2]) + n * 86400000);
+  const mm = String(t.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(t.getUTCDate()).padStart(2, '0');
+  return `${t.getUTCFullYear()}-${mm}-${dd}`;
+}
+function etiquetaDia(clave) {
+  const p = String(clave).split('-').map(Number);
+  if (p.length !== 3 || p.some(Number.isNaN)) return String(clave);
+  const t = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+  return `${DIAS_S[t.getUTCDay()]} ${p[2]} ${MESES_S[p[1] - 1]}`;
+}
+const esHoy = () => !!CURRENT && !!HOY && CURRENT.date === HOY;
 const esc = (s) => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -310,6 +355,11 @@ const TAGS = {
 // pending/confirmed porque el flujo de la notificación va directo a iniciar
 // sin obligar a marcar Llegó antes (ver functions/shared/attendance.js).
 function botones(b) {
+  // Fuera de hoy la agenda es de solo lectura. markAttendance sella SIEMPRE la
+  // hora del servidor y corregirla es admin-only, así que "Finalizar" sobre
+  // una cita de ayer escribiría una duración inventada -- y el tiempo real es
+  // justamente el dato que este proyecto existe para medir.
+  if (!esHoy()) return [];
   if (b.status === 'in_service') {
     return [['end', 'Finalizar atención', 'b-pri'], ['snooze', 'Recuérdame en 10 min', 'b-sec']];
   }
@@ -379,7 +429,9 @@ function cardHTML(b) {
 function render() {
   if (!CURRENT) return;
   els.me.textContent = CURRENT.name || CURRENT.staffId;
-  els.date.textContent = CURRENT.date;
+  els.date.textContent = esHoy() ? `hoy · ${etiquetaDia(CURRENT.date)}` : etiquetaDia(CURRENT.date);
+  els.hoy.hidden = esHoy();
+  els.ro.hidden = esHoy();
 
   const todas = CURRENT.bookings || [];
   const revisar = todas.filter(needsReview);
@@ -390,11 +442,13 @@ function render() {
   els.dayT.textContent = `Agenda · ${resto.length} ${resto.length === 1 ? 'cita' : 'citas'}`;
   els.list.innerHTML = resto.length
     ? resto.map(cardHTML).join('')
-    : '<div class="b-empty">No tienes citas para hoy.<br>Cuando el salón agende una, aparecerá acá.</div>';
+    : (esHoy()
+      ? '<div class="b-empty">No tienes citas para hoy.<br>Cuando el salón agende una, aparecerá acá.</div>'
+      : '<div class="b-empty">No hay citas este día.</div>');
 
   const atendidas = todas.filter((b) => b.status === 'completed').length;
   els.foot.textContent = atendidas
-    ? `${atendidas} ${atendidas === 1 ? 'atención registrada' : 'atenciones registradas'} hoy.`
+    ? `${atendidas} ${atendidas === 1 ? 'atención registrada' : 'atenciones registradas'}${esHoy() ? ' hoy' : ''}.`
     : '';
 
   startTicker();
@@ -421,7 +475,10 @@ function startTicker() {
 // ── datos ──
 async function loadDay(silencioso) {
   try {
-    CURRENT = await window.SWData.getMyDay();
+    CURRENT = await window.SWData.getMyDay(DIA);
+    // La primera carga va sin fecha, así que la que vuelve ES hoy en la zona
+    // del negocio. Es la única fuente de "hoy" que usa esta app.
+    if (!DIA && !HOY) HOY = CURRENT.date;
     render();
     await applyDeepLink();
   } catch (e) {
@@ -585,12 +642,25 @@ function pintarBotonPush() {
 function startPolling() {
   if (poller) clearInterval(poller);
   poller = setInterval(() => {
-    if (document.visibilityState === 'visible' && USER) loadDay(true);
+    // Solo se repolea hoy: un día pasado no cambia solo, y refrescarlo cada
+    // minuto gastaría llamadas para repintar lo mismo.
+    if (document.visibilityState === 'visible' && USER && esHoy()) loadDay(true);
   }, 60000);
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && USER) loadDay(true);
+  if (document.visibilityState === 'visible' && USER && esHoy()) loadDay(true);
 });
+
+// ── navegación de días ──
+// Los enlaces profundos de las notificaciones no chocan con esto: llegan
+// siempre en una carga nueva de la página, con DIA en null, o sea en hoy.
+function irA(dia) {
+  DIA = dia;
+  loadDay();
+}
+g('b-prev').addEventListener('click', () => { if (CURRENT) irA(claveMasDias(CURRENT.date, -1)); });
+g('b-next').addEventListener('click', () => { if (CURRENT) irA(claveMasDias(CURRENT.date, 1)); });
+g('b-hoy').addEventListener('click', () => irA(null));
 
 // ── eventos ──
 document.addEventListener('click', (ev) => {

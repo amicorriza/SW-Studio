@@ -70,8 +70,22 @@ await page.addInitScript(() => {
     signOut: async () => { authCb && authCb(null); },
     onChange: (cb) => { authCb = cb; cb(null); return () => {}; },
   };
+  // Un día distinto de hoy, para la navegación. Trae una cita EDITABLE por
+  // estado (confirmed): si aun así no aparecen botones, es por el día y no
+  // porque el estado no los tuviera.
+  window.__OTRO_DIA = [
+    { id:'b-ayer', code:'SW-9', name:'Gabi Nuñez', time:'16:00', dur:45,
+      svcName:'Corte de cabello', price:14000, status:'confirmed',
+      arrivedAt:null, startedAt:null, endedAt:null, actualDur:null, nudgeEndCount:0 },
+  ];
+  window.__FECHAS = [];
   window.SWData = {
-    getMyDay: async () => JSON.parse(JSON.stringify(window.__DAY)),
+    getMyDay: async (date) => {
+      window.__FECHAS.push(date == null ? null : date);
+      const d = JSON.parse(JSON.stringify(window.__DAY));
+      if (date) { d.date = date; d.bookings = JSON.parse(JSON.stringify(window.__OTRO_DIA)); }
+      return d;
+    },
     markAttendance: async (bookingId, action) => {
       window.__CALLS.push({ bookingId, action });
       const b = window.__DAY.bookings.find(x => x.id === bookingId);
@@ -200,6 +214,54 @@ await page.click('#b-refresh');
 await page.waitForTimeout(300);
 check('agenda vacía muestra un mensaje, no una lista en blanco',
   /No tienes citas para hoy/.test(await page.textContent('#b-list')));
+
+// ── navegación de días ──
+// La agenda del día era todo lo que había; ahora se puede mirar otro día,
+// pero SOLO mirar: markAttendance sella la hora del servidor y corregirla es
+// admin-only, así que marcar una cita de ayer inventaría una duración.
+const fechasAntes = (await page.evaluate(() => window.__FECHAS.slice())).length;
+check('la primera carga pide "hoy" sin fecha, que la resuelve el servidor',
+  (await page.evaluate(() => window.__FECHAS[0])) === null);
+
+await page.click('#b-prev');
+await page.waitForTimeout(300);
+check('el día anterior se pide por su clave',
+  (await page.evaluate(() => window.__FECHAS[window.__FECHAS.length-1])) === '2026-09-05',
+  await page.evaluate(() => window.__FECHAS.slice()));
+check('y se pidió una vez más', (await page.evaluate(() => window.__FECHAS.length)) === fechasAntes + 1);
+check('la cabecera muestra el día, legible', /sáb 5 sep/.test(await page.textContent('#b-date')),
+  await page.textContent('#b-date'));
+check('avisa que es de solo lectura', await page.isVisible('#b-ro'));
+check('fuera de hoy NO hay botones de asistencia, en ninguna sección',
+  (await page.locator('[data-act]').count()) === 0);
+check('pero sí se ve la cita', /Gabi Nuñez/.test(await page.textContent('#b-list')));
+check('aparece el botón para volver a hoy', await page.isVisible('#b-hoy'));
+
+// Cruce de mes: la aritmética es sobre la clave, no sobre un Date local.
+await page.evaluate(() => { window.__FECHAS.length = 0; });
+for (let i = 0; i < 5; i++) { await page.click('#b-prev'); await page.waitForTimeout(120); }
+check('restar días cruza el cambio de mes',
+  (await page.evaluate(() => window.__FECHAS[window.__FECHAS.length-1])) === '2026-08-31',
+  await page.evaluate(() => window.__FECHAS.slice()));
+
+// Los tests de más arriba dejaron el fixture exprimido: las citas quedaron
+// en estados terminales y el caso de "agenda vacía" lo dejó SIN citas. Así
+// que "hay botones" no se puede heredar de ahí -- esta aserción siembra su
+// propia cita editable.
+await page.evaluate(() => {
+  window.__DAY.bookings = [{
+    id:'b-hoy', code:'SW-10', name:'Hugo Paz', time:'17:00', dur:30,
+    svcName:'Perfilado de barba', price:9000, status:'confirmed',
+    arrivedAt:null, startedAt:null, endedAt:null, actualDur:null, nudgeEndCount:0,
+  }];
+});
+await page.click('#b-hoy');
+await page.waitForTimeout(300);
+check('"Hoy" vuelve a pedir sin fecha',
+  (await page.evaluate(() => window.__FECHAS[window.__FECHAS.length-1])) === null);
+check('de vuelta en hoy vuelven los botones',
+  (await page.locator('[data-act]').count()) > 0);
+check('y desaparece el aviso de solo lectura', !(await page.isVisible('#b-ro')));
 
 check('sin errores JS tras ejercitar todo', errors.length === 0, errors.slice(0,4));
 

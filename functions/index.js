@@ -25,16 +25,18 @@ const FROM_EMAIL = defineSecret('FROM_EMAIL');
 const SHOP_EMAIL = defineSecret('SHOP_EMAIL');
 const GOOGLE_PLACES_API_KEY = defineSecret('GOOGLE_PLACES_API_KEY');
 
-// Mismo criterio de admin que isAdmin() en firestore.rules — custom claim
-// preferido, UID como respaldo. Está duplicado a propósito y NO por descuido:
-// las reglas son CEL y no pueden importar JS. Cuando se retire el fallback de
-// UID hay que tocar los cuatro sitios juntos (firestore.rules, storage.rules
-// ×2 y este) — está anotado como pendiente de Fase 3.
-const ADMIN_UID_FALLBACK = 'VUm858rENuNVzB4MAMtzLnGb1A63';
+// Mismo criterio de admin que isAdmin() en firestore.rules. Está duplicado a
+// propósito y NO por descuido: las reglas son CEL y no pueden importar JS.
+//
+// El UID escrito a mano que servía de respaldo se retiró el 2026-09-07, de los
+// cuatro sitios a la vez (este, firestore.rules y storage.rules ×2) — dejar uno
+// con el claim y otro con el UID produce un admin que puede una cosa y no la
+// otra. Sumar un admin ahora es poner el claim, sin tocar código.
 function assertAdmin(request) {
   const auth = request.auth;
-  const isAdmin = !!auth && (auth.token.admin === true || auth.uid === ADMIN_UID_FALLBACK);
-  if (!isAdmin) throw new HttpsError('permission-denied', 'Solo el panel de administración puede hacer esto.');
+  if (!auth || auth.token.admin !== true) {
+    throw new HttpsError('permission-denied', 'Solo el panel de administración puede hacer esto.');
+  }
 }
 
 exports.onBookingCreated = onDocumentCreated(
@@ -709,9 +711,13 @@ async function resolveStaffFor(db, request) {
   return { id: doc.id, ...doc.data() };
 }
 
+// Misma pregunta que assertAdmin(), pero devolviendo un booleano: markAttendance
+// necesita SABER si es admin (puede marcar cualquier cita y corregir horas), no
+// cortar. Los dos tienen que decir lo mismo -- este era el quinto sitio donde
+// vivía el UID de respaldo, y no estaba en el inventario.
 function isAdminRequest(request) {
   const auth = request.auth;
-  return !!auth && (auth.token.admin === true || auth.uid === ADMIN_UID_FALLBACK);
+  return !!auth && auth.token.admin === true;
 }
 
 // Lo que la PWA puede ver de una reserva. Es una lista BLANCA: 'email' y

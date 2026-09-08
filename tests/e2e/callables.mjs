@@ -9,6 +9,7 @@
 //   cd functions && node scripts/seedEmulatorE2E.mjs
 //
 // Uso: node tests/e2e/callables.mjs
+import { readFileSync } from 'node:fs';
 import { makeChecker, token, call, getDoc, FS } from './emulator.mjs';
 
 const check = makeChecker();
@@ -25,12 +26,23 @@ check('leer bookings directo sin sesión da 403 (firestore.rules)', sinAuth.stat
 const dia = await call('getMyDay', {}, tVic);
 check('getMyDay responde 200', dia.status === 200, { status: dia.status, error: dia.error });
 const ag = (dia.result && dia.result.bookings) || [];
-check('getMyDay devuelve la agenda de Victoria', ag.length >= 3, ag.length);
+// Contra el manifiesto del seed, no contra un número fijo: las tres citas son
+// desplazamientos desde AHORA y cualquiera cruza la medianoche según la hora
+// a la que se corra la suite.
+const manifiesto = JSON.parse(readFileSync(
+  new URL('../../functions/scripts/.e2e-seed.json', import.meta.url), 'utf8'));
+const esperadasHoy = ((manifiesto && manifiesto.citas) || [])
+  .filter((c) => c.date === (dia.result && dia.result.date)).map((c) => c.code).sort();
+check('getMyDay devuelve exactamente las citas que el seed puso en ese día',
+  JSON.stringify(ag.map((b) => b.code).sort()) === JSON.stringify(esperadasHoy),
+  { recibidas: ag.map((b) => b.code).sort(), esperadas: esperadasHoy });
 check('getMyDay identifica al profesional', dia.result && dia.result.staffId === 'victoria', dia.result && dia.result.staffId);
 check('getMyDay resuelve la zona del negocio', dia.result && dia.result.tz === 'America/Santiago', dia.result && dia.result.tz);
 check('getMyDay solo trae citas de Victoria',
   ag.length > 0 && ag.every(b => ['E2E-PROX', 'E2E-AHORA', 'E2E-LIBRE'].includes(b.code)),
   ag.map(b => b.code));
+check('el seed sembró las tres citas del día, aunque alguna caiga en el día siguiente',
+  ((manifiesto && manifiesto.citas) || []).length === 3, manifiesto);
 check('getMyDay ordena por hora', JSON.stringify(ag.map(b => b.time)) === JSON.stringify(ag.map(b => b.time).slice().sort()), ag.map(b => b.time));
 // No debe filtrar PII de más, pero tampoco devolver el documento entero.
 check('getMyDay no expone reminderToken ni tz por reserva',

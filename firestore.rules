@@ -4,14 +4,19 @@ service cloud.firestore {
 
     // Solo el staff admin. Antes se usaba `request.auth != null`, pero el
     // registro público de Auth está habilitado: CUALQUIERA podía crear una
-    // cuenta con la API key pública y leer/escribir estos datos. Ahora se exige
-    // ser el admin — vía custom claim `admin:true` (preferido, permite sumar
-    // staff sin tocar reglas) o el UID del admin actual como respaldo inmediato.
+    // cuenta con la API key pública y leer/escribir estos datos.
+    //
+    // Hasta el 2026-09-07 esto aceptaba además un UID escrito a mano, como red
+    // por si el custom claim no estaba puesto. Se verificó con
+    // `firebase auth:export` que admin@scissorwhite.cl SÍ lo tiene, y el
+    // respaldo se retiró de los CUATRO sitios donde vivía (este, storage.rules
+    // ×2 y functions/index.js) en el mismo cambio: dejar uno con el claim y
+    // otro con el UID produce un admin que puede escribir en Firestore y no en
+    // Storage. tests/rules fija que el UID solo ya no alcanza.
+    //
+    // Sumar un admin ahora es poner el claim, sin tocar reglas ni desplegar.
     function isAdmin() {
-      return request.auth != null && (
-        request.auth.token.admin == true ||
-        request.auth.uid == 'VUm858rENuNVzB4MAMtzLnGb1A63'
-      );
+      return request.auth != null && request.auth.token.admin == true;
     }
 
     // Catálogo público: lectura libre, escritura solo admin

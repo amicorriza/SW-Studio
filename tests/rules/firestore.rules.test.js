@@ -155,3 +155,22 @@ test('admin SÍ puede escribir googleReviews (reseñas de respaldo del panel)', 
     manualReviews: [{ author: 'Cliente', rating: 5, text: 'Excelente.' }],
   }, { merge: true }));
 });
+
+// ── Fase 3: el UID de admin ya no está hardcodeado ──
+// Durante meses isAdmin() aceptaba el custom claim O este UID literal, como
+// red por si el claim no estaba puesto. El 2026-09-07 se verificó con
+// `firebase auth:export` que admin@scissorwhite.cl SÍ lo tiene, así que el
+// respaldo se retiró de los cuatro sitios donde vivía. Estos tests existen
+// para que no vuelva a colarse: la autorización es el claim y nada más.
+test('el UID del admin, SIN el claim, ya no da acceso', async () => {
+  const db = env.authenticatedContext('VUm858rENuNVzB4MAMtzLnGb1A63').firestore();
+  await assertFails(getDoc(doc(db, 'bookings/b1')));
+  await assertFails(getDoc(doc(db, 'patients/p1')));
+  await assertFails(setDoc(doc(db, 'services/s1'), { name: 'x' }));
+});
+
+test('y el claim sigue siendo suficiente, venga del UID que venga', async () => {
+  const db = env.authenticatedContext('cualquier-uid-nuevo', { admin: true }).firestore();
+  await assertSucceeds(getDoc(doc(db, 'bookings/b1')));
+  await assertSucceeds(setDoc(doc(db, 'services/s1'), { name: 'x' }));
+});

@@ -6,6 +6,7 @@
 //
 // No usa el SDK de cliente: habla directo con los emuladores por Admin SDK y
 // REST, así que no depende del navegador.
+import { writeFileSync } from 'node:fs';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
@@ -69,11 +70,19 @@ await db.collection('businessInfo').doc('main').set({
 // ── 4. citas de HOY para Victoria, en distintos estados ──
 const svc = (await db.collection('services').limit(1).get()).docs[0].data();
 const ahora = new Date();
+// Devuelve { date, time } en la zona del NEGOCIO. Antes devolvía solo la hora
+// y la fecha se dejaba fija en hoy: corriendo la suite después de las 22:00,
+// la cita de +120 min daba '00:13' con la fecha de hoy, o sea 22 horas en el
+// PASADO, y el test de 'todavía no genera nada' fallaba por la hora del reloj
+// y no por el código. Un test que depende de cuándo se corre es peor que no
+// tenerlo.
+const fmt = (d, opts) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, ...opts }).format(d);
 const enMin = (m) => {
   const d = new Date(ahora.getTime() + m * 60000);
-  return new Intl.DateTimeFormat('es-CL', {
-    timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false,
-  }).format(d);
+  return {
+    date: fmt(d, { year: 'numeric', month: '2-digit', day: '2-digit' }),
+    time: fmt(d, { hour: '2-digit', minute: '2-digit', hour12: false }),
+  };
 };
 
 const base = {
@@ -87,11 +96,11 @@ const base = {
 const hoyCitas = [
   // La clave de la prueba: una cita a 8 minutos -> debe disparar "se acerca la hora".
   { ...base, code: 'E2E-PROX', name: 'Ana Próxima', email: 'ana@e2e.cl', phone: '+56911111111',
-    time: enMin(8), status: 'confirmed' },
+    ...enMin(8), status: 'confirmed' },
   { ...base, code: 'E2E-AHORA', name: 'Ben Ahora', email: 'ben@e2e.cl', phone: '+56922222222',
-    time: enMin(-5), status: 'confirmed' },
+    ...enMin(-5), status: 'confirmed' },
   { ...base, code: 'E2E-LIBRE', name: 'Cata Tarde', email: 'cata@e2e.cl', phone: '+56933333333',
-    time: enMin(120), status: 'pending' },
+    ...enMin(120), status: 'pending' },
 ];
 for (const c of hoyCitas) await db.collection('bookings').doc(c.code).set(c);
 
@@ -132,6 +141,20 @@ await db.collection('bookings').doc('E2E-CAN').set({
 
 const total = (await db.collection('bookings').get()).size;
 console.log('hoy         :', hoyBiz);
-console.log('citas de hoy:', hoyCitas.map((c) => c.time + ' ' + c.name).join(' | '));
+// Manifiesto de lo sembrado. Existe porque las tres citas se calculan como
+// desplazamientos desde AHORA y cualquiera puede cruzar la medianoche según
+// la hora a la que se corra la suite: un test que afirme '3 citas hoy' pasa
+// de día y falla de noche. Con esto los tests comparan contra lo que el seed
+// realmente escribió, no contra un número escrito a mano.
+//
+// Va a un archivo y no a Firestore a propósito: firestore.rules deniega todo
+// lo que no tenga un match, y abrir una colección en las reglas de producción
+// para alimentar un test sería pagar en superficie de seguridad algo que se
+// resuelve con fs -- el seed y los tests corren en la misma máquina.
+writeFileSync(new URL('./.e2e-seed.json', import.meta.url), JSON.stringify({
+  hoy: hoyBiz,
+  citas: hoyCitas.map((c) => ({ code: c.code, date: c.date, time: c.time })),
+}, null, 2));
+console.log('citas sembradas:', hoyCitas.map((c) => c.date + ' ' + c.time + ' ' + c.name).join(' | '));
 console.log('bookings    :', total);
 process.exit(0);

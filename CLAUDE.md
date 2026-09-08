@@ -61,8 +61,14 @@ Estado conocido, a verificar antes de tocar nada:
   exports.markAttendance. "Revisar" NO es un estado: es derivado (in_service
   cuyo fin planificado ya pasó con más de 30 min de holgura), y lo calculan
   igual la PWA y el admin.
-- isAdmin() es custom claim admin:true O UN UID ESCRITO A MANO, repetido en cuatro
-  archivos: firestore.rules, storage.rules (x2), functions/index.js.
+- isAdmin() es SOLO el custom claim admin:true. El UID escrito a mano que
+  servía de respaldo se retiró el 2026-09-07 (Fase 3), de los CINCO sitios donde
+  vivía: firestore.rules, storage.rules (x2), y en functions/index.js tanto
+  assertAdmin() como isAdminRequest() -- este último no estaba en el inventario
+  y habría tirado un ReferenceError en markAttendance. El criterio sigue
+  DUPLICADO entre CEL y JS por necesidad (las reglas no importan JS), así que
+  cualquier cambio va en los cinco a la vez. tests/rules fija que el UID solo ya
+  no alcanza. Sumar un admin ahora es poner el claim, sin tocar código.
 - buildBookingDoc() sigue escribiendo status:'pending'; lo que cambia después
   son las transiciones (recordatorio y medición de la atención real).
 - Cancelar YA NO borra: escribe status:'cancelled' vía markAttendance y

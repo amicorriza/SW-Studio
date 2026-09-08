@@ -38,3 +38,25 @@ test('admin (custom claim) SÍ puede subir y leer una foto de cliente', async ()
   await assertSucceeds(uploadBytes(ref(storage, 'patients/p1/photo1.jpg'), bytes));
   await assertSucceeds(getBytes(ref(storage, 'patients/p1/photo1.jpg')));
 });
+
+// ── Fase 3: el UID de admin ya no está hardcodeado ──
+// Storage no puede importar isAdmin() de firestore.rules, así que el criterio
+// estaba copiado a mano en DOS reglas de este archivo. Al retirar el UID hay
+// que retirarlo de las cuatro copias a la vez: dejar una con el claim y otra
+// con el UID produce un admin que puede escribir en Firestore y no en Storage.
+test('el UID del admin, SIN el claim, ya no puede tocar fotos de clientes', async () => {
+  const storage = env.authenticatedContext('VUm858rENuNVzB4MAMtzLnGb1A63').storage();
+  await assertFails(uploadBytes(ref(storage, 'patients/p1/photo1.jpg'), bytes));
+  await assertFails(getBytes(ref(storage, 'patients/p1/photo1.jpg')));
+});
+
+test('ni subir imágenes del sitio', async () => {
+  const storage = env.authenticatedContext('VUm858rENuNVzB4MAMtzLnGb1A63').storage();
+  await assertFails(uploadBytes(ref(storage, 'siteImages/hero/img.jpg'), bytes));
+});
+
+test('el claim sí puede, venga del UID que venga', async () => {
+  const storage = env.authenticatedContext('otro-uid', { admin: true }).storage();
+  await assertSucceeds(uploadBytes(ref(storage, 'patients/p1/photo1.jpg'), bytes));
+  await assertSucceeds(uploadBytes(ref(storage, 'siteImages/hero/img.jpg'), bytes));
+});

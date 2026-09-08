@@ -43,3 +43,4 @@ graphify-out/
 
 # Capturas de los scripts de verificación en navegador (tests/browser/)
 .tmp-screenshots/
+functions/scripts/.e2e-seed.json

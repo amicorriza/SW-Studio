@@ -5,13 +5,12 @@ service firebase.storage {
     // Antes se exigía solo `request.auth != null`, pero el registro público
     // de Auth está habilitado: CUALQUIERA podía crear una cuenta con la API
     // key pública y leer/sobrescribir/borrar estas fotos. Ahora se exige ser
-    // admin -- mismo criterio que /siteImages/ abajo (custom claim
-    // `admin:true`, o el UID del admin actual como respaldo inmediato).
+    // admin -- mismo criterio que /siteImages/ abajo y que isAdmin() en
+    // firestore.rules: el custom claim `admin:true`, y nada más. El UID
+    // escrito a mano que servía de respaldo se retiró el 2026-09-07 de los
+    // cuatro sitios a la vez (ver el comentario de isAdmin()).
     match /patients/{patientId}/{photoId} {
-      allow read, write: if request.auth != null && (
-        request.auth.token.admin == true ||
-        request.auth.uid == 'VUm858rENuNVzB4MAMtzLnGb1A63'
-      );
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
     }
 
     // Imágenes del sitio (herramienta de reemplazo manual desde el admin):
@@ -20,10 +19,7 @@ service firebase.storage {
     // firestore.rules#isAdmin() (Storage no puede importar esa función).
     match /siteImages/{slot}/{photoId} {
       allow read: if true;
-      allow write: if request.auth != null && (
-        request.auth.token.admin == true ||
-        request.auth.uid == 'VUm858rENuNVzB4MAMtzLnGb1A63'
-      );
+      allow write: if request.auth != null && request.auth.token.admin == true;
     }
   }
 }

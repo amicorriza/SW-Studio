@@ -91,6 +91,68 @@ async function entrar(modo){
   await ctx.close();
 }
 
+
+// ── el caso simétrico: un admin que abre la app del barbero ──
+// No tiene ficha de profesional, así que getMyDay lo rechaza y se queda
+// mirando "tu cuenta no está vinculada": cierto, y también inútil.
+//
+// Acá la PWA SÍ lee el custom claim en el navegador, y no contradice al panel:
+// desde la Fase 3 el claim es el ÚNICO criterio de admin, así que no hay un
+// predicado de dos partes que copiar. Y decide una navegación, no un permiso.
+async function entrarBarbero(modo) {
+  const ctx = await browser.newContext({ viewport:{width:420,height:840} });
+  await ctx.route('**gstatic.com/**', r=>r.abort());
+  await ctx.route('**googleapis.com/**', r=>r.abort());
+  const page = await ctx.newPage();
+  await page.addInitScript((modo) => {
+    const usuario = {
+      uid: modo === 'admin' ? 'uid-admin' : 'uid-nadie',
+      getIdTokenResult: async () => ({ claims: modo === 'admin' ? { admin: true } : {} }),
+    };
+    let cb = null;
+    window.SWAuth = {
+      signIn: async () => { cb && cb(usuario); return usuario; },
+      signOut: async () => { cb && cb(null); },
+      onChange: (f) => { cb = f; f(null); return () => {}; },
+    };
+    window.SWData = {
+      getMyDay: async () => {
+        // Ni el admin ni una cuenta suelta tienen ficha: los dos reciben lo
+        // mismo del servidor. Lo que los separa es el claim, no el error.
+        const e = new Error('Esta cuenta no está vinculada a ningún profesional.');
+        e.code = 'functions/permission-denied';
+        throw e;
+      },
+      saveMyPushToken: async () => {},
+    };
+  }, modo);
+  await page.goto('http://localhost:4482/barbero/', { waitUntil:'load' });
+  await page.fill('#b-email', 'x@scissorwhite.cl');
+  await page.fill('#b-pass', 'x');
+  await page.click('#b-signin');
+  await page.waitForTimeout(900);
+  return { page, ctx };
+}
+
+{
+  const { page, ctx } = await entrarBarbero('admin');
+  check('un admin que entra por la app del barbero termina en /admin/',
+    /\/admin\/$/.test(page.url()), page.url());
+  await ctx.close();
+}
+
+// El que NO debe moverse: una cuenta sin ficha y sin claim. Mandarla al panel
+// sería mandarla a otra pantalla que tampoco puede usar.
+{
+  const { page, ctx } = await entrarBarbero('nadie');
+  check('una cuenta sin ficha y sin claim NO se redirige a ninguna parte',
+    /\/barbero\/$/.test(page.url()), page.url());
+  check('y se le dice qué le falta',
+    /no está vinculada/.test(await page.textContent('body')),
+    (await page.textContent('body')).slice(0, 120));
+  await ctx.close();
+}
+
 console.log(fails === 0 ? '\n== TODO OK ==' : `\n== ${fails} FALLAS ==`);
 await browser.close(); server.close();
 process.exit(fails ? 1 : 0);

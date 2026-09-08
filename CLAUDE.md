@@ -109,13 +109,17 @@ Estado conocido, a verificar antes de tocar nada:
   porque saveAdmin() persiste ese array entero y lo devolvería a staff/{id}.
   staffDevices/{uid} guarda los tokens de FCM y es el ÚNICO lugar donde
   alguien que no es admin escribe directo a Firestore.
-- Login compartido: /admin/ y /barbero/ comparten la sesión de Firebase Auth
+- Login compartido y redirección en LOS DOS SENTIDOS: /admin/ y /barbero/
   (mismo origen, misma app). Si un barbero entra por el login del panel, el
   panel lo redirige a /barbero/ -- y lo decide preguntándole al servidor
   (loadAdmin() falló Y getMyDay responde), NO con una quinta copia del
   predicado isAdmin() en el navegador. Un error de red no redirige a nadie,
   porque entonces getMyDay también cae. tests/browser/admin-redirect-barbero.mjs
-  fija los tres casos, incluido el que importa: que el admin NO sea expulsado.
+  fija los cinco casos, incluido el que importa: que el admin NO sea expulsado.
+  Al revés (un admin que abre /barbero/) la PWA SÍ lee el claim en el navegador,
+  y no es contradictorio: desde la Fase 3 el claim es el ÚNICO criterio, así que
+  no hay predicado de dos partes que copiar, y decide una navegación, no un
+  permiso.
 - Alcances: un barbero NO puede leer `bookings` (regla admin-only) ni escribir
   `staff`. Ve solo lo suyo vía getMyDay, que filtra por su staffId, y
   markAttendance rechaza las citas de otro. El admin ve y puede todo.

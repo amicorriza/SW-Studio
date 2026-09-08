@@ -647,6 +647,25 @@ function startTicker() {
 }
 
 // ── datos ──
+// El caso simétrico de redirigirSiEsBarbero() en el panel: un admin que abre
+// esta app no tiene ficha de profesional, así que getMyDay lo rechaza y se
+// queda mirando 'tu cuenta no está vinculada' -- cierto, y también inútil.
+//
+// Acá SÍ se lee el custom claim desde el navegador, y no es una contradicción
+// con lo que hace el panel: desde la Fase 3 (2026-09-07) el claim es el ÚNICO
+// criterio de admin, así que no hay un predicado de dos partes que copiar y
+// desincronizar. Y esto decide una NAVEGACIÓN, no un permiso: si se equivoca,
+// manda a alguien a una pantalla que el servidor igual le va a negar.
+async function esAdmin() {
+  try {
+    if (!USER || typeof USER.getIdTokenResult !== 'function') return false;
+    const t = await USER.getIdTokenResult();
+    return !!(t && t.claims && t.claims.admin === true);
+  } catch (e) {
+    return false;
+  }
+}
+
 async function loadDay(silencioso) {
   try {
     CURRENT = await window.SWData.getMyDay(DIA);
@@ -657,6 +676,13 @@ async function loadDay(silencioso) {
     await applyDeepLink();
   } catch (e) {
     console.error('getMyDay', e);
+    // Esta app no puede servirle Y la otra sí: se lo manda para allá en vez de
+    // dejarlo en un mensaje que no puede resolver. Mismo criterio que el panel
+    // usa al revés.
+    if (e && e.code === 'functions/permission-denied' && await esAdmin()) {
+      location.replace('/admin/');
+      return;
+    }
     if (!silencioso) {
       const msg = (e && e.code === 'functions/permission-denied')
         ? 'Tu cuenta todavía no está vinculada a un profesional. Avisale al salón.'

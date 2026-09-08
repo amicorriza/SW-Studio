@@ -5284,7 +5284,21 @@ updatePatBadge();
 // La sesión la decide onAuthStateChanged, no un formulario en esta página: el
 // único login del equipo vive en /login. Sin sesión se va para allá; con
 // sesión se abre el panel sin volver a pedir la clave.
-if (window.SWAuth && window.SWData) {
+//
+// Los <script type="module"> de más abajo (firebase-init.js, data.js, auth.js)
+// son diferidos: el navegador los ejecuta DESPUÉS de este <script> clásico, sin
+// importar el orden de las etiquetas. Preguntar por window.SWAuth/SWData aquí
+// arriba, a nivel de módulo, los encuentra SIEMPRE undefined y manda a
+// cualquiera a /login -- admin incluido. Como /login sí espera a
+// DOMContentLoaded, ve la sesión real, decide "admin" y manda de vuelta acá:
+// login y admin se turnan reemplazándose sin parar, sin ningún error en
+// consola porque cada vuelta es una recarga completa. Mismo patrón que ya usan
+// /login y /barbero/ -- ver tests/browser/admin-gate-timing.mjs.
+document.addEventListener('DOMContentLoaded', function(){
+  if (!(window.SWAuth && window.SWData)) {
+    location.replace('/login');
+    return;
+  }
   window.SWAuth.onChange(function(user){
     if (user) {
       // onChange puede volver a dispararse (refresco de token, re-login sin
@@ -5297,9 +5311,7 @@ if (window.SWAuth && window.SWData) {
       location.replace('/login');
     }
   });
-} else {
-  location.replace('/login');
-}
+});
 
 })();
 

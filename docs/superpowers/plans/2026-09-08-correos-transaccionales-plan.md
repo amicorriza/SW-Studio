@@ -522,9 +522,23 @@ git commit -m "feat(web): pantalla de éxito de confirmar-cita.html con foto de 
 
 ---
 
+## Adenda (2026-09-08, mismo día): recordatorio 24h actualizado
+
+Aldo pidió expresamente extender el diseño 2026-09-08 a `renderReminderEmail`
+(recordatorio 24h antes), dejando explícitamente pendiente la página de
+gestión de reservas. Implementado en un commit aparte (fuera de las 5 tareas
+originales de este plan, mismo patrón TDD): `renderReminderEmail` ahora usa
+`renderNewDesignShell`/`citaDetailRows`/`confirmDeclineButtonsHtml`/
+`whatsappChangeNoteHtml`, igual que `renderClientEmail`/`renderConfirmationEmail`.
+Efecto secundario: `confirmDeclineCta()` (el bloque de dos botones del diseño
+viejo) quedó sin ningún llamador y se eliminó — era exclusivo de este correo,
+`renderClientEmail` ya había migrado a `confirmDeclineButtonsHtml` en la Tarea 1.
+`renderShopEmail`/`renderReminderResponseEmail` (avisos internos al negocio,
+no al cliente) siguen con el diseño anterior — no fueron parte de este pedido.
+
 ## Fuera de alcance (explícitamente)
 
-- `renderReminderEmail` (recordatorio 24h antes) y `renderShopEmail`/`renderReminderResponseEmail` (avisos internos al negocio) **no se tocan** — el paquete de diseño no incluyó mockups para esos correos. Si Aldo quiere que también adopten el diseño 2026-09-08, es un plan aparte (mismo patrón: pedir/producir el mockup primero).
-- La página de gestión de reservas (reagendar/cancelar) — ver `docs/superpowers/specs/2026-09-08-gestion-reservas-design.md`. El link de WhatsApp en `whatsappChangeNoteHtml()` es el reemplazo interino, no una promesa de fecha.
+- `renderShopEmail`/`renderReminderResponseEmail` (avisos internos al negocio) **no se tocan** — son alertas operativas para la barbería, no correos al cliente; no fueron parte de la entrega de diseño ni del pedido de extender el recordatorio.
+- La página de gestión de reservas (reagendar/cancelar) — ver `docs/superpowers/specs/2026-09-08-gestion-reservas-design.md`. El link de WhatsApp en `whatsappChangeNoteHtml()` es el reemplazo interino, no una promesa de fecha. Confirmado explícitamente por Aldo (2026-09-08): queda pendiente a propósito.
 - Mantener `EMAIL_HERO_URL` sincronizada automáticamente con `siteImages` si el admin cambia la foto del sitio — hoy es una publicación manual (Task 3). Automatizarlo (ej. una Cloud Function que exporte la imagen activa a una URL fija) no está en este plan.
 - Probar el envío real con el proveedor (Resend) en Gmail/Apple Mail/Outlook, tal como pide el `LEEME-ALDO.md` del paquete de diseño — este plan cubre el emulador; el envío de prueba a bandejas reales queda para quien lo ejecute, antes de considerar esto listo para producción.

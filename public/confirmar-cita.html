@@ -37,6 +37,12 @@
     box-shadow:0 8px 28px -8px rgba(120,130,145,.3);color:var(--ink)
   }
 
+  .cc-bg{position:fixed;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(0,0,0,.18),rgba(0,0,0,.4)),url('assets/hero.jpg') center 48%/cover no-repeat}
+  .cc-card--success{background:rgba(12,15,19,.64)!important;border:1px solid rgba(219,225,235,.45)!important;border-radius:20px;box-shadow:0 24px 80px #0004;backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);padding:34px 30px}
+  .cc-card--success #cc-done-h{color:#fff}
+  .cc-card--success #cc-done-sub{color:#ecf0f4}
+  .cc-card--success .cc-icon{border-color:#c8d0da;background:#ffffff0d}
+
   h1{font-family:'Orbitron',sans-serif;font-size:clamp(20px,4vw,26px);font-weight:500;margin:0 0 10px;line-height:1.15}
   .cc-sub{font-size:14px;color:var(--body);line-height:1.6;margin:0 0 22px}
 
@@ -66,6 +72,7 @@
 </style>
 </head>
 <body>
+<div class="cc-bg" id="cc-bg" aria-hidden="true" hidden></div>
 <header>
   <img src="/assets/logo.png" alt="SW Studio">
   <span>SW Studio</span>
@@ -127,6 +134,13 @@
     els.done.hidden = false;
     els.doneH.textContent = heading;
     els.doneSub.textContent = sub;
+    // Fondo de foto + tarjeta semitransparente solo para la salida
+    // CONFIRMAR -- pantalla-confirmacion.html (el diseño entregado) es
+    // "respuesta web de éxito", no cubre la salida de declinar.
+    if (r === 'confirm') {
+      document.getElementById('cc-bg').hidden = false;
+      document.querySelector('.cc-card').classList.add('cc-card--success');
+    }
   }
 
   async function init() {

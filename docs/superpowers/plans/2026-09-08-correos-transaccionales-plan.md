@@ -536,9 +536,29 @@ viejo) quedó sin ningún llamador y se eliminó — era exclusivo de este corre
 `renderShopEmail`/`renderReminderResponseEmail` (avisos internos al negocio,
 no al cliente) siguen con el diseño anterior — no fueron parte de este pedido.
 
+## Adenda 2 (2026-09-08, mismo día): avisos internos a la barbería
+
+Aldo pidió extender el diseño 2026-09-08 también a `renderShopEmail` (nueva
+reserva) y `renderReminderResponseEmail` (cliente confirmó/declinó) --
+los dos avisos que hasta este punto quedaban explícitamente fuera de alcance
+(ver más abajo). `renderNewDesignShell` gana dos parámetros para poder
+reusarse en correos que NO son al cliente: `citaLabel` (default `'TU CITA'`,
+los avisos internos pasan `'LA CITA'` porque le describen a un tercero la
+cita de otra persona) y `showVisitNotice` (default `true`, los avisos
+internos pasan `false` porque la franja "antes de tu visita" es un
+compromiso con el cliente, no información que el staff necesite leer sobre
+sí mismo). `renderShopEmail` suma `shopDetailRows()` (mismos campos que
+antes: Cliente/Teléfono/Email/Profesional/Servicio/Duración/Valor/Código,
+solo con la piel nueva) y ninguno de los dos correos lleva CTA ni nota de
+WhatsApp -- son alertas operativas, no el momento del cliente.
+Efecto secundario: `ASSETS_URL`, `FONT_SANS`, `FONT_SERIF`, `detailRow()` y
+`dateParts()` (el sistema visual Cormorant Garamond/Jost del diseño
+anterior) quedaron sin ningún llamador tras la migración y se eliminaron --
+eran exclusivos de estos dos templates, los tres restantes ya usaban
+`renderNewDesignShell` desde antes.
+
 ## Fuera de alcance (explícitamente)
 
-- `renderShopEmail`/`renderReminderResponseEmail` (avisos internos al negocio) **no se tocan** — son alertas operativas para la barbería, no correos al cliente; no fueron parte de la entrega de diseño ni del pedido de extender el recordatorio.
 - La página de gestión de reservas (reagendar/cancelar) — ver `docs/superpowers/specs/2026-09-08-gestion-reservas-design.md`. El link de WhatsApp en `whatsappChangeNoteHtml()` es el reemplazo interino, no una promesa de fecha. Confirmado explícitamente por Aldo (2026-09-08): queda pendiente a propósito.
 - Mantener `EMAIL_HERO_URL` sincronizada automáticamente con `siteImages` si el admin cambia la foto del sitio — hoy es una publicación manual (Task 3). Automatizarlo (ej. una Cloud Function que exporte la imagen activa a una URL fija) no está en este plan.
 - Probar el envío real con el proveedor (Resend) en Gmail/Apple Mail/Outlook, tal como pide el `LEEME-ALDO.md` del paquete de diseño — este plan cubre el emulador; el envío de prueba a bandejas reales queda para quien lo ejecute, antes de considerar esto listo para producción.

@@ -90,23 +90,28 @@ test('email a la barbería incluye teléfono y email del cliente', () => {
   assert.match(html, /mailto:juan@mail\.com/);
 });
 
-test('email a la barbería usa el mismo sistema visual que el del cliente (hero + tarjeta de fecha)', () => {
+test('email a la barbería usa el diseño 2026-09-08, igual que el del cliente', () => {
   const { html } = renderShopEmail(booking);
-  assert.match(html, /NUEVA<br>RESERVA/);
-  assert.match(html, /MIÉRCOLES/);          // bloque calendario: día de semana
-  assert.match(html, />10</);               // día del mes
-  assert.match(html, /JUNIO 2026/);         // mes y año
-  assert.match(html, /11:00 HRS/);
+  assert.match(html, /Nueva reserva\./);
+  assert.match(html, /Miércoles 10 de junio de 2026/);
+  assert.match(html, /11:00/);
   assert.match(html, /45 minutos/);
   assert.match(html, /\$21\.000/);
   assert.match(html, /Felipe/);
   assert.match(html, /Corte \+ Lavado Premium/);
-  assert.doesNotMatch(html, /VER MI RESERVA/);   // sin CTA orientada al cliente
+  assert.match(html, /assets\/email\/hero-actual\.jpg/);
+  assert.doesNotMatch(html, /Confirmar asistencia/);   // sin CTA orientada al cliente
 });
 
-test('email a la barbería omite la fila DURACIÓN si la reserva no trae dur', () => {
+test('email a la barbería NO incluye el aviso de ventana de cambios -- es información para el cliente, no para el staff', () => {
+  const { html } = renderShopEmail(booking);
+  assert.doesNotMatch(html, /Antes de tu visita/);
+  assert.doesNotMatch(html, /hasta 3 horas antes/);
+});
+
+test('email a la barbería omite la fila Duración si la reserva no trae dur', () => {
   const { html } = renderShopEmail({ ...booking, dur: undefined });
-  assert.doesNotMatch(html, /DURACIÓN/);
+  assert.doesNotMatch(html, />Duración</);
 });
 
 test('los datos del cliente en el correo de la barbería se escapan para evitar inyección de HTML', () => {
@@ -190,19 +195,26 @@ test('renderReminderEmail escapa barberName y svcName para evitar inyección de 
   assert.match(html, /&lt;b&gt;bold&lt;\/b&gt;/);
 });
 
-test('renderReminderResponseEmail (confirm) tiene el asunto y el título correctos', () => {
+test('renderReminderResponseEmail (confirm) tiene el asunto y el título correctos, con el diseño 2026-09-08', () => {
   const { subject, html } = renderReminderResponseEmail(booking, 'confirm');
   assert.match(subject, /Cliente confirmó su cita/);
   assert.match(subject, /SW-AB12345/);
-  assert.match(html, /CITA<br>CONFIRMADA/);
+  assert.match(html, /Cliente confirmó<br>su cita\./);
   assert.match(html, /confirmó su asistencia/);
+  assert.match(html, /assets\/email\/hero-actual\.jpg/);
 });
 
 test('renderReminderResponseEmail (decline) tiene el asunto y el título correctos', () => {
   const { subject, html } = renderReminderResponseEmail(booking, 'decline');
   assert.match(subject, /Cliente declinó su cita/);
-  assert.match(html, /CITA<br>DECLINADA/);
+  assert.match(html, /Cliente declinó<br>su cita\./);
   assert.match(html, /no podrá asistir/);
+});
+
+test('renderReminderResponseEmail NO incluye el aviso de ventana de cambios -- es información para el cliente, no para el staff', () => {
+  const { html } = renderReminderResponseEmail(booking, 'confirm');
+  assert.doesNotMatch(html, /Antes de tu visita/);
+  assert.doesNotMatch(html, /hasta 3 horas antes/);
 });
 
 test('renderReminderResponseEmail incluye datos de contacto del cliente para que el negocio pueda llamarlo', () => {
@@ -210,7 +222,7 @@ test('renderReminderResponseEmail incluye datos de contacto del cliente para que
   assert.match(html, /Juan Pérez/);
   assert.match(html, /tel:\+56912345678/);
   assert.match(html, /Felipe/);
-  assert.doesNotMatch(html, /VER MI RESERVA/); // sin CTA orientada al cliente, es un aviso interno
+  assert.doesNotMatch(html, /Confirmar asistencia/); // sin CTA orientada al cliente, es un aviso interno
 });
 
 test('renderReminderResponseEmail escapa los datos del cliente para evitar inyección de HTML', () => {

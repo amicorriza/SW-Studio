@@ -12,7 +12,12 @@ beforeAll(async () => {
     storage: { rules: readFileSync('storage.rules', 'utf8') },
   });
 });
-afterAll(async () => { await env.cleanup(); });
+// Sin el guard, si beforeAll falla (emulador de Storage no levantado) env
+// queda undefined y afterAll revienta con 'Cannot read properties of
+// undefined': el archivo entero se reporta como FAIL con 3 tests saltados y
+// npm run test:rules sale con codigo 1 aunque todo lo demas este verde. Eso
+// paso durante meses y entrenaba a ignorar el exit code de la suite.
+afterAll(async () => { if (env) await env.cleanup(); });
 
 test('anónimo NO puede subir una foto de cliente', async () => {
   const storage = env.unauthenticatedContext().storage();

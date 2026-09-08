@@ -211,3 +211,27 @@ test('renderReminderResponseEmail escapa los datos del cliente para evitar inyec
   assert.doesNotMatch(html, /<script>alert/);
   assert.match(html, /Juan &lt;script&gt;/);
 });
+
+test('renderConfirmationEmail incluye nombre, fecha, servicio y código', () => {
+  const { subject, html } = renderConfirmationEmail(booking);
+  assert.match(subject, /Asistencia confirmada/);
+  assert.match(subject, /SW-AB12345/);
+  assert.match(html, /Asistencia confirmada\./);
+  assert.match(html, /Juan Pérez/);
+  assert.match(html, /Miércoles 10 de junio de 2026/);
+  assert.match(html, /Corte \+ Lavado Premium/);
+  assert.match(html, /Felipe/);
+  assert.match(html, /\$21\.000/);
+  assert.match(html, /assets\/email\/hero-actual\.jpg/);
+});
+
+test('renderConfirmationEmail no incluye los botones Confirmar/Declinar -- la atención ya fue confirmada', () => {
+  const { html } = renderConfirmationEmail(booking);
+  assert.doesNotMatch(html, /confirmar-cita\.html/);
+});
+
+test('renderConfirmationEmail escapa los datos del cliente para evitar inyección de HTML', () => {
+  const { html } = renderConfirmationEmail({ ...booking, name: 'Juan <script>alert(1)</script>' });
+  assert.doesNotMatch(html, /<script>alert/);
+  assert.match(html, /Juan &lt;script&gt;/);
+});

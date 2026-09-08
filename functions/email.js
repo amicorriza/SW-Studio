@@ -210,6 +210,28 @@ function renderClientEmail(b, token) {
   return { subject, html };
 }
 
+// Correo al CLIENTE después de que confirma su asistencia desde
+// confirmar-cita.html (respondToBookingReminder, action==='confirm'). Antes
+// de esto, solo se avisaba al negocio (renderReminderResponseEmail) -- el
+// cliente no recibía nada de vuelta. Sin botones Confirmar/Declinar: ya
+// confirmó, no hay nada que decidir. `token` no aplica acá -- este correo no
+// ofrece ninguna acción sobre la reserva.
+function renderConfirmationEmail(b) {
+  const tz = b.tz || DEFAULT_TZ;
+  const fecha = fmtFechaLarga(b.date, b.time, tz);
+  const subject = `Asistencia confirmada · Nos vemos en SW Studio — ${b.code}`;
+  const html = renderNewDesignShell({
+    preheader: 'Recibimos tu confirmación. Nos vemos pronto en SW Studio.',
+    eyebrow: 'ASISTENCIA CONFIRMADA',
+    headlineHtml: 'Asistencia confirmada.',
+    introHtml: `Hola, ${esc(b.name)}.<br>Recibimos tu confirmación. Nos vemos pronto en SW Studio.`,
+    fecha, hora: b.time,
+    rows: citaDetailRows(b),
+    belowRowsHtml: whatsappChangeNoteHtml(),
+  });
+  return { subject, html };
+}
+
 // Template del aviso interno de nueva reserva — mismo sistema visual que
 // renderClientEmail (hero oscuro + tarjeta de detalle + footer) para que
 // ambos correos se sientan de la misma familia de marca. Sin CTA ni banda de
@@ -423,6 +445,13 @@ async function sendReminderEmail(b, token, { apiKey, fromEmail }) {
   assertResendOk([result]);
 }
 
+async function sendConfirmationEmail(b, { apiKey, fromEmail }) {
+  const resend = new Resend(apiKey);
+  const { subject, html } = renderConfirmationEmail(b);
+  const result = await resend.emails.send({ from: fromEmail, to: b.email, subject, html });
+  assertResendOk([result]);
+}
+
 // Aviso interno cuando el cliente responde al recordatorio (confirma o
 // declina) -- mismo sistema visual que renderShopEmail (alerta operativa,
 // sin CTA ni banda de marketing): el negocio se entera sin depender de
@@ -551,5 +580,6 @@ async function sendBookingEmails(b, token, { apiKey, fromEmail, shopEmail }) {
 
 module.exports = {
   renderClientEmail, renderShopEmail, renderReminderEmail, renderReminderResponseEmail,
+  renderConfirmationEmail, sendConfirmationEmail,
   sendBookingEmails, sendReminderEmail, sendReminderResponseEmail, parseRecipients, assertResendOk,
 };

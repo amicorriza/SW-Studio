@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Entrar — SW Studio</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="/assets/favicon.gif" type="image/gif">
+  <link rel="icon" href="/assets/favicon-32x32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@300;400;500;600&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{ --ink:#0A0A0A; --sd:#6A7888; --sl:#C8D0DA; --err:#E57373; }
+  html,body{height:100%;font-family:'Inter',sans-serif}
+  body{
+    background:var(--ink);color:#fff;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:40px 24px calc(40px + env(safe-area-inset-bottom));text-align:center
+  }
+  img.lg{width:60px;height:60px;border-radius:50%;object-fit:cover;margin-bottom:18px}
+  h1{font-family:'Audiowide',sans-serif;font-size:16px;font-weight:400;letter-spacing:.05em;text-transform:uppercase}
+  .sub{
+    font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;
+    letter-spacing:.35em;text-transform:uppercase;color:var(--sd);margin:4px 0 28px
+  }
+  input{
+    width:100%;max-width:300px;padding:12px 14px;border:1.5px solid rgba(255,255,255,.15);
+    border-radius:9px;background:rgba(255,255,255,.07);color:#fff;
+    font-family:'Inter',sans-serif;font-size:15px;outline:none;margin-bottom:12px;
+    transition:border-color .2s
+  }
+  input:focus{border-color:rgba(255,255,255,.45)}
+  input::placeholder{color:rgba(255,255,255,.32)}
+  button{
+    width:100%;max-width:300px;padding:12px;background:#fff;color:var(--ink);border:none;
+    border-radius:9px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;
+    letter-spacing:.22em;text-transform:uppercase;cursor:pointer;transition:background .2s
+  }
+  button:hover:not(:disabled){background:var(--sl)}
+  button:disabled{opacity:.65;cursor:default}
+  .msg{font-size:12.5px;line-height:1.6;margin-top:14px;max-width:300px;display:none}
+  .msg.err{color:var(--err);display:block}
+  .msg.info{color:var(--sl);display:block}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  /* En iPhone, un input de menos de 16px hace que Safari haga zoom al enfocarlo
+     y deje la pantalla descuadrada. */
+  @media (max-width:480px){ input{font-size:16px} }
+</style>
+</head>
+<body>
+
+<img class="lg" src="/assets/logo.png" alt="">
+<h1>SW Studio</h1>
+<div class="sub" id="sub">Acceso del equipo</div>
+
+<label class="sr" for="email">Correo</label>
+<input id="email" type="email" inputmode="email" autocomplete="username" placeholder="Correo">
+<label class="sr" for="pass">Contraseña</label>
+<input id="pass" type="password" autocomplete="current-password" placeholder="Contraseña">
+<button id="btn">Entrar</button>
+<p class="msg" id="msg"></p>
+
+<script type="module" src="/js/firebase-init.js"></script>
+<script type="module" src="/js/data.js"></script>
+<script type="module" src="/js/auth.js"></script>
+
+<script>
+(function(){
+'use strict';
+// Puerta única del equipo. Antes cada app tenía su propio formulario y el que
+// se equivocaba de puerta quedaba mirando un mensaje que no podía resolver:
+// el admin veía "tu cuenta no está vinculada" en /barbero/, y un barbero veía
+// el panel roto en /admin/.
+//
+// Acá el destino se decide UNA vez y en un solo lugar. Las redirecciones
+// cruzadas que tienen /admin/ y /barbero/ se quedan igual: son la red para
+// quien llegue directo con la sesión ya abierta (un enlace guardado, la PWA
+// instalada), no el camino principal.
+const g = (id) => document.getElementById(id);
+const btn = g('btn'), msg = g('msg');
+let yendo = false;
+
+function decir(texto, clase){
+  msg.textContent = texto;
+  msg.className = 'msg ' + (clase || 'err');
+}
+
+// El claim es el ÚNICO criterio de admin desde la Fase 3, así que leerlo acá
+// no duplica ningún predicado de dos partes. Y decide una NAVEGACIÓN, no un
+// permiso: equivocarse manda a alguien a una pantalla que el servidor le va a
+// negar igual.
+async function esAdmin(user){
+  try {
+    if(!user || typeof user.getIdTokenResult !== 'function') return false;
+    const t = await user.getIdTokenResult();
+    return !!(t && t.claims && t.claims.admin === true);
+  } catch(e){ return false; }
+}
+
+// Se le pregunta al servidor si tiene ficha de profesional, en vez de leerlo
+// del cliente: `staffAccounts` es admin-only justamente para que un barbero no
+// pueda enumerar al equipo.
+async function esBarbero(){
+  try { await window.SWData.getMyDay(); return true; }
+  catch(e){ return false; }
+}
+
+async function rutear(user){
+  if(yendo) return;
+  yendo = true;
+  btn.disabled = true;
+  btn.textContent = 'Entrando…';
+  decir('', 'info');
+  try {
+    if(await esAdmin(user)){ location.replace('/admin/'); return; }
+    if(await esBarbero()){ location.replace('/barbero/'); return; }
+    // Ni una cosa ni la otra: la cuenta existe en Auth pero nadie la vinculó a
+    // una ficha. Se dice qué falta y quién puede hacerlo, en vez de dejar a la
+    // persona probando puertas.
+    decir('Tu cuenta todavía no tiene acceso asignado. Pídele al salón que la vincule a tu ficha.', 'err');
+    await window.SWAuth.signOut();
+  } catch(e){
+    console.error('rutear', e);
+    decir('No pudimos verificar tu acceso. Revisa la conexión e intenta de nuevo.', 'err');
+  } finally {
+    yendo = false;
+    btn.disabled = false;
+    btn.textContent = 'Entrar';
+  }
+}
+
+async function entrar(){
+  const email = g('email').value.trim();
+  const pass = g('pass').value;
+  if(!email || !pass){ decir('Escribe tu correo y tu contraseña.'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Entrando…';
+  try {
+    const user = await window.SWAuth.signIn(email, pass);
+    await rutear(user);
+  } catch(e){
+    // No se distingue "no existe" de "clave incorrecta": decirlo permitiría
+    // averiguar qué correos tienen cuenta probando de a uno.
+    decir('Correo o contraseña incorrectos.');
+    btn.disabled = false;
+    btn.textContent = 'Entrar';
+  }
+}
+
+btn.addEventListener('click', entrar);
+g('pass').addEventListener('keydown', function(e){ if(e.key === 'Enter') entrar(); });
+g('email').addEventListener('keydown', function(e){ if(e.key === 'Enter') g('pass').focus(); });
+
+// Con sesión abierta esta página no debe pedir nada: rutea sola. Es lo que
+// hace que la PWA instalada abra derecho en la agenda.
+document.addEventListener('DOMContentLoaded', function(){
+  if(!window.SWAuth || !window.SWData){
+    decir('No pudimos cargar la aplicación. Revisa la conexión.');
+    return;
+  }
+  window.SWAuth.onChange(function(user){
+    if(user) rutear(user);
+  });
+});
+})();
+</script>
+</body>
+</html>

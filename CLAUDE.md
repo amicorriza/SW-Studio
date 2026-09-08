@@ -4,6 +4,13 @@ Sistema de agendamiento sobre Firebase (Hosting, Firestore, Functions Node 22
 en southamerica-east1, Auth, Storage). Producción: scissorwhite.cl.
 Resend para correo, Google Places para reseñas.
 
+public/login/index.html  puerta ÚNICA del equipo. Ni /admin/ ni /barbero/ tienen
+                         formulario: los dos mandan acá sin sesión. Decide el
+                         destino una sola vez -- claim admin -> /admin/, si no
+                         getMyDay responde -> /barbero/, si ninguna cierra la
+                         sesión y dice qué falta. El scope de la PWA se amplió
+                         a "/" para que la app instalada no salte al navegador
+                         al ir a /login (start_url sigue en /barbero/).
 public/index.html        landing + widget de reservas, ~4.000 líneas, JS y CSS inline
 public/admin/index.html  panel admin, ~3.700 líneas, JS y CSS inline
 public/js/data.js        única capa que habla con Firestore, Storage y Functions
@@ -109,7 +116,7 @@ Estado conocido, a verificar antes de tocar nada:
   porque saveAdmin() persiste ese array entero y lo devolvería a staff/{id}.
   staffDevices/{uid} guarda los tokens de FCM y es el ÚNICO lugar donde
   alguien que no es admin escribe directo a Firestore.
-- Login compartido y redirección en LOS DOS SENTIDOS: /admin/ y /barbero/
+- Login: la puerta es /login y nada más. /admin/ y /barbero/
   (mismo origen, misma app). Si un barbero entra por el login del panel, el
   panel lo redirige a /barbero/ -- y lo decide preguntándole al servidor
   (loadAdmin() falló Y getMyDay responde), NO con una quinta copia del

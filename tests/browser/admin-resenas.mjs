@@ -38,7 +38,7 @@ page.on('console', m => { if(m.type()==='error' && !/ERR_FAILED|Failed to load r
 await page.addInitScript(() => {
   window.__saved = null;
   window.__syncCalls = 0;
-  window.SWAuth = { signIn: async () => ({uid:'test'}), signOut: async () => {}, onChange: () => () => {} };
+  window.SWAuth = { signIn: async () => ({uid:'test'}), signOut: async () => {}, onChange: (cb) => { cb({uid:'test'}); return () => {}; } };
   window.SWData = {
     loadAdmin: async () => ({ services:[], staff:[], info:{name:'Scissor White', addr:'Cochrane 635', googlePlaceId:'ChIJguardado'}, log:[], schedule:[] }),
     subscribeBookings: (cb) => { cb([]); return { unsubscribe(){}, ready: Promise.resolve() }; },
@@ -64,8 +64,7 @@ function check(name, cond, detail){
 }
 
 await page.goto('http://localhost:4479/admin/', { waitUntil:'load' });
-await page.fill('#adm-pass', 'x');
-await page.click('#adm-login-btn');
+// Sin formulario: el panel abre solo cuando onChange entrega una sesión.
 await page.waitForSelector('#adm-app', { state:'visible' });
 await page.waitForTimeout(400);
 

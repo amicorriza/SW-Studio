@@ -54,7 +54,7 @@ await page.addInitScript(() => {
   ];
 
   window.__CALLS = { markAttendance: [], deleteBooking: [], linkStaffAccount: [] };
-  window.SWAuth = { signIn: async () => ({uid:'test'}), signOut: async () => {}, onChange: () => () => {} };
+  window.SWAuth = { signIn: async () => ({uid:'test'}), signOut: async () => {}, onChange: (cb) => { cb({uid:'test'}); return () => {}; } };
   window.__LOG = [];
   window.SWData = {
     loadAdmin: async () => ({
@@ -97,8 +97,7 @@ const check = (name, cond, detail) => {
 };
 
 await page.goto(`http://localhost:${PORT}/admin/`, { waitUntil:'load' });
-await page.fill('#adm-pass', 'x');
-await page.click('#adm-login-btn');
+// Sin formulario: el panel abre solo cuando onChange entrega una sesión.
 await page.waitForSelector('#adm-app', { state:'visible' });
 await page.click('.an-item[data-p="calendar"]');
 await page.waitForTimeout(400);

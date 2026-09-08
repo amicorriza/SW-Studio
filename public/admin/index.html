@@ -52,12 +52,9 @@ html,body{height:100%;font-family:'Inter',sans-serif}
 #adm-ll{width:60px;height:60px;border-radius:50%;object-fit:cover;margin-bottom:18px}
 #adm-lb{font-family:'Audiowide','Orbitron',sans-serif;font-size:16px;color:#fff;letter-spacing:.05em;text-transform:uppercase}
 #adm-ls{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.35em;text-transform:uppercase;color:var(--a-sd);margin:4px 0 28px}
-#adm-login input{width:100%;max-width:300px;padding:12px 14px;border:1.5px solid rgba(255,255,255,.15);border-radius:9px;background:rgba(255,255,255,.07);color:#fff;font-family:'Inter',sans-serif;font-size:15px;outline:none;margin-bottom:12px;transition:border-color .2s}
-#adm-login input:focus{border-color:rgba(255,255,255,.45)}
-#adm-login input::placeholder{color:rgba(255,255,255,.32)}
-#adm-login button{width:100%;max-width:300px;padding:12px;background:#fff;color:var(--a-ink);border:none;border-radius:9px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;cursor:pointer;transition:background .2s}
-#adm-login button:hover{background:var(--a-sl)}
-#adm-login-err{font-size:12px;color:#E57373;margin-top:10px;display:none}
+/* Los estilos del formulario se fueron con el formulario: el único login del
+   equipo vive en /login. Este bloque ya solo tapa el panel mientras se
+   resuelve la sesión. */
 
 /* APP layout — column on mobile, row on desktop */
 #adm-app{display:flex;flex:1;overflow:hidden;width:100%;flex-direction:column;min-height:0}
@@ -978,7 +975,7 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
   /* ── Campos a 16px ──
      Por debajo de 16px Safari iOS hace zoom automático al enfocar, y como
      #adm-shell es height:100dvh/overflow:hidden el layout queda descuadrado. */
-  .a-in,select.a-in,textarea.a-in,.a-sch-time,#adm-login input{font-size:16px}
+  .a-in,select.a-in,textarea.a-in,.a-sch-time{font-size:16px}
 
   /* ── TABLAS → TARJETAS ──
      Cada <tr> pasa a ser una tarjeta y cada <td> una fila etiqueta/valor.
@@ -1077,16 +1074,13 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
 <div id="adm-shell">
 
   <!-- LOGIN -->
+  <!-- Sin formulario: la única puerta del equipo es /login. Este bloque solo
+       tapa el panel mientras se resuelve si hay sesión, para que nadie alcance
+       a ver la estructura del admin antes de saber quién es. -->
   <div id="adm-login">
     <img id="adm-ll" src="/assets/logo.png" alt="SW">
     <div id="adm-lb">SW Studio</div>
-    <div id="adm-ls">Panel de Administración</div>
-    <label class="sr-only" for="adm-email">Email</label>
-    <input id="adm-email" type="email" placeholder="email" autocomplete="username" />
-    <label class="sr-only" for="adm-pass">Contraseña</label>
-    <input id="adm-pass" type="password" placeholder="Contraseña de acceso">
-    <button id="adm-login-btn">Ingresar</button>
-    <div id="adm-login-err">Contraseña incorrecta.</div>
+    <div id="adm-ls">Verificando acceso…</div>
   </div>
 
   <!-- APP -->
@@ -1828,35 +1822,21 @@ async function redirigirSiEsBarbero(){
   return true;
 }
 
-async function login(){
-  var email = (g('adm-email') ? g('adm-email').value.trim() : 'admin@scissorwhite.cl');
-  var btn = g('adm-login-btn'), btnTxt = btn.textContent;
-  try {
-    await window.SWAuth.signIn(email, g('adm-pass').value);
-  } catch(e) {
-    g('adm-login-err').style.display = 'block';
-    g('adm-pass').style.borderColor = 'rgba(220,80,80,.6)';
-    return;
-  }
-  // La sesión ya es válida, pero el destino todavía no está decidido: el panel
-  // no se muestra hasta saberlo, para que un barbero no alcance a ver el
-  // catálogo demo ni el banner de error que no le corresponde.
-  btn.disabled = true;
-  btn.textContent = 'Entrando…';
-  try {
-    await loadFromCloud();
-    if (dataLoadFailed && await redirigirSiEsBarbero()) return;
-    auth = true;
-    g('adm-login').style.display = 'none';
-    g('adm-app').style.display = 'flex';
-    renderAll();
-  } finally {
-    btn.disabled = false;
-    btn.textContent = btnTxt;
-  }
+// Ya no hay formulario acá: la sesión la decide /login y este panel solo la
+// consume. Antes se pedía la contraseña en cada apertura porque el gate era de
+// DOM y no de sesión -- un enlace guardado al panel obligaba a re-loguearse
+// aunque la sesión estuviera viva.
+async function abrirPanel(){
+  await loadFromCloud();
+  // Un barbero con sesión que llega directo acá: el panel no puede servirle
+  // (bookings es admin-only) y su app sí. Se lo manda para allá antes de
+  // mostrarle nada.
+  if (dataLoadFailed && await redirigirSiEsBarbero()) return;
+  auth = true;
+  g('adm-login').style.display = 'none';
+  g('adm-app').style.display = 'flex';
+  renderAll();
 }
-g('adm-login-btn').addEventListener('click', login);
-g('adm-pass').addEventListener('keydown', function(e){ if(e.key==='Enter') login(); });
 g('adm-lgout').addEventListener('click', async function(){
   await window.SWAuth.signOut();
   // Sin esto, la suscripción a `bookings` (admin-read en firestore.rules)
@@ -1864,10 +1844,7 @@ g('adm-lgout').addEventListener('click', async function(){
   // cuanto alguien más escriba una reserva.
   if (bkUnsubscribe) { bkUnsubscribe(); bkUnsubscribe = null; }
   auth = false;
-  g('adm-app').style.display = 'none';
-  g('adm-login').style.display = 'flex';
-  g('adm-pass').value = '';
-  g('adm-login-err').style.display = 'none';
+  location.replace('/login');
 });
 
 // ═══ SAVE / LOG ═══
@@ -5302,6 +5279,27 @@ g('a-pat-export').addEventListener('click', async function(){
 
 // Initial sync on load
 updatePatBadge();
+
+// ═══ GATE DE SESIÓN ═══
+// La sesión la decide onAuthStateChanged, no un formulario en esta página: el
+// único login del equipo vive en /login. Sin sesión se va para allá; con
+// sesión se abre el panel sin volver a pedir la clave.
+if (window.SWAuth && window.SWData) {
+  window.SWAuth.onChange(function(user){
+    if (user) {
+      // onChange puede volver a dispararse (refresco de token, re-login sin
+      // recargar). Sin este guard se relanzaría loadFromCloud() y con él una
+      // segunda suscripción a bookings.
+      if (!auth) abrirPanel();
+    } else {
+      auth = false;
+      if (bkUnsubscribe) { bkUnsubscribe(); bkUnsubscribe = null; }
+      location.replace('/login');
+    }
+  });
+} else {
+  location.replace('/login');
+}
 
 })();
 

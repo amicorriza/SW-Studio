@@ -133,7 +133,7 @@ await page.addInitScript(() => {
   });
 
   window.__BK = BK;
-  window.SWAuth = { signIn: async () => ({uid:'test'}), signOut: async () => {}, onChange: () => () => {} };
+  window.SWAuth = { signIn: async () => ({uid:'test'}), signOut: async () => {}, onChange: (cb) => { cb({uid:'test'}); return () => {}; } };
   window.SWData = {
     loadAdmin: async () => ({
       services: SVCS.map(s => ({ ...s, id:s.svcId, name:s.svcName, cat:s.svcCat, status:'active' })),
@@ -159,8 +159,7 @@ const check = (name, cond, detail) => {
 };
 
 await page.goto('http://localhost:4480/admin/', { waitUntil:'load' });
-await page.fill('#adm-pass', 'x');
-await page.click('#adm-login-btn');
+// Sin formulario: el panel abre solo cuando onChange entrega una sesión.
 await page.waitForSelector('#adm-app', { state:'visible' });
 await page.waitForSelector('#a-dash .a-dash-kpis', { timeout:4000 });
 await page.waitForTimeout(200);

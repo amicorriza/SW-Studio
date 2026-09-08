@@ -272,13 +272,11 @@
 
 <main>
   <!-- Login -->
+  <!-- Sin formulario: la única puerta del equipo es /login, que está dentro
+       del scope de la PWA para que la app instalada no salte al navegador. -->
   <section class="b-login" id="b-login" hidden>
     <h1>SW Barbero</h1>
-    <p>Entra con la cuenta que te dio el salón.</p>
-    <input class="b-in" id="b-email" type="email" inputmode="email" autocomplete="username" placeholder="Correo">
-    <input class="b-in" id="b-pass" type="password" autocomplete="current-password" placeholder="Contraseña">
-    <button class="b-btn b-pri b-wide" id="b-signin">Entrar</button>
-    <p class="b-note" id="b-login-err" style="color:var(--err)" hidden></p>
+    <p id="b-login-err">Verificando tu acceso…</p>
   </section>
 
   <!-- Agenda -->
@@ -1014,20 +1012,6 @@ document.addEventListener('click', (ev) => {
   act(btn.dataset.id, btn.dataset.act);
 });
 
-g('b-signin').addEventListener('click', async () => {
-  const btn = g('b-signin');
-  els.loginErr.hidden = true;
-  btn.disabled = true; btn.textContent = 'Entrando…';
-  try {
-    await window.SWAuth.signIn(g('b-email').value.trim(), g('b-pass').value);
-  } catch (e) {
-    els.loginErr.textContent = 'No pudimos entrar. Revisa el correo y la contraseña.';
-    els.loginErr.hidden = false;
-  } finally {
-    btn.disabled = false; btn.textContent = 'Entrar';
-  }
-});
-g('b-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') g('b-signin').click(); });
 g('b-signout').addEventListener('click', () => window.SWAuth.signOut());
 g('b-refresh').addEventListener('click', () => loadDay());
 g('b-push').addEventListener('click', function(){ activarAvisos(false); });
@@ -1038,7 +1022,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!window.SWAuth || !window.SWData) {
     show('login');
     els.loginErr.textContent = 'No se pudo cargar la app. Revisa la conexión y recarga.';
-    els.loginErr.hidden = false;
     return;
   }
   // La sesión la decide onAuthStateChanged, NO el botón de login. Una app
@@ -1060,7 +1043,8 @@ document.addEventListener('DOMContentLoaded', () => {
       CURRENT = null;
       if (ticker) { clearInterval(ticker); ticker = null; }
       if (poller) { clearInterval(poller); poller = null; }
-      show('login');
+      // Sin sesión no se pide la clave acá: la puerta del equipo es una sola.
+      location.replace('/login');
     }
   });
 });

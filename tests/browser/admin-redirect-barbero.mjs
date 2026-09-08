@@ -42,7 +42,7 @@ async function entrar(modo){
   await page.addInitScript((modo) => {
     const denegado = () => { const e = new Error('Missing or insufficient permissions.');
       e.code = 'permission-denied'; throw e; };
-    window.SWAuth = { signIn: async () => ({uid:'test'}), signOut: async () => {}, onChange: () => () => {} };
+    window.SWAuth = { signIn: async () => ({uid:'test'}), signOut: async () => {}, onChange: (cb) => { cb({uid:'test'}); return () => {}; } };
     window.SWData = {
       loadAdmin: async () => {
         if (modo !== 'admin') denegado();
@@ -58,8 +58,7 @@ async function entrar(modo){
     };
   }, modo);
   await page.goto('http://localhost:4482/admin/', { waitUntil:'load' });
-  await page.fill('#adm-pass', 'x');
-  await page.click('#adm-login-btn');
+  // Sin formulario: el panel abre solo cuando onChange entrega una sesión.
   await page.waitForTimeout(900);
   return { page, ctx };
 }
@@ -109,11 +108,10 @@ async function entrarBarbero(modo) {
       uid: modo === 'admin' ? 'uid-admin' : 'uid-nadie',
       getIdTokenResult: async () => ({ claims: modo === 'admin' ? { admin: true } : {} }),
     };
-    let cb = null;
     window.SWAuth = {
-      signIn: async () => { cb && cb(usuario); return usuario; },
-      signOut: async () => { cb && cb(null); },
-      onChange: (f) => { cb = f; f(null); return () => {}; },
+      signIn: async () => usuario,
+      signOut: async () => {},
+      onChange: (f) => { f(usuario); return () => {}; },
     };
     window.SWData = {
       getMyDay: async () => {
@@ -127,9 +125,7 @@ async function entrarBarbero(modo) {
     };
   }, modo);
   await page.goto('http://localhost:4482/barbero/', { waitUntil:'load' });
-  await page.fill('#b-email', 'x@scissorwhite.cl');
-  await page.fill('#b-pass', 'x');
-  await page.click('#b-signin');
+  // La PWA tampoco pide clave: onChange ya entregó la sesión.
   await page.waitForTimeout(900);
   return { page, ctx };
 }

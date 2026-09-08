@@ -69,10 +69,11 @@ await page.addInitScript(() => {
   };
   window.__CALLS = [];
   let authCb = null;
+  const usuario = { uid:'uid-victoria', getIdTokenResult: async () => ({ claims:{} }) };
   window.SWAuth = {
-    signIn: async () => { authCb && authCb({ uid:'uid-victoria' }); return { uid:'uid-victoria' }; },
+    signIn: async () => { authCb && authCb(usuario); return usuario; },
     signOut: async () => { authCb && authCb(null); },
-    onChange: (cb) => { authCb = cb; cb(null); return () => {}; },
+    onChange: (cb) => { authCb = cb; cb(usuario); return () => {}; },
   };
   // Un día distinto de hoy, para la navegación. Trae una cita EDITABLE por
   // estado (confirmed): si aun así no aparecen botones, es por el día y no
@@ -135,15 +136,16 @@ const check = (name, cond, detail) => {
 
 await page.goto(`http://localhost:${PORT}/barbero/`, { waitUntil:'load' });
 
-// ── login ──
-check('arranca en la pantalla de login', await page.isVisible('#b-login'));
-check('la agenda no se ve sin sesión', !(await page.isVisible('#b-app')));
-
-await page.fill('#b-email', 'victoria@scissorwhite.cl');
-await page.fill('#b-pass', 'x');
-await page.click('#b-signin');
+// ── sesión ──
+// La PWA ya no tiene formulario: la única puerta del equipo es /login. Con
+// sesión viva abre derecho en la agenda, que es lo que hace que una app
+// instalada -- que arranca en frío todo el tiempo -- no pida la clave a cada
+// apertura.
 await page.waitForSelector('#b-app', { state:'visible', timeout:4000 });
 await page.waitForTimeout(200);
+check('con sesión abre derecho en la agenda, sin pedir clave', await page.isVisible('#b-app'));
+check('y no queda ningún formulario de login en la app',
+  (await page.locator('#b-signin, #b-email, #b-pass').count()) === 0);
 
 check('sin errores JS al cargar la agenda', errors.length === 0, errors.slice(0,4));
 check('saluda al barbero por su nombre', (await page.textContent('#b-me')) === 'Victoria');
@@ -219,10 +221,7 @@ check('la tarjeta pasa a mostrar el resumen de duración', /Duró 41 min/.test(t
 
 // ── enlace profundo de la notificación ──
 await page.goto(`http://localhost:${PORT}/barbero/?b=b-arr&a=start`, { waitUntil:'load' });
-await page.waitForSelector('#b-login', { state:'visible' });
-await page.fill('#b-email', 'victoria@scissorwhite.cl');
-await page.fill('#b-pass', 'x');
-await page.click('#b-signin');
+// Sesión ya viva: onChange la entrega al cargar.
 await page.waitForSelector('#b-app', { state:'visible', timeout:4000 });
 await page.waitForTimeout(400);
 const deep = await page.evaluate(() => ({
@@ -421,9 +420,7 @@ check('sin errores JS tras ejercitar todo', errors.length === 0, errors.slice(0,
 // vez de restaurar el fixture mutado: addInitScript lo vuelve a sembrar
 // entero en cada navegación.
 await page.goto(`http://localhost:${PORT}/barbero/`, { waitUntil:'load' });
-await page.fill('#b-email', 'victoria@scissorwhite.cl');
-await page.fill('#b-pass', 'x');
-await page.click('#b-signin');
+// Sesión ya viva: onChange la entrega al cargar.
 await page.waitForSelector('#b-list .b-card', { timeout:4000 });
 await page.waitForTimeout(200);
 await page.screenshot({ path: path.join(OUT, 'barbero.png'), fullPage:true }).catch(()=>{});

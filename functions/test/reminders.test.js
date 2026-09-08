@@ -148,3 +148,26 @@ test('REMINDER_WINDOW_MS es 15 minutos (mismo ancho que el intervalo de la corri
 test('REMINDER_LEAD_MS es 24 horas', () => {
   assert.strictEqual(REMINDER_LEAD_MS, 24 * 60 * 60 * 1000);
 });
+
+// Mismo criterio que en computeNudges: descartar la reserva es correcto, pero
+// descartarla sin dejar rastro significa que ese cliente no recibe su
+// recordatorio nunca y no hay forma de saberlo.
+test('findBookingsNeedingReminder avisa por callback cuál reserva descartó', () => {
+  const now = new Date('2026-06-10T12:00:00.000Z');
+  const bookings = [
+    { _docId: 'mala', code: 'SW-mala', status: 'pending', date: '2026-06-11', time: undefined, tz: 'America/Santiago' },
+    { _docId: 'buena', code: 'SW-buena', status: 'pending', date: '2026-06-11', time: '08:00', tz: 'America/Santiago' },
+  ];
+  const saltadas = [];
+  const result = findBookingsNeedingReminder(bookings, now, (id, err) => saltadas.push([id, err && err.message]));
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(saltadas.length, 1);
+  assert.strictEqual(saltadas[0][0], 'mala');
+  assert.ok(saltadas[0][1]);
+});
+
+test('findBookingsNeedingReminder sigue andando sin callback (es opcional)', () => {
+  const now = new Date('2026-06-10T12:00:00.000Z');
+  const bookings = [{ code: 'SW-mala', status: 'pending', date: '2026-06-11', time: undefined }];
+  assert.doesNotThrow(() => findBookingsNeedingReminder(bookings, now));
+});

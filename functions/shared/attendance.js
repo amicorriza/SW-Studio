@@ -198,8 +198,12 @@ function computeNudges(bookings, now, cfg) {
           data: { b: id, a: 'view' },
         });
       }
-    } catch {
-      /* reserva malformada: se ignora, el lote sigue */
+    } catch (e) {
+      // Se ignora para que el lote siga, pero NO en silencio: una reserva con
+      // date corrupto deja al barbero sin ningún aviso y, sin esta línea,
+      // nadie se entera nunca. El callback lo pone functions/index.js; este
+      // módulo no importa un logger para seguir siendo puro y testeable.
+      if (typeof c.onSkip === 'function') c.onSkip(b && b._docId, e);
     }
   });
 

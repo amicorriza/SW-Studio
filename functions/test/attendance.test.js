@@ -258,3 +258,24 @@ test('computeNudges: lista vacía o nula devuelve []', () => {
   assert.deepStrictEqual(computeNudges([], at('17:52'), { tz: TZ }), []);
   assert.deepStrictEqual(computeNudges(null, at('17:52'), { tz: TZ }), []);
 });
+
+// El catch por reserva es correcto -- el lote debe seguir -- pero descartar en
+// SILENCIO significa que ese barbero no recibe ningún aviso de esa cita y
+// nadie se entera jamás. Estos dos tests fijan que el descarte se reporte.
+test('computeNudges: avisa por callback cuál reserva descartó', () => {
+  const mala = bk({ _docId: 'mala', date: 'no-es-fecha', time: null });
+  const buena = bk({ _docId: 'buena' });
+  const saltadas = [];
+  const n = computeNudges([mala, buena], at('17:52'), {
+    leadMin: 10, tz: TZ, onSkip: (id, err) => saltadas.push([id, err && err.message]),
+  });
+  assert.strictEqual(n.length, 1);
+  assert.strictEqual(saltadas.length, 1);
+  assert.strictEqual(saltadas[0][0], 'mala');
+  assert.ok(saltadas[0][1], 'el callback recibe el error real, no solo el id');
+});
+
+test('computeNudges: sin callback sigue funcionando igual (es opcional)', () => {
+  const mala = bk({ _docId: 'mala', date: 'no-es-fecha', time: null });
+  assert.doesNotThrow(() => computeNudges([mala], at('17:52'), { leadMin: 10, tz: TZ }));
+});

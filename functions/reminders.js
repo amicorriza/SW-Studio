@@ -42,7 +42,7 @@ function generateReminderToken() {
 // puro. Respeta el `tz` propio de cada reserva -- nunca un tz global del
 // negocio -- aunque en la práctica coincidan salvo reservas de antes de
 // Fase 2 sin `tz`, que caen a DEFAULT_TZ igual que el resto del código.
-function findBookingsNeedingReminder(bookings, now) {
+function findBookingsNeedingReminder(bookings, now, onSkip) {
   const nowMs = now.getTime();
   const dueBy = nowMs + REMINDER_LEAD_MS + REMINDER_WINDOW_MS;
   return (bookings || []).filter((b) => {
@@ -61,7 +61,12 @@ function findBookingsNeedingReminder(bookings, now) {
       // Sin piso inferior a propósito (ver comentario de las constantes) --
       // "ya pasó su turno" sigue siendo "debido", nunca "ya no corresponde".
       return t <= dueBy && t > nowMs;
-    } catch {
+    } catch (e) {
+      // Descartar la reserva es correcto -- no se puede decidir sin fecha --
+      // pero descartarla en silencio significa que un cliente nunca recibe su
+      // recordatorio y no queda rastro de por qué. El callback lo pone
+      // index.js; este módulo no importa un logger para seguir siendo puro.
+      if (typeof onSkip === 'function') onSkip(b && b._docId, e);
       return false;
     }
   });

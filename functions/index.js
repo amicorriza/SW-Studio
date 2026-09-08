@@ -427,7 +427,12 @@ exports.sendBookingReminders = onSchedule(
         .map((d) => ({ ref: d.ref, data: { ...d.data(), _docId: d.id } }))
         .filter((item) => !item.data.reminderSentAt);
       const itemsByDocId = new Map(items.map((item) => [item.data._docId, item]));
-      const toRemindData = findBookingsNeedingReminder(items.map((item) => item.data), now);
+      const toRemindData = findBookingsNeedingReminder(items.map((item) => item.data), now,
+        // Sin esto, una reserva con date/time corrupto no recibe recordatorio
+        // NUNCA y no queda ni una linea que lo diga.
+        (id, err) => logger.error('Reserva ilegible al buscar recordatorios', {
+          bookingId: id || null, message: (err && err.message) || String(err),
+        }));
       const toRemind = toRemindData.map((b) => itemsByDocId.get(b._docId)).filter(Boolean);
 
       for (const item of toRemind) {
@@ -1017,7 +1022,15 @@ exports.staffAttendanceNudges = onSchedule(
       // sendBookingReminders para no emparejar por `code` (que se genera en
       // el cliente y no tiene unicidad reforzada).
       const bookings = snap.docs.map((d) => ({ ...d.data(), _docId: d.id }));
-      const nudges = computeNudges(bookings, now, { leadMin, tz });
+      const nudges = computeNudges(bookings, now, {
+        leadMin, tz,
+        // Una reserva con date corrupto deja al barbero sin aviso. Antes se
+        // descartaba sin dejar rastro; ahora al menos queda el código para
+        // poder ir a mirarla.
+        onSkip: (id, err) => logger.error('Reserva ilegible al calcular avisos', {
+          bookingId: id || null, message: (err && err.message) || String(err),
+        }),
+      });
       if (!nudges.length) return;
 
       // uid -> staffId se deriva del lado del servidor leyendo `staff`.

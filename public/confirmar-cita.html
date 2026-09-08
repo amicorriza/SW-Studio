@@ -129,15 +129,20 @@
     els.error.textContent = msg;
   }
 
-  function showDone(heading, sub) {
+  function showDone(heading, sub, isSuccess) {
     els.summary.hidden = true;
     els.done.hidden = false;
     els.doneH.textContent = heading;
     els.doneSub.textContent = sub;
-    // Fondo de foto + tarjeta semitransparente solo para la salida
-    // CONFIRMAR -- pantalla-confirmacion.html (el diseño entregado) es
-    // "respuesta web de éxito", no cubre la salida de declinar.
-    if (r === 'confirm') {
+    // Fondo de foto + tarjeta semitransparente solo cuando la reserva
+    // terminó CONFIRMADA de verdad -- pantalla-confirmacion.html (el diseño
+    // entregado) es "respuesta web de éxito", no cubre la salida de
+    // declinar. isSuccess refleja el resultado real (booking.status /
+    // la acción recién registrada), no qué link tocó el cliente: alguien
+    // puede abrir el link de declinar de una reserva que ya estaba
+    // confirmada (o viceversa), y el mensaje/estilo debe seguir al estado
+    // real, no al parámetro r de la URL.
+    if (isSuccess) {
       document.getElementById('cc-bg').hidden = false;
       document.querySelector('.cc-card').classList.add('cc-card--success');
     }
@@ -161,7 +166,8 @@
     if (booking.status !== 'pending') {
       showDone(
         booking.status === 'confirmed' ? '¡Ya estaba confirmada!' : 'Ya avisaste que no ibas a poder ir',
-        booking.status === 'confirmed' ? 'Te esperamos en SW Studio.' : 'Gracias por avisar con tiempo.'
+        booking.status === 'confirmed' ? 'Te esperamos en SW Studio.' : 'Gracias por avisar con tiempo.',
+        booking.status === 'confirmed'
       );
       return;
     }
@@ -185,7 +191,8 @@
       await respondToBookingReminder(code, token, r);
       showDone(
         r === 'confirm' ? '¡Gracias, te esperamos!' : 'Listo, liberamos tu horario',
-        r === 'confirm' ? 'Nos vemos pronto en SW Studio.' : 'Cuando quieras, puedes agendar otra hora desde el sitio.'
+        r === 'confirm' ? 'Nos vemos pronto en SW Studio.' : 'Cuando quieras, puedes agendar otra hora desde el sitio.',
+        r === 'confirm'
       );
     } catch (e) {
       showError('No pudimos registrar tu respuesta. Intenta de nuevo o escríbenos por WhatsApp.');

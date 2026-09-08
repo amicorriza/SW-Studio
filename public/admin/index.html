@@ -2567,7 +2567,7 @@ function getBk(){ return BK; }
 // panel mostraba igual el mensaje de éxito, así que un fallo se veía
 // exactamente igual que un guardado correcto. Ver saveBookingAnd().
 function setBk(b){
-  return window.SWData.saveBooking(b);
+  return window.SWData.adminSaveBooking(b);
 }
 function delBk(id){
   return window.SWData.deleteBooking(id);
@@ -2576,6 +2576,10 @@ function delBk(id){
 function getBookings(){
   return getBk();
 }
+// Va por el callable adminSaveBooking y ya NO escribe a Firestore directo.
+// El servidor valida el payload (fecha y hora reales, no solo con formato) y
+// resuelve precio, nombre del servicio y nombre del profesional contra el
+// catálogo -- antes salían de un dataset del DOM.
 function saveBooking(b){
   var guardado = setBk(b);
   updatePatBadge();
@@ -3459,7 +3463,10 @@ g('a-bkm-save').addEventListener('click', function(){
     dur: dur,
     barberId: br.value,
     barberName: bOpt.dataset.name,
-    date: da.value + 'T' + ti.value + ':00.000Z',
+    // La clave del día, no el 'YYYY-MM-DDTHH:mm:00.000Z' de antes: esa forma
+    // era hora de pared mal etiquetada como UTC. Todo el resto del panel lee
+    // esto con substring(0,10), así que las dos formas conviven sin migración.
+    date: da.value,
     time: ti.value,
     notes: g('a-bkm-notes').value.trim(),
     over: !!conflict || !!blocked || isOver,

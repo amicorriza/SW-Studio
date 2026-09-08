@@ -147,6 +147,7 @@ await page.addInitScript(() => {
     subscribeBookings: (cb) => { cb(window.__BK); return { unsubscribe(){}, ready: Promise.resolve() }; },
     getPatients: async () => [], getScheduleBlocks: async () => [],
     saveAdmin: async () => {}, saveBooking: async () => {}, deleteBooking: async () => {},
+    adminSaveBooking: async () => ({ ok: true, id: "x", created: true }),
     loadGoogleReviews: async () => null,
   };
 });

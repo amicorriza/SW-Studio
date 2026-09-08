@@ -71,6 +71,7 @@ await page.addInitScript(() => {
     subscribeBookings: (cb) => { cb(window.__BK); return { unsubscribe(){}, ready: Promise.resolve() }; },
     getPatients: async () => [], getScheduleBlocks: async () => [],
     saveAdmin: async () => {}, saveBooking: async () => {},
+    adminSaveBooking: async () => ({ ok: true, id: "x", created: true }),
     deleteBooking: async (id) => { window.__CALLS.deleteBooking.push(id); },
     markAttendance: async (bookingId, action) => {
       window.__CALLS.markAttendance.push({ bookingId, action });

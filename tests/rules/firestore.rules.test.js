@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { beforeAll, afterAll, test } from 'vitest';
 
 let env;
@@ -109,22 +109,28 @@ test('admin (custom claim) SÍ puede leer y escribir scheduleBlocks', async () =
   await assertSucceeds(getDoc(doc(db, 'scheduleBlocks/sb1')));
 });
 
-// El payload que arma el modal del panel no trae status/club/svcName/etc,
-// así que estos casos usan solo los campos que admin/index.html realmente
-// envía -- no el fixture `valid` (que simula el widget público).
-test('admin NO puede crear una reserva con email de formato inválido (antes isAdmin() cortocircuitaba isValidBooking)', async () => {
+// Hasta el 2026-09-07 el panel escribía reservas DIRECTO a Firestore y lo
+// único que lo gateaba era el formato del email: precio, duración y nombres
+// salían de datasets del DOM, y una fecha u hora corrupta entraba sin
+// resistencia. Ahora esa vía está cerrada y el panel pasa por el callable
+// adminSaveBooking, que valida de verdad y resuelve el catálogo del lado del
+// servidor. Estos tests fijan que la puerta quedó cerrada.
+test('NI SIQUIERA el admin puede crear una reserva directo', async () => {
   const db = env.authenticatedContext('admin1', { admin: true }).firestore();
-  await assertFails(setDoc(doc(db, 'bookings/adm1'), { code: 'SW-ADM1', name: 'Cliente', email: 'no-es-email' }));
+  await assertFails(setDoc(doc(db, 'bookings/adm1'), { code: 'SW-ADM1', name: 'Cliente', email: 'cliente@test.cl' }));
 });
 
-test('admin SÍ puede crear una reserva sin email (opcional en el panel)', async () => {
+test('ni editarla directo', async () => {
   const db = env.authenticatedContext('admin1', { admin: true }).firestore();
-  await assertSucceeds(setDoc(doc(db, 'bookings/adm2'), { code: 'SW-ADM2', name: 'Cliente' }));
+  await assertFails(updateDoc(doc(db, 'bookings/b1'), { name: 'Otro' }));
 });
 
-test('admin SÍ puede crear una reserva con email válido', async () => {
+// El borrado se conserva a propósito: es la salida de emergencia documentada
+// para una reserva de prueba, y borrar no puede corromper datos.
+test('pero sí puede leerla y borrarla', async () => {
   const db = env.authenticatedContext('admin1', { admin: true }).firestore();
-  await assertSucceeds(setDoc(doc(db, 'bookings/adm3'), { code: 'SW-ADM3', name: 'Cliente', email: 'cliente@test.cl' }));
+  await assertSucceeds(getDoc(doc(db, 'bookings/b1')));
+  await assertSucceeds(deleteDoc(doc(db, 'bookings/b1')));
 });
 
 // ── Reseñas de Google ──

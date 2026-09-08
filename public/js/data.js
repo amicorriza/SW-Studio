@@ -345,6 +345,16 @@ async function getMyRange(from, to) {
 
 // Clientes que atendió el barbero. Sin correo ni teléfono: la respuesta trae
 // una clave opaca por cliente -- ver functions/shared/clients.js.
+// Crea o edita una reserva DESDE EL PANEL. Reemplaza saveBooking(), que
+// escribía directo a Firestore con el precio y la duración tomados del DOM.
+// El servidor valida el payload y resuelve precio, nombre del servicio y
+// nombre del profesional contra el catálogo.
+async function adminSaveBooking(booking) {
+  const call = httpsCallable(functions, 'adminSaveBooking');
+  const { data } = await call({ booking });
+  return data; // { ok, id, created, price, dur, svcName }
+}
+
 async function getMyClients() {
   const call = httpsCallable(functions, 'getMyClients');
   const { data } = await call({});
@@ -388,6 +398,7 @@ window.SWData = {
   loadGoogleReviews, saveManualReviews, syncGoogleReviews,
   getBookingForReminderAction, respondToBookingReminder,
   getMyDay, getMyRange, getMyClients, markAttendance, linkStaffAccount, saveMyPushToken,
+  adminSaveBooking,
 };
 export {
   loadAdmin, saveAdmin, loadCatalog, getBookings, saveBooking, deleteBooking, subscribeBookings, createBooking,
@@ -398,4 +409,5 @@ export {
   loadGoogleReviews, saveManualReviews, syncGoogleReviews,
   getBookingForReminderAction, respondToBookingReminder,
   getMyDay, getMyRange, getMyClients, markAttendance, linkStaffAccount, saveMyPushToken,
+  adminSaveBooking,
 };

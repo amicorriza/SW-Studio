@@ -51,15 +51,30 @@ service cloud.firestore {
     // consultar otras colecciones, solo get()/exists() sobre rutas
     // concretas). Antes de esta fase, cualquiera podía crear una reserva
     // directo sin que NADA verificara solape de horario.
+    // Reservas: NINGÚN cliente escribe acá, ni siquiera el admin. Las dos vías
+    // de escritura pasan por callables con Admin SDK, que no están sujetos a
+    // estas reglas:
+    //   - público  -> createBooking (valida y resuelve precio/duración)
+    //   - panel    -> adminSaveBooking (idem, desde 2026-09-07)
+    //   - estados  -> markAttendance (conoce las transiciones válidas)
+    //
+    // Hasta el 2026-09-07 el panel escribía DIRECTO acá, y lo único que lo
+    // gateaba era el formato del email. Precio, duración y nombres salían de
+    // datasets del DOM, y una fecha u hora corrupta entraba sin resistencia: de
+    // ahí salían las reservas que hacen throw en zonedInstant() y dejan a un
+    // cliente sin recordatorio y a un barbero sin aviso.
+    //
+    // El borrado SÍ se conserva: es la salida de emergencia documentada para
+    // una reserva de prueba y no puede corromper datos.
     match /bookings/{id} {
-      allow read, update, delete: if isAdmin();
-      allow create: if isAdmin() && isValidEmail(request.resource.data.get('email', ''));
+      allow read, delete: if isAdmin();
+      allow create, update: if false;
     }
-    // El email es opcional (un barbero puede agendar por teléfono sin
-    // correo): si viene vacío se acepta, pero si trae contenido debe tener
-    // formato válido -- mismo regex que usa el widget público
-    // (public/index.html) y que isValidBookingPayload() en
-    // functions/createBooking.js.
+    // Ya NO la invoca ningún `allow`: era el único gate del camino de escritura
+    // directa del panel, que dejó de existir. El criterio (email opcional, pero
+    // con formato si viene) vive ahora en isValidAdminBookingPayload()
+    // (functions/shared/validate.js), del lado del servidor y acompañado del
+    // resto de las validaciones que en CEL no se podían expresar.
     function isValidEmail(email) {
       return email is string && (email == '' || email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$'));
     }

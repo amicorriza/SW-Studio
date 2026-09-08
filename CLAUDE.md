@@ -47,11 +47,17 @@ Estado conocido, a verificar antes de tocar nada:
   usan el mismo criterio de minutos-desde-medianoche (antes usaban objetos
   Date en hora del navegador del admin -- ver el historial del goal
   2026-08-24 en docs/superpowers/plans si hace falta el detalle).
-  Validación: functions/shared/validate.js es la única implementación real
-  (isValidBookingPayload). firestore.rules mantiene isValidBooking() como
-  copia CEL muerta (documentación) y isValidEmail() como el único gate real
-  del camino de escritura directa del admin -- esa brecha (el admin no pasa
-  por isValidBookingPayload) sigue sin cerrar, es trabajo aparte.
+  Validación: functions/shared/validate.js es la única implementación real.
+  Dos funciones a propósito: isValidBookingPayload (camino público, correo
+  OBLIGATORIO porque ahí llega la confirmación) e isValidAdminBookingPayload
+  (panel, correo OPCIONAL porque el salón agenda por teléfono). Las dos exigen
+  fecha y hora REALES, no solo con formato: '2026-02-30' calza el regex y
+  después revienta en zonedInstant().
+  NINGÚN cliente escribe bookings, ni siquiera el admin: firestore.rules tiene
+  create/update en false y las tres vías pasan por callables con Admin SDK
+  (createBooking, adminSaveBooking, markAttendance). El borrado sigue
+  permitido al admin como salida de emergencia. isValidBooking() e
+  isValidEmail() quedan en las reglas como copias CEL muertas.
   Estado: functions/shared/status.js centraliza los ocho BOOKING_STATUSES
   (pending, confirmed, declined, arrived, in_service, completed, no_show,
   cancelled) y BLOCKING_STATUSES, que es el criterio ÚNICO de "esta reserva
@@ -112,7 +118,7 @@ Estado conocido, a verificar antes de tocar nada:
 - staffAttendanceNudges (onSchedule, cada 2 min) manda los avisos, pero NO
   envía nada salvo businessInfo.nudgesEnabled === true -- mismo interruptor
   que remindersEnabled. Deploy != activación.
-- Despliegue manual con diecisiete nombres de función a mano (ver README.md);
+- Despliegue manual con dieciocho nombres de función a mano (ver README.md);
   createBooking ya quedó fuera de esa lista una vez y se congeló en silencio.
 
 INVARIANTES — ningún goal puede romperlos:

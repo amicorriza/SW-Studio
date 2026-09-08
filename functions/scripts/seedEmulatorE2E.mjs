@@ -68,7 +68,13 @@ await db.collection('businessInfo').doc('main').set({
 }, { merge: true });
 
 // ── 4. citas de HOY para Victoria, en distintos estados ──
-const svc = (await db.collection('services').limit(1).get()).docs[0].data();
+const svcDoc = (await db.collection('services').limit(1).get()).docs[0];
+const svc = svcDoc.data();
+// El id REAL del documento. Antes se sembraba svcId:'corte-adulto', que no
+// existe en el catálogo: las reservas del seed apuntaban a un servicio
+// fantasma. No molestaba mientras nadie lo resolviera, pero adminSaveBooking
+// sí lo resuelve contra services y rebotaba con 'Ese servicio no existe'.
+const svcId = svcDoc.id;
 const ahora = new Date();
 // Devuelve { date, time } en la zona del NEGOCIO. Antes devolvía solo la hora
 // y la fecha se dejaba fija en hoy: corriendo la suite después de las 22:00,
@@ -86,7 +92,7 @@ const enMin = (m) => {
 };
 
 const base = {
-  svcId: 'corte-adulto', svcName: svc.name || 'Corte adulto', svcCat: svc.cat || 'c',
+  svcId, svcName: svc.name || 'Corte adulto', svcCat: svc.cat || 'c',
   price: svc.price || 18000, dur: svc.dur || 45,
   barberId: 'victoria', barberName: 'Victoria',
   date: hoyBiz, club: 'guest', tz: TZ, src: 'seed-e2e',
@@ -153,6 +159,8 @@ console.log('hoy         :', hoyBiz);
 // resuelve con fs -- el seed y los tests corren en la misma máquina.
 writeFileSync(new URL('./.e2e-seed.json', import.meta.url), JSON.stringify({
   hoy: hoyBiz,
+  svcId,
+  barberId: 'victoria',
   citas: hoyCitas.map((c) => ({ code: c.code, date: c.date, time: c.time })),
 }, null, 2));
 console.log('citas sembradas:', hoyCitas.map((c) => c.date + ' ' + c.time + ' ' + c.name).join(' | '));

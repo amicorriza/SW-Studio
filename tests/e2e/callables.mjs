@@ -227,4 +227,90 @@ check('getMyClients rechaza sin sesión',
 check('getMyDay devuelve el horario del profesional, para la sección Horario',
   Array.isArray(dia.result && dia.result.schedule), dia.result && dia.result.schedule);
 
+// ═══════════════════ adminSaveBooking ═══════════════════
+// Cierra la brecha que el panel tenía abierta: escribía reservas directo a
+// Firestore, con precio y duración tomados del DOM y sin más control que el
+// formato del email.
+const nuevaCita = {
+  code: 'E2E-ADM1', name: 'Nueva Cliente', phone: '+56955555555', email: 'nueva@e2e.cl',
+  svcId: manifiesto.svcId, barberId: manifiesto.barberId, date: manifiesto.hoy, time: '19:30',
+  notes: 'creada por el test', over: true,
+  // Lo que el servidor DEBE ignorar: precio inventado y estado forzado.
+  price: 1, dur: 45, svcName: 'MENTIRA', barberName: 'MENTIRA', status: 'completed',
+};
+
+const noAdm = await call('adminSaveBooking', { booking: nuevaCita }, tVic);
+check('adminSaveBooking es admin-only',
+  noAdm.error && /permission[-_]denied/i.test(JSON.stringify(noAdm.error)), noAdm.error);
+
+const creada = await call('adminSaveBooking', { booking: nuevaCita }, tAdm);
+check('adminSaveBooking crea la cita', creada.status === 200 && creada.result && creada.result.ok,
+  { status: creada.status, error: creada.error });
+check('y avisa que fue creación, no edición', creada.result && creada.result.created === true, creada.result);
+
+const docCreado = await getDoc('bookings/E2E-ADM1', tAdm);
+// El invariante del proyecto: precio y nombres SIEMPRE del catálogo.
+check('el precio sale del catálogo, no del payload',
+  docCreado && docCreado.price !== 1 && docCreado.price > 0, docCreado && docCreado.price);
+check('el nombre del servicio también',
+  docCreado && docCreado.svcName !== 'MENTIRA', docCreado && docCreado.svcName);
+check('y el del profesional',
+  docCreado && docCreado.barberName !== 'MENTIRA', docCreado && docCreado.barberName);
+// El estado lo mueve markAttendance, que conoce las transiciones. Aceptarlo
+// del payload dejaría marcar una cita como atendida sin que ocurriera.
+check('el estado NO se toma del payload',
+  docCreado && docCreado.status === 'pending', docCreado && docCreado.status);
+check('se guarda la clave del día, no el formato viejo con T...Z',
+  docCreado && docCreado.date === manifiesto.hoy, docCreado && docCreado.date);
+check('se escribe la zona del negocio',
+  docCreado && docCreado.tz === 'America/Santiago', docCreado && docCreado.tz);
+
+// Lo que motivó todo: las fechas y horas corruptas ya no entran.
+const corruptas = [
+  ['fecha que no existe', { date: '2026-02-30' }],
+  ['mes 13', { date: '2026-13-01' }],
+  ['fecha basura', { date: 'no-es-fecha' }],
+  ['el formato viejo con T...Z', { date: manifiesto.hoy + 'T10:00:00.000Z' }],
+  ['hora 25', { time: '25:00' }],
+  ['sin servicio', { svcId: '' }],
+  ['sin profesional', { barberId: '' }],
+  ['sin nombre', { name: '' }],
+  ['correo con formato malo', { email: 'no-es-email' }],
+];
+for (const [etiqueta, patch] of corruptas) {
+  const r = await call('adminSaveBooking', { booking: { ...nuevaCita, code: 'E2E-MALA', ...patch } }, tAdm);
+  check('adminSaveBooking rechaza: ' + etiqueta,
+    r.error && /invalid[-_]argument/i.test(JSON.stringify(r.error)), r.error);
+}
+const malaGuardada = await getDoc('bookings/E2E-MALA', tAdm);
+check('ninguna de las corruptas llegó a escribirse', !malaGuardada, malaGuardada);
+
+// El correo es opcional a propósito: el salón agenda por teléfono.
+const sinCorreo = await call('adminSaveBooking',
+  { booking: { ...nuevaCita, code: 'E2E-ADM2', email: '' } }, tAdm);
+check('adminSaveBooking acepta una cita sin correo', sinCorreo.status === 200, sinCorreo.error);
+
+const svcInexistente = await call('adminSaveBooking',
+  { booking: { ...nuevaCita, code: 'E2E-ADM3', svcId: 'no-existe' } }, tAdm);
+check('adminSaveBooking rechaza un servicio inexistente',
+  svcInexistente.error && /not[-_]found/i.test(JSON.stringify(svcInexistente.error)), svcInexistente.error);
+
+// Editar conserva lo que el modal no maneja.
+const editada = await call('adminSaveBooking',
+  { booking: { ...nuevaCita, name: 'Nombre Corregido' } }, tAdm);
+check('editar no vuelve a crear', editada.result && editada.result.created === false, editada.result);
+const docEditado = await getDoc('bookings/E2E-ADM1', tAdm);
+check('la edición guarda el cambio', docEditado && docEditado.name === 'Nombre Corregido', docEditado && docEditado.name);
+check('y conserva la fecha de creación original',
+  docEditado && docEditado.createdAt === (docCreado && docCreado.createdAt),
+  { antes: docCreado && docCreado.createdAt, despues: docEditado && docEditado.createdAt });
+
+// Y la puerta directa quedó cerrada, incluso para el admin.
+const directo = await fetch(`${FS}/bookings/E2E-DIRECTO`, {
+  method: 'PATCH', headers: { Authorization: `Bearer ${tAdm}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify({ fields: { code: { stringValue: 'E2E-DIRECTO' } } }),
+});
+check('escribir una reserva directo a Firestore ya falla, aun siendo admin',
+  directo.status === 403, directo.status);
+
 check.done();

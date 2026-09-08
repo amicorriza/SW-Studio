@@ -18,6 +18,8 @@ const { searchPlaceId, fetchPlaceDetails, isFresh } = require('./googleReviews.j
 const { REMINDER_LEAD_MS, REMINDER_WINDOW_MS, generateReminderToken, findBookingsNeedingReminder } = require('./reminders.js');
 const { ATTENDANCE_ACTIONS, applyAction, computeNudges, SNOOZE_MS } = require('./shared/attendance.js');
 const { aggregateMyClients } = require('./shared/clients.js');
+const { isValidAdminBookingPayload } = require('./shared/validate.js');
+const { DEFAULT_BOOKING_STATUS } = require('./shared/status.js');
 
 const app = initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -797,6 +799,91 @@ exports.getMyDay = onCall(
       staffId: staff.id, name: staff.name || '', date: dayKey, tz, bookings,
       schedule: staff.schedule || null,
     };
+  }
+);
+
+
+// Crear o editar una reserva DESDE EL PANEL. Reemplaza la escritura directa a
+// Firestore que hacía public/admin/index.html.
+//
+// Por qué existe: el camino público pasa por createBooking, que valida el
+// payload y resuelve precio y duración contra el catálogo. El panel escribía
+// directo, con precio, duración y nombres tomados del DOM y sin más control
+// que isValidEmail() en las reglas. De ahí salían las reservas con date o time
+// corruptos que hacen throw en zonedInstant() y dejan al cliente sin
+// recordatorio y al barbero sin aviso -- el mismo dato que computeNudges y
+// findBookingsNeedingReminder descartan.
+exports.adminSaveBooking = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    assertAdmin(request);
+    const db = getFirestore(app);
+    const p = (request.data && request.data.booking) || {};
+
+    if (!isValidAdminBookingPayload(p)) {
+      throw new HttpsError('invalid-argument', 'Faltan datos de la cita o la fecha/hora no son válidas.');
+    }
+
+    // Precio y nombre del servicio SIEMPRE del catálogo, nunca del payload:
+    // es un invariante del proyecto y acá no era teórico -- el panel los sacaba
+    // de un dataset del DOM, que cualquiera puede editar desde la consola.
+    const svcSnap = await db.collection('services').doc(String(p.svcId)).get();
+    if (!svcSnap.exists) throw new HttpsError('not-found', 'Ese servicio no existe.');
+    const svc = svcSnap.data();
+
+    const staffSnap = await db.collection('staff').doc(String(p.barberId)).get();
+    if (!staffSnap.exists) throw new HttpsError('not-found', 'Ese profesional no existe.');
+    const staff = staffSnap.data();
+
+    // La duración SÍ admite override: el panel tiene ese campo a propósito (una
+    // atención puede salirse de lo estándar). Lo que no admite es basura, así
+    // que se acota en vez de aceptarse tal cual.
+    const durPayload = Number(p.dur);
+    const durSvc = Number(svc.dur) || 0;
+    const dur = (Number.isFinite(durPayload) && durPayload >= 5 && durPayload <= 480)
+      ? Math.round(durPayload) : durSvc;
+
+    const infoSnap = await db.collection('businessInfo').doc('main').get();
+    const tz = resolveBusinessTz(infoSnap.exists ? infoSnap.data() : null);
+
+    const id = String(p.id || p.code);
+    const ref = db.collection('bookings').doc(id);
+    const prev = await ref.get();
+    const antes = prev.exists ? prev.data() : null;
+
+    const doc = {
+      code: String(p.code),
+      name: String(p.name).trim(),
+      email: String(p.email || '').trim().toLowerCase(),
+      phone: String(p.phone || '').trim(),
+      svcId: String(p.svcId),
+      svcName: svc.name || '',
+      svcCat: svc.cat || '',
+      price: Number(svc.price) || 0,
+      dur,
+      barberId: String(p.barberId),
+      barberName: staff.name || '',
+      // Se guarda la CLAVE del día, no el 'YYYY-MM-DDTHH:mm:00.000Z' que
+      // escribía el panel: esa forma es hora de pared mal etiquetada como UTC y
+      // obligaba a todo el resto del sistema a desarmarla. dateKeyOf() sigue
+      // aceptando las viejas, así que las que ya existen no se rompen.
+      date: String(p.date),
+      time: String(p.time),
+      notes: String(p.notes || ''),
+      over: !!p.over,
+      tz,
+      // El estado NUNCA se toma del payload: lo mueve markAttendance, que es
+      // quien conoce las transiciones válidas. Al editar se conserva el que
+      // tenga; al crear arranca en el default.
+      status: (antes && antes.status) || DEFAULT_BOOKING_STATUS,
+      club: (antes && antes.club) || 'guest',
+      createdAt: (antes && antes.createdAt) || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      src: (antes && antes.src) || 'admin',
+    };
+
+    await ref.set(doc, { merge: true });
+    return { ok: true, id, created: !prev.exists, price: doc.price, dur: doc.dur, svcName: doc.svcName };
   }
 );
 

@@ -131,4 +131,88 @@ const linkNoUser = await call('linkStaffAccount', { staffId: 'ariel', email: 'na
 check('linkStaffAccount avisa si la cuenta no existe en Auth',
   linkNoUser.error && /not[-_]found/i.test(JSON.stringify(linkNoUser.error)), linkNoUser.error);
 
+// ═══════════════════ getMyRange ═══════════════════
+const hoyK = new Date().toISOString().slice(0, 10);
+const clave = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+
+const rango = await call('getMyRange', { from: clave(30), to: hoyK }, tVic);
+check('getMyRange responde 200', rango.status === 200, { status: rango.status, error: rango.error });
+const rb = (rango.result && rango.result.bookings) || [];
+check('getMyRange trae el historial del rango', rb.length >= 15, rb.length);
+check('getMyRange SOLO trae citas de Victoria',
+  rb.length > 0 && rb.every(b => !b.code.startsWith('E2E-H') || Number(b.code.slice(5)) % 2 === 0),
+  rb.filter(b => b.code.startsWith('E2E-H') && Number(b.code.slice(5)) % 2 === 1).map(b => b.code));
+
+// La proyección es una lista blanca. Si alguien agrega un campo a bookings,
+// esto lo atrapa antes de que llegue al teléfono de nadie.
+check('getMyRange NO devuelve correo ni teléfono',
+  rb.every(b => !('email' in b) && !('phone' in b) && !('reminderToken' in b)),
+  Object.keys(rb[0] || {}));
+// metrics.js necesita estos dos, y la agenda del día no los manda.
+check('getMyRange sí devuelve date y svcId, que es lo que metrics.js consume',
+  rb.every(b => typeof b.date === 'string' && b.date.length === 10 && 'svcId' in b),
+  rb[0]);
+check('getMyRange ordena por fecha y hora',
+  JSON.stringify(rb.map(b => b.date + ' ' + b.time)) ===
+  JSON.stringify(rb.map(b => b.date + ' ' + b.time).slice().sort()));
+
+const rangoLargo = await call('getMyRange', { from: clave(400), to: hoyK }, tVic);
+check('getMyRange rechaza un rango mayor a 92 días',
+  rangoLargo.error && /invalid[-_]argument/i.test(JSON.stringify(rangoLargo.error)), rangoLargo.error);
+const rangoAlReves = await call('getMyRange', { from: hoyK, to: clave(10) }, tVic);
+check('getMyRange rechaza un rango al revés',
+  rangoAlReves.error && /invalid[-_]argument/i.test(JSON.stringify(rangoAlReves.error)), rangoAlReves.error);
+const rangoSinFechas = await call('getMyRange', {}, tVic);
+check('getMyRange exige las fechas',
+  rangoSinFechas.error && /invalid[-_]argument/i.test(JSON.stringify(rangoSinFechas.error)), rangoSinFechas.error);
+const rangoSinSesion = await call('getMyRange', { from: clave(7), to: hoyK }, null);
+check('getMyRange rechaza sin sesión',
+  rangoSinSesion.error && /unauthenticated/i.test(JSON.stringify(rangoSinSesion.error)), rangoSinSesion.error);
+
+// El aislamiento por barbero: Esteban pide el mismo rango y recibe LO SUYO.
+const rangoEst = await call('getMyRange', { from: clave(30), to: hoyK }, tEst);
+const reb = (rangoEst.result && rangoEst.result.bookings) || [];
+check('cada barbero recibe su propio rango, no el del otro',
+  reb.length > 0 && !reb.some(b => rb.some(x => x.id === b.id)),
+  { victoria: rb.length, esteban: reb.length });
+
+// ═══════════════════ getMyClients ═══════════════════
+const cli = await call('getMyClients', {}, tVic);
+check('getMyClients responde 200', cli.status === 200, { status: cli.status, error: cli.error });
+const lista = (cli.result && cli.result.clients) || [];
+check('getMyClients agrupa el historial en clientes', lista.length >= 5, lista.length);
+
+// Lo que define esta vista: el barbero ve a quién atendió, no cómo contactarlo.
+const crudo = JSON.stringify(lista);
+check('getMyClients NO expone ningún correo', !crudo.includes('@e2e.cl'), crudo.slice(0, 200));
+check('getMyClients NO expone teléfonos', !crudo.includes('+569'));
+check('cada cliente trae una clave opaca, no el correo',
+  lista.every(c => /^[0-9a-f]{12}$/.test(c.key) || c.key.startsWith('n:')),
+  lista.map(c => c.key));
+check('cada cliente trae visitas, última visita y servicio',
+  lista.every(c => Number.isFinite(c.visits) && c.visits > 0 && typeof c.lastVisit === 'string'),
+  lista[0]);
+check('getMyClients ordena por última visita, de más reciente a más antigua',
+  JSON.stringify(lista.map(c => c.lastVisit)) ===
+  JSON.stringify(lista.map(c => c.lastVisit).slice().sort().reverse()),
+  lista.map(c => c.lastVisit));
+
+// Las que no ocurrieron no son historial de nadie.
+check('los no_show y cancelados NO cuentan como clientes atendidos',
+  !lista.some(c => /No vino|Canceló/.test(c.name)), lista.map(c => c.name));
+
+const cliEst = await call('getMyClients', {}, tEst);
+const listaEst = (cliEst.result && cliEst.result.clients) || [];
+check('los clientes de Esteban son otros, no los de Victoria',
+  listaEst.length > 0 && listaEst.reduce((t, c) => t + c.visits, 0) !== lista.reduce((t, c) => t + c.visits, 0),
+  { victoria: lista.reduce((t, c) => t + c.visits, 0), esteban: listaEst.reduce((t, c) => t + c.visits, 0) });
+
+const cliSinSesion = await call('getMyClients', {}, null);
+check('getMyClients rechaza sin sesión',
+  cliSinSesion.error && /unauthenticated/i.test(JSON.stringify(cliSinSesion.error)), cliSinSesion.error);
+
+// ═══════════════════ horario en getMyDay ═══════════════════
+check('getMyDay devuelve el horario del profesional, para la sección Horario',
+  Array.isArray(dia.result && dia.result.schedule), dia.result && dia.result.schedule);
+
 check.done();

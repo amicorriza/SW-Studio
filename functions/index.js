@@ -17,6 +17,7 @@ const { resolveBusinessTz, resolveBufferMin, resolveNudgeLeadMin, dateKeyInZone 
 const { searchPlaceId, fetchPlaceDetails, isFresh } = require('./googleReviews.js');
 const { REMINDER_LEAD_MS, REMINDER_WINDOW_MS, generateReminderToken, findBookingsNeedingReminder } = require('./reminders.js');
 const { ATTENDANCE_ACTIONS, applyAction, computeNudges, SNOOZE_MS } = require('./shared/attendance.js');
+const { aggregateMyClients } = require('./shared/clients.js');
 
 const app = initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -708,6 +709,39 @@ function isAdminRequest(request) {
   return !!auth && (auth.token.admin === true || auth.uid === ADMIN_UID_FALLBACK);
 }
 
+// Lo que la PWA puede ver de una reserva. Es una lista BLANCA: 'email' y
+// 'phone' NO están, y no por olvido -- el barbero ve a quién atiende, no cómo
+// contactarlo (decisión tomada con el usuario, ver el spec de la app
+// completa). Un campo nuevo en 'bookings' no se filtra solo al teléfono.
+function proyectarReserva(d, conFecha) {
+  const b = d.data();
+  const o = {
+    id: d.id, code: b.code || '', name: b.name || '', time: b.time || '',
+    dur: b.dur || 0, svcName: b.svcName || '', price: b.price || 0,
+    status: b.status || 'pending', arrivedAt: b.arrivedAt || null,
+    startedAt: b.startedAt || null, endedAt: b.endedAt || null,
+    actualDur: Number.isFinite(b.actualDur) ? b.actualDur : null,
+    nudgeEndCount: b.nudgeEndCount || 0,
+  };
+  // Métricas necesita la fecha y el servicio; la agenda del día no, porque ya
+  // sabe de qué día es.
+  if (conFecha) { o.date = String(b.date || '').slice(0, 10); o.svcId = b.svcId || ''; }
+  return o;
+}
+
+// Días entre dos claves YYYY-MM-DD, sobre la clave y en UTC: construir un Date
+// local acá metería el horario de verano del servidor en una fecha que ya
+// viene resuelta en la zona del negocio.
+function diasEntre(desde, hasta) {
+  const a = String(desde).split('-').map(Number);
+  const b = String(hasta).split('-').map(Number);
+  return Math.round((Date.UTC(b[0], b[1] - 1, b[2]) - Date.UTC(a[0], a[1] - 1, a[2])) / 86400000);
+}
+
+// Sin tope, un 'from' de hace tres años baja el historial completo a un
+// teléfono -- y lo paga la cuota de lecturas, no quien lo pidió.
+const MAX_RANGO_DIAS = 92;
+
 // La agenda del día del barbero que llama. Devuelve solo los campos que la
 // PWA pinta -- no toda la reserva.
 exports.getMyDay = onCall(
@@ -737,23 +771,80 @@ exports.getMyDay = onCall(
       .where('date', '<', end)
       .get();
 
-    const bookings = snap.docs.map((d) => {
-      const b = d.data();
-      return {
-        id: d.id, code: b.code || '', name: b.name || '', time: b.time || '',
-        dur: b.dur || 0, svcName: b.svcName || '', price: b.price || 0,
-        status: b.status || 'pending', arrivedAt: b.arrivedAt || null,
-        startedAt: b.startedAt || null, endedAt: b.endedAt || null,
-        actualDur: Number.isFinite(b.actualDur) ? b.actualDur : null,
-        nudgeEndCount: b.nudgeEndCount || 0,
-      };
-    }).sort((x, y) => String(x.time).localeCompare(String(y.time)));
+    const bookings = snap.docs
+      .map((d) => proyectarReserva(d, false))
+      .sort((x, y) => String(x.time).localeCompare(String(y.time)));
 
     // `tz` viaja para que la PWA pinte "empezó a las HH:MM" en la hora del
     // NEGOCIO y no en la del dispositivo. Es el invariante del proyecto, y
     // acá no es teórico: un barbero que viaja, o un teléfono con la zona
     // mal configurada, mostraría horas que no coinciden con la agenda.
-    return { staffId: staff.id, name: staff.name || '', date: dayKey, tz, bookings };
+    // 'schedule' viaja acá en vez de tener su propia callable: getMyDay ya
+    // resolvió la ficha, y la sección Horario de la PWA es de solo consulta
+    // (decisión tomada con el usuario). Una superficie menos que auditar.
+    return {
+      staffId: staff.id, name: staff.name || '', date: dayKey, tz, bookings,
+      schedule: staff.schedule || null,
+    };
+  }
+);
+
+// Las reservas del barbero en un rango de fechas. Alimenta la sección
+// Métricas, que reusa public/js/metrics.js tal cual -- por eso la proyección
+// incluye 'date' y 'svcId'.
+exports.getMyRange = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const db = getFirestore(app);
+    const staff = await resolveStaffFor(db, request);
+    if (!staff) throw new HttpsError('permission-denied', 'Esta cuenta no está vinculada a ningún profesional.');
+
+    const from = dateKeyOf(request.data && request.data.from);
+    const to = dateKeyOf(request.data && request.data.to);
+    if (!from || !to) throw new HttpsError('invalid-argument', 'Faltan las fechas del rango.');
+    if (from > to) throw new HttpsError('invalid-argument', 'El rango empieza después de terminar.');
+    if (diasEntre(from, to) > MAX_RANGO_DIAS) {
+      throw new HttpsError('invalid-argument', `El rango no puede pasar de ${MAX_RANGO_DIAS} días.`);
+    }
+
+    const { end } = dayBoundsOf(to);
+    const snap = await db.collection('bookings')
+      .where('barberId', '==', staff.id)
+      .where('date', '>=', from)
+      .where('date', '<', end)
+      .get();
+
+    const bookings = snap.docs
+      .map((d) => proyectarReserva(d, true))
+      .sort((x, y) => (x.date === y.date
+        ? String(x.time).localeCompare(String(y.time))
+        : String(x.date).localeCompare(String(y.date))));
+
+    return { staffId: staff.id, from, to, bookings };
+  }
+);
+
+// Los clientes que este barbero atendió. Se arma desde 'bookings' y NUNCA
+// desde 'patients': esa colección tiene teléfono, correo, notas y fotos, y la
+// decisión con el usuario es que nada de eso llegue al teléfono. La forma
+// segura de garantizarlo no es filtrar campos al salir, es no abrir la
+// colección. La agregación vive en shared/clients.js, pura y testeada.
+exports.getMyClients = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const db = getFirestore(app);
+    const staff = await resolveStaffFor(db, request);
+    if (!staff) throw new HttpsError('permission-denied', 'Esta cuenta no está vinculada a ningún profesional.');
+
+    const snap = await db.collection('bookings').where('barberId', '==', staff.id).get();
+    const crudas = snap.docs.map((d) => {
+      const b = d.data();
+      // El correo entra SOLO para agrupar y muere acá: aggregateMyClients
+      // devuelve un hash, nunca el correo.
+      return { name: b.name || '', email: b.email || '', date: b.date || '', svcName: b.svcName || '', status: b.status || '' };
+    });
+
+    return { staffId: staff.id, clients: aggregateMyClients(crudas) };
   }
 );
 

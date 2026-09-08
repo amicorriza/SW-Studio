@@ -332,7 +332,23 @@ async function syncGoogleReviews(force = false) {
 async function getMyDay(date) {
   const call = httpsCallable(functions, 'getMyDay');
   const { data } = await call({ date: date || null });
-  return data; // { staffId, name, date, bookings: [...] }
+  return data; // { staffId, name, date, tz, bookings: [...], schedule }
+}
+
+// Reservas del barbero en un rango, para la sección Métricas de la PWA. El
+// servidor topea el rango en 92 días; pedir más devuelve invalid-argument.
+async function getMyRange(from, to) {
+  const call = httpsCallable(functions, 'getMyRange');
+  const { data } = await call({ from, to });
+  return data; // { staffId, from, to, bookings: [...] }
+}
+
+// Clientes que atendió el barbero. Sin correo ni teléfono: la respuesta trae
+// una clave opaca por cliente -- ver functions/shared/clients.js.
+async function getMyClients() {
+  const call = httpsCallable(functions, 'getMyClients');
+  const { data } = await call({});
+  return data; // { staffId, clients: [{key, name, visits, lastVisit, topService}] }
 }
 
 // action ∈ 'arrive' | 'no_show' | 'start' | 'end' | 'snooze' | 'cancel'.
@@ -371,7 +387,7 @@ window.SWData = {
   getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
   loadGoogleReviews, saveManualReviews, syncGoogleReviews,
   getBookingForReminderAction, respondToBookingReminder,
-  getMyDay, markAttendance, linkStaffAccount, saveMyPushToken,
+  getMyDay, getMyRange, getMyClients, markAttendance, linkStaffAccount, saveMyPushToken,
 };
 export {
   loadAdmin, saveAdmin, loadCatalog, getBookings, saveBooking, deleteBooking, subscribeBookings, createBooking,
@@ -381,5 +397,5 @@ export {
   getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
   loadGoogleReviews, saveManualReviews, syncGoogleReviews,
   getBookingForReminderAction, respondToBookingReminder,
-  getMyDay, markAttendance, linkStaffAccount, saveMyPushToken,
+  getMyDay, getMyRange, getMyClients, markAttendance, linkStaffAccount, saveMyPushToken,
 };

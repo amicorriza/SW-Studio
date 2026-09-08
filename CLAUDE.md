@@ -18,12 +18,24 @@ public/js/insights.js    motor de recomendaciones del Dashboard: 13 reglas que
                          de muestra mínima: bajo 10 atenciones medidas NO
                          opina, y bajo 20 no sugiere precio. Máximo 3 tarjetas,
                          una por tipo. Tests en tests/unit/insights.test.js.
-public/barbero/          PWA instalable del profesional: agenda del día y los
-                         cuatro botones (Llegó / No llegó / Iniciar / Finalizar),
-                         más push por FCM. index.html + manifest + sw.js, todo
-                         vanilla. NO habla con Firestore: todo por callables
-                         (getMyDay, markAttendance). Íconos generados por
-                         scripts/make-barbero-icons.mjs.
+public/barbero/          PWA instalable del profesional. Cuatro secciones en la
+                         barra inferior: Agenda, Métricas, Clientes y Perfil
+                         (horario de SOLO CONSULTA + avisos + salir). La agenda
+                         navega días con ‹ ›, pero FUERA DE HOY es de solo
+                         lectura a propósito: markAttendance sella la hora del
+                         servidor y corregirla es admin-only, así que marcar una
+                         cita de ayer inventaría una duración. Métricas NO
+                         recalcula nada: carga public/js/metrics.js, el mismo
+                         módulo del Dashboard. Clientes se arma desde bookings y
+                         NUNCA abre patients (tiene teléfono, correo y fotos);
+                         agrupa por correo pero devuelve una clave opaca, porque
+                         agrupar por nombre fusionaría homónimos. Sigue sin
+                         hablar con Firestore: todo por callables (getMyDay,
+                         getMyRange, getMyClients, markAttendance), más push
+                         por FCM. Los cuatro botones de la atención (Llegó / No
+                         llegó / Iniciar / Finalizar) viven en la Agenda.
+                         index.html + manifest + sw.js, todo vanilla. Íconos
+                         generados por scripts/make-barbero-icons.mjs.
 functions/               callables y triggers
 firestore.rules, storage.rules
 
@@ -94,7 +106,7 @@ Estado conocido, a verificar antes de tocar nada:
 - staffAttendanceNudges (onSchedule, cada 2 min) manda los avisos, pero NO
   envía nada salvo businessInfo.nudgesEnabled === true -- mismo interruptor
   que remindersEnabled. Deploy != activación.
-- Despliegue manual con quince nombres de función a mano (ver README.md);
+- Despliegue manual con diecisiete nombres de función a mano (ver README.md);
   createBooking ya quedó fuera de esa lista una vez y se congeló en silencio.
 
 INVARIANTES — ningún goal puede romperlos:

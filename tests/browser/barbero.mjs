@@ -41,6 +41,10 @@ await page.addInitScript(() => {
   // Una cita por estado relevante, más una atención sin cerrar hace rato.
   window.__DAY = {
     staffId:'victoria', name:'Victoria', date:'2026-09-06', tz:'America/Santiago',
+    schedule:[null,
+      {open:true,start:'10:00',end:'20:00'}, {open:true,start:'10:00',end:'20:00'},
+      {open:true,start:'10:00',end:'20:00'}, {open:true,start:'10:00',end:'20:00'},
+      {open:true,start:'10:00',end:'20:00'}, {open:false}],
     bookings: [
       { id:'b-conf', code:'SW-1', name:'Ana Torres', time:'10:00', dur:45,
         svcName:'Corte de cabello', price:14000, status:'confirmed',
@@ -99,7 +103,28 @@ await page.addInitScript(() => {
       return { ok:true, already:false, status:next, actualDur: action==='end' ? 41 : null };
     },
     saveMyPushToken: async () => {},
+    // Cuatro atenciones medidas, medianas a mano: real 50, plan 45.
+    getMyRange: async (from, to) => {
+      window.__RANGOS.push({ from, to });
+      return { staffId:'victoria', from, to, bookings: window.__RANGO };
+    },
+    getMyClients: async () => ({ staffId:'victoria', clients: window.__CLIENTES }),
   };
+  window.__RANGOS = [];
+  window.__RANGO = [
+    { id:'r1', code:'H1', name:'Ana', time:'10:00', dur:45, svcId:'corte', svcName:'Corte de cabello',
+      price:14000, status:'completed', date:'2026-09-02', actualDur:50, startedAt:null, endedAt:null, arrivedAt:null, nudgeEndCount:0 },
+    { id:'r2', code:'H2', name:'Ben', time:'11:00', dur:45, svcId:'corte', svcName:'Corte de cabello',
+      price:14000, status:'completed', date:'2026-09-03', actualDur:50, startedAt:null, endedAt:null, arrivedAt:null, nudgeEndCount:0 },
+    { id:'r3', code:'H3', name:'Cata', time:'12:00', dur:45, svcId:'corte', svcName:'Corte de cabello',
+      price:14000, status:'no_show', date:'2026-09-04', actualDur:null, startedAt:null, endedAt:null, arrivedAt:null, nudgeEndCount:0 },
+    { id:'r4', code:'H4', name:'Dan', time:'13:00', dur:45, svcId:'corte', svcName:'Corte de cabello',
+      price:14000, status:'completed', date:'2026-09-05', actualDur:50, startedAt:null, endedAt:null, arrivedAt:null, nudgeEndCount:0 },
+  ];
+  window.__CLIENTES = [
+    { key:'aaaaaaaaaaaa', name:'Ana Torres', visits:5, lastVisit:'2026-09-05', topService:'Corte de cabello' },
+    { key:'bbbbbbbbbbbb', name:'Ben Rojas', visits:1, lastVisit:'2026-08-20', topService:'Perfilado de barba' },
+  ];
 });
 
 let fails = 0;
@@ -262,6 +287,71 @@ check('"Hoy" vuelve a pedir sin fecha',
 check('de vuelta en hoy vuelven los botones',
   (await page.locator('[data-act]').count()) > 0);
 check('y desaparece el aviso de solo lectura', !(await page.isVisible('#b-ro')));
+
+// ── pestañas ──
+check('la barra inferior ofrece las cuatro secciones',
+  (await page.locator('.b-tab').count()) === 4);
+check('arranca en Agenda', await page.isVisible('#b-app'));
+
+// Métricas. Los números NO se recalculan acá: los da metrics.js, el mismo
+// módulo del Dashboard del admin. Si divergieran, el barbero y el salón
+// mirarían cifras distintas del mismo hecho.
+await page.click('.b-tab[data-tab="met"]');
+await page.waitForTimeout(400);
+check('Métricas se ve y Agenda se esconde',
+  (await page.isVisible('#b-met')) && !(await page.isVisible('#b-app')));
+check('Métricas pide el rango al servidor, no lo inventa',
+  (await page.evaluate(() => window.__RANGOS.length)) === 1);
+// 7 días terminando en el día visible (2026-09-06) => desde el 2026-08-31.
+check('el período de 7 días se traduce a fechas correctas',
+  JSON.stringify(await page.evaluate(() => window.__RANGOS[0])) ===
+  JSON.stringify({ from:'2026-08-31', to:'2026-09-06' }),
+  await page.evaluate(() => window.__RANGOS[0]));
+
+const met = await page.textContent('#b-met-k');
+check('cuenta 3 atenciones sobre 4 reservas', /3/.test(met) && /4 reservas/.test(met), met);
+check('la asistencia es 75%', /75%/.test(met), met);
+check('el no-show es 25%', /25%/.test(met), met);
+// Mediana real 50 vs plan 45 = +11%. Es lo que calcula metrics.js, no un
+// número escrito a mano acá.
+check('muestra la mediana real, no el promedio', /50 min/.test(met), met);
+check('y la compara contra lo planificado', /11% más que lo planificado/.test(met), met);
+check('avisa que la muestra todavía es chica',
+  /todavía se mueven mucho/.test(await page.textContent('#b-met-n')),
+  await page.textContent('#b-met-n'));
+
+await page.click('[data-per="30"]');
+await page.waitForTimeout(400);
+check('cambiar el período vuelve a pedir, con otro rango',
+  (await page.evaluate(() => window.__RANGOS[1] && window.__RANGOS[1].from)) === '2026-08-08',
+  await page.evaluate(() => window.__RANGOS.slice()));
+
+// Clientes
+await page.click('.b-tab[data-tab="cli"]');
+await page.waitForTimeout(400);
+const cli = await page.textContent('#b-cli-l');
+check('Clientes lista a quienes atendió', /Ana Torres/.test(cli) && /Ben Rojas/.test(cli), cli);
+check('con cuántas veces los atendió', /5/.test(cli) && /veces/.test(cli), cli);
+check('y la última visita legible', /sáb 5 sep/.test(cli), cli);
+// Lo que define esta vista: reconocer al cliente, no contactarlo.
+check('Clientes NO muestra correo ni teléfono',
+  !cli.includes('@') && !cli.includes('+569'), cli);
+
+// Perfil / horario
+await page.click('.b-tab[data-tab="perf"]');
+await page.waitForTimeout(300);
+const hor = await page.textContent('#b-hor');
+check('el horario muestra los siete días', (await page.locator('#b-hor-r, .b-hor-r').count()) === 7);
+check('con las horas del salón', /10:00 — 20:00/.test(hor), hor);
+check('y marca los días libres', /libre/.test(hor), hor);
+check('el horario es de solo consulta: no hay nada editable',
+  (await page.locator('#b-perf input, #b-perf select').count()) === 0);
+check('Perfil conserva los avisos y el salir',
+  (await page.isVisible('#b-push')) && (await page.isVisible('#b-signout')));
+
+await page.click('.b-tab[data-tab="agenda"]');
+await page.waitForTimeout(200);
+check('se puede volver a la Agenda', await page.isVisible('#b-app'));
 
 check('sin errores JS tras ejercitar todo', errors.length === 0, errors.slice(0,4));
 

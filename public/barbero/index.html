@@ -157,10 +157,69 @@
   .b-bar{
     position:fixed;left:0;right:0;bottom:0;z-index:30;
     background:#fff;border-top:1px solid var(--g200);
-    padding:10px 14px calc(10px + env(safe-area-inset-bottom));
-    display:flex;gap:8px;align-items:center
+    padding:6px 6px calc(6px + env(safe-area-inset-bottom));
+    display:flex;gap:2px;align-items:stretch
   }
   .b-bar .b-btn{padding:11px 14px;min-height:42px;font-size:12px}
+  /* Navegación. Cuatro objetivos táctiles de 52px de alto: se usan con el
+     pulgar, de pie, con el teléfono en una mano. */
+  .b-tab{
+    flex:1;background:transparent;border:0;border-radius:9px;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    min-height:52px;padding:6px 2px;color:var(--meta);
+    font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;
+    letter-spacing:.14em;text-transform:uppercase
+  }
+  .b-tab svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .b-tab.on{color:var(--ink);background:var(--g100)}
+  /* El contenido tiene que despejar la barra fija, o la última tarjeta queda
+     debajo y no hay forma de llegar a ella. */
+  main{padding-bottom:78px}
+
+  /* ── métricas ── */
+  .b-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .b-kpi{background:#fff;border:1px solid var(--g200);border-radius:12px;padding:14px}
+  .b-kpi-l{
+    font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;
+    letter-spacing:.2em;text-transform:uppercase;color:var(--steel-dark)
+  }
+  .b-kpi-v{font-size:26px;font-weight:600;margin-top:6px;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .b-kpi-s{font-size:11px;color:var(--meta);margin-top:3px}
+  .b-per{display:flex;gap:6px;margin-bottom:14px}
+  .b-per button{
+    flex:1;background:#fff;border:1px solid var(--g200);border-radius:8px;
+    padding:9px 4px;cursor:pointer;color:var(--meta);
+    font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+    letter-spacing:.12em;text-transform:uppercase
+  }
+  .b-per button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+
+  /* ── clientes ── */
+  .b-cli{
+    background:#fff;border:1px solid var(--g200);border-radius:12px;
+    padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px
+  }
+  .b-cli-n{flex:1;min-width:0}
+  .b-cli-n b{display:block;font-size:14px;font-weight:600;color:var(--text);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .b-cli-n span{font-size:12px;color:var(--meta)}
+  .b-cli-v{
+    text-align:right;font-size:20px;font-weight:600;color:var(--ink);
+    font-variant-numeric:tabular-nums;line-height:1
+  }
+  .b-cli-v small{display:block;font-size:10px;font-weight:400;color:var(--meta);
+    letter-spacing:.1em;text-transform:uppercase;margin-top:3px}
+
+  /* ── horario ── */
+  .b-hor{background:#fff;border:1px solid var(--g200);border-radius:12px;overflow:hidden}
+  .b-hor-r{display:flex;justify-content:space-between;align-items:center;
+    padding:11px 14px;border-bottom:1px solid var(--g100);font-size:13px}
+  .b-hor-r:last-child{border-bottom:0}
+  .b-hor-r.hoy{background:var(--g100)}
+  .b-hor-d{color:var(--text);font-weight:600;text-transform:capitalize}
+  .b-hor-h{color:var(--meta);font-variant-numeric:tabular-nums}
+  .b-hor-h.no{color:var(--g300)}
 </style>
 </head>
 <body>
@@ -201,16 +260,65 @@
     <div id="b-list"></div>
     <p class="b-note" id="b-foot"></p>
   </section>
+
+  <!-- Métricas. Los números los calcula public/js/metrics.js, el mismo módulo
+       que usa el Dashboard del admin: duplicar las fórmulas acá sería
+       garantizar que diverjan. -->
+  <section id="b-met" hidden>
+    <div class="b-per">
+      <button data-per="7" class="on">7 días</button>
+      <button data-per="30">30 días</button>
+      <button data-per="90">90 días</button>
+    </div>
+    <div class="b-kpis" id="b-met-k"></div>
+    <p class="b-note" id="b-met-n"></p>
+  </section>
+
+  <!-- Clientes -->
+  <section id="b-cli" hidden>
+    <div class="b-sec-t">Clientes que atendiste</div>
+    <div id="b-cli-l"></div>
+    <p class="b-note" id="b-cli-n"></p>
+  </section>
+
+  <!-- Perfil: horario, avisos y salir -->
+  <section id="b-perf" hidden>
+    <div class="b-sec-t">Tu horario</div>
+    <div class="b-hor" id="b-hor"></div>
+    <p class="b-note">Lo define el salón. Si algo no calza, avísales.</p>
+    <div class="b-sec-t">Avisos</div>
+    <button class="b-btn b-sec b-wide" id="b-push">Activar avisos</button>
+    <p class="b-note" id="b-push-n">Las notificaciones te avisan cuando se acerca una atención.</p>
+    <div class="b-sec-t">Sesión</div>
+    <button class="b-btn b-sec b-wide" id="b-signout">Salir</button>
+  </section>
 </main>
 
-<div class="b-bar" id="b-bar" hidden>
-  <button class="b-btn b-sec" id="b-push">Activar avisos</button>
-  <button class="b-btn b-sec" id="b-signout">Salir</button>
-</div>
+<nav class="b-bar" id="b-bar" hidden>
+  <button class="b-tab on" data-tab="agenda">
+    <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+    Agenda
+  </button>
+  <button class="b-tab" data-tab="met">
+    <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+    Métricas
+  </button>
+  <button class="b-tab" data-tab="cli">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
+    Clientes
+  </button>
+  <button class="b-tab" data-tab="perf">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+    Perfil
+  </button>
+</nav>
 
 <!-- Los tres módulos compartidos con el resto del sitio, cada uno en su
      propio <script>: si uno falla (gstatic caído, red del salón lenta), no
      se lleva puesto al de al lado. Exponen window.SWAuth y window.SWData. -->
+<!-- Las mismas agregaciones que el Dashboard del admin. Script clásico, sin
+     bundler: expone window.SWMetrics y no habla con Firestore ni con el DOM. -->
+<script src="/js/metrics.js"></script>
 <script type="module" src="/js/firebase-init.js"></script>
 <script type="module" src="/js/data.js"></script>
 <script type="module" src="/js/auth.js"></script>
@@ -240,6 +348,9 @@ const els = {
   review: g('b-review'), reviewWrap: g('b-review-wrap'),
   dayT: g('b-day-t'), foot: g('b-foot'), loginErr: g('b-login-err'),
   hoy: g('b-hoy'), ro: g('b-ro'),
+  met: g('b-met'), metK: g('b-met-k'), metN: g('b-met-n'),
+  cli: g('b-cli'), cliL: g('b-cli-l'), cliN: g('b-cli-n'),
+  perf: g('b-perf'), hor: g('b-hor'),
 };
 
 let CURRENT = null;   // { staffId, name, date, bookings }
@@ -291,10 +402,40 @@ function toast(msg, isErr) {
 
 function show(view) {
   els.login.hidden = view !== 'login';
-  els.app.hidden = view !== 'app';
   els.header.hidden = view !== 'app';
   els.bar.hidden = view !== 'app';
+  // Con sesión, lo que se ve es la PESTAÑA activa, no siempre la agenda.
+  if (view === 'app') pintarTab();
+  else [els.app, els.met, els.cli, els.perf].forEach((x) => { x.hidden = true; });
 }
+
+// ── pestañas ──
+let TAB = 'agenda';
+const SECCIONES = { agenda: 'app', met: 'met', cli: 'cli', perf: 'perf' };
+
+function pintarTab() {
+  Object.entries(SECCIONES).forEach(([t, k]) => { els[k].hidden = t !== TAB; });
+  document.querySelectorAll('.b-tab').forEach((b) => {
+    b.classList.toggle('on', b.dataset.tab === TAB);
+  });
+}
+
+// Cada sección se carga la primera vez que se abre, no al entrar: son
+// llamadas caras (getMyRange puede traer 90 días) y la mayoría de las
+// aperturas de esta app son para marcar una asistencia y cerrarla.
+const CARGADA = { met: false, cli: false };
+function irATab(tab) {
+  if (!SECCIONES[tab]) return;
+  TAB = tab;
+  pintarTab();
+  if (tab === 'met' && !CARGADA.met) loadMetricas();
+  if (tab === 'cli' && !CARGADA.cli) loadClientes();
+  if (tab === 'perf') pintarHorario();
+}
+document.addEventListener('click', (ev) => {
+  const t = ev.target.closest('.b-tab');
+  if (t) irATab(t.dataset.tab);
+});
 
 // Minutos transcurridos desde un ISO. El reloj del teléfono solo se usa
 // para PINTAR el cronómetro; lo que se registra son las horas del servidor
@@ -634,6 +775,124 @@ function pintarBotonPush() {
   }
   btn.textContent = PUSH_LISTO ? 'Avisos activos' : 'Activar avisos';
   btn.disabled = false;
+}
+
+// ── métricas ──
+// Cero fórmulas propias: las cuentas las hace window.SWMetrics, el mismo
+// módulo que pinta el Dashboard del admin. Si acá se recalculara 'asistencia'
+// a mano, el barbero y el salón terminarían mirando números distintos.
+let PERIODO = 7;
+
+function kpi(label, valor, sub) {
+  return '<div class="b-kpi"><div class="b-kpi-l">' + esc(label) + '</div>'
+    + '<div class="b-kpi-v">' + esc(valor) + '</div>'
+    + (sub ? '<div class="b-kpi-s">' + esc(sub) + '</div>' : '') + '</div>';
+}
+
+async function loadMetricas() {
+  const M = window.SWMetrics;
+  if (!M) { els.metK.innerHTML = ''; els.metN.textContent = 'No se pudieron cargar las métricas.'; return; }
+  els.metK.innerHTML = '<div class="b-empty">Calculando…</div>';
+  els.metN.textContent = '';
+  const hasta = (CURRENT && CURRENT.date) || HOY;
+  if (!hasta) return;
+  const desde = claveMasDias(hasta, -(PERIODO - 1));
+  try {
+    const r = await window.SWData.getMyRange(desde, hasta);
+    const bs = (r && r.bookings) || [];
+    CARGADA.met = true;
+
+    const a = M.mAttendance(bs);
+    const hechas = bs.filter((b) => b.status === 'completed');
+    const reales = hechas.map((b) => Number(b.actualDur)).filter((n) => Number.isFinite(n) && n > 0);
+    const medReal = reales.length ? M.median(reales) : null;
+    const planes = hechas.map((b) => Number(b.dur)).filter((n) => Number.isFinite(n) && n > 0);
+    const medPlan = planes.length ? M.median(planes) : null;
+    const pct = (n, t) => (t ? Math.round((n / t) * 100) + '%' : '—');
+
+    let desv = '';
+    if (medReal != null && medPlan) {
+      const d = Math.round(((medReal - medPlan) / medPlan) * 100);
+      desv = d === 0 ? 'igual que lo planificado'
+        : (d > 0 ? d + '% más que lo planificado' : (-d) + '% menos que lo planificado');
+    }
+
+    els.metK.innerHTML = [
+      kpi('Atenciones', String(a.atendidas), a.total + ' reservas en el período'),
+      kpi('Asistencia', pct(a.atendidas, a.total), a.sinMarcar ? a.sinMarcar + ' sin marcar' : 'todo marcado'),
+      kpi('No-show', pct(a.noShow, a.total), a.noShow + (a.noShow === 1 ? ' cita' : ' citas')),
+      kpi('Tu tiempo', medReal != null ? Math.round(medReal) + ' min' : '—', desv || 'mediana de tus atenciones'),
+    ].join('');
+
+    // La mediana sobre tres atenciones no es una medición, es una anécdota.
+    // El mismo umbral que usa insights.js para no opinar.
+    els.metN.textContent = reales.length < 10
+      ? 'Con ' + reales.length + ' atenciones medidas los promedios todavía se mueven mucho. Desde 10 empiezan a ser estables.'
+      : 'Todo tiempo real es mediana, no promedio: una atención excepcional no te corre el número.';
+  } catch (e) {
+    console.error('getMyRange', e);
+    els.metK.innerHTML = '';
+    els.metN.textContent = 'No pudimos cargar tus métricas. Revisa la conexión.';
+  }
+}
+
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-per]');
+  if (!b) return;
+  PERIODO = Number(b.dataset.per) || 7;
+  document.querySelectorAll('[data-per]').forEach((x) => x.classList.toggle('on', x === b));
+  loadMetricas();
+});
+
+// ── clientes ──
+async function loadClientes() {
+  els.cliL.innerHTML = '<div class="b-empty">Cargando…</div>';
+  els.cliN.textContent = '';
+  try {
+    const r = await window.SWData.getMyClients();
+    const cs = (r && r.clients) || [];
+    CARGADA.cli = true;
+    els.cliL.innerHTML = cs.length ? cs.map((c) =>
+      '<div class="b-cli"><div class="b-cli-n"><b>' + esc(c.name) + '</b>'
+      + '<span>' + (c.lastVisit ? 'última vez ' + esc(etiquetaDia(c.lastVisit)) : 'sin fecha')
+      + (c.topService ? ' · ' + esc(c.topService) : '') + '</span></div>'
+      + '<div class="b-cli-v">' + c.visits + '<small>' + (c.visits === 1 ? 'vez' : 'veces') + '</small></div></div>'
+    ).join('') : '<div class="b-empty">Todavía no tienes atenciones registradas.<br>Aparecen acá cuando cierras una.</div>';
+    els.cliN.textContent = cs.length
+      ? 'Solo las personas que atendiste tú, y solo las atenciones que cerraste.'
+      : '';
+  } catch (e) {
+    console.error('getMyClients', e);
+    els.cliL.innerHTML = '';
+    els.cliN.textContent = 'No pudimos cargar tus clientes. Revisa la conexión.';
+  }
+}
+
+// ── horario ──
+// Solo consulta: lo edita el salón, que es quien responde por la
+// disponibilidad que el sitio publica (decisión tomada con el usuario).
+const DIAS_L = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+function pintarHorario() {
+  const sch = (CURRENT && CURRENT.schedule) || null;
+  if (!Array.isArray(sch)) {
+    els.hor.innerHTML = '<div class="b-hor-r"><span class="b-hor-h no">El salón todavía no cargó tu horario.</span></div>';
+    return;
+  }
+  // El día de la semana sale de la fecha del NEGOCIO que devolvió getMyDay,
+  // no de new Date() -- un teléfono con la zona mal puesta marcaría otro día.
+  let hoyIdx = -1;
+  if (HOY) {
+    const p = HOY.split('-').map(Number);
+    hoyIdx = new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay();
+  }
+  els.hor.innerHTML = DIAS_L.map((nombre, i) => {
+    const d = sch[i];
+    const abierto = d && d.open && d.start && d.end;
+    return '<div class="b-hor-r' + (i === hoyIdx ? ' hoy' : '') + '">'
+      + '<span class="b-hor-d">' + esc(nombre) + '</span>'
+      + '<span class="b-hor-h' + (abierto ? '' : ' no') + '">'
+      + (abierto ? esc(d.start) + ' — ' + esc(d.end) : 'libre') + '</span></div>';
+  }).join('');
 }
 
 // ── refresco ──

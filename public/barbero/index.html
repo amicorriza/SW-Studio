@@ -178,7 +178,7 @@
   main{padding-bottom:78px}
 
   /* ── métricas ── */
-  .b-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .b-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px}
   .b-kpi{background:#fff;border:1px solid var(--g200);border-radius:12px;padding:14px}
   .b-kpi-l{
     font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;
@@ -220,6 +220,38 @@
   .b-hor-d{color:var(--text);font-weight:600;text-transform:capitalize}
   .b-hor-h{color:var(--meta);font-variant-numeric:tabular-nums}
   .b-hor-h.no{color:var(--g300)}
+
+  /* ── responsivo ──
+     La app se diseñó para un teléfono en la mano, y ese sigue siendo el caso
+     por defecto. Lo que cambia arriba de 700px es el aprovechamiento: la
+     columna de 640px deja de tener sentido cuando hay 1000px de pantalla, y
+     la barra inferior estirada de lado a lado aleja los objetivos del pulgar
+     en vez de acercarlos. */
+  @media (min-width: 700px){
+    main{max-width:880px;padding:22px 20px 8px}
+    /* Dos columnas de tarjetas: en una pantalla ancha, una sola columna de
+       citas obliga a un scroll que no hace falta. */
+    #b-list, #b-review, #b-cli-l{
+      display:grid;grid-template-columns:1fr 1fr;gap:0 12px;align-items:start
+    }
+    #b-list .b-empty{grid-column:1/-1}
+    .b-hor{max-width:520px}
+    /* La barra deja de ocupar todo el ancho: los cuatro destinos se agrupan
+       centrados, al alcance del pulgar y no en las esquinas. */
+    .b-bar{justify-content:center}
+    .b-tab{flex:0 0 132px}
+    .b-per{max-width:420px}
+  }
+  @media (min-width: 1000px){
+    main{max-width:1040px}
+    #b-list, #b-review, #b-cli-l{grid-template-columns:1fr 1fr 1fr}
+  }
+  /* Teléfonos angostos (iPhone SE y similares): la grilla ya cae sola a una
+     columna por el minmax, pero el número del KPI necesita bajar o desborda. */
+  @media (max-width: 359px){
+    .b-kpi-v{font-size:22px}
+    .b-tab{font-size:9px;letter-spacing:.08em}
+  }
 </style>
 </head>
 <body>
@@ -266,10 +298,11 @@
        garantizar que diverjan. -->
   <section id="b-met" hidden>
     <div class="b-per">
-      <button data-per="7" class="on">7 días</button>
-      <button data-per="30">30 días</button>
-      <button data-per="90">90 días</button>
+      <button data-per="dia" class="on">Día</button>
+      <button data-per="semana">Semana</button>
+      <button data-per="mes">Mes</button>
     </div>
+    <p class="b-note" id="b-met-r" style="margin:0 0 12px"></p>
     <div class="b-kpis" id="b-met-k"></div>
     <p class="b-note" id="b-met-n"></p>
   </section>
@@ -348,7 +381,7 @@ const els = {
   review: g('b-review'), reviewWrap: g('b-review-wrap'),
   dayT: g('b-day-t'), foot: g('b-foot'), loginErr: g('b-login-err'),
   hoy: g('b-hoy'), ro: g('b-ro'),
-  met: g('b-met'), metK: g('b-met-k'), metN: g('b-met-n'),
+  met: g('b-met'), metK: g('b-met-k'), metN: g('b-met-n'), metR: g('b-met-r'),
   cli: g('b-cli'), cliL: g('b-cli-l'), cliN: g('b-cli-n'),
   perf: g('b-perf'), hor: g('b-hor'),
 };
@@ -781,7 +814,17 @@ function pintarBotonPush() {
 // Cero fórmulas propias: las cuentas las hace window.SWMetrics, el mismo
 // módulo que pinta el Dashboard del admin. Si acá se recalculara 'asistencia'
 // a mano, el barbero y el salón terminarían mirando números distintos.
-let PERIODO = 7;
+let PERIODO = 'dia';
+
+// Los límites del período los da metrics.js (weekStartsBack, monthBounds), no
+// una cuenta escrita acá: la semana del negocio empieza el LUNES y el mes es
+// calendario, y el Dashboard del admin ya resuelve las dos cosas igual.
+function limitesPeriodo(diaVisible) {
+  const M = window.SWMetrics;
+  if (PERIODO === 'semana') return M.weekStartsBack(0, diaVisible);
+  if (PERIODO === 'mes') return M.monthBounds(diaVisible.slice(0, 7));
+  return { from: diaVisible, to: diaVisible };
+}
 
 function kpi(label, valor, sub) {
   return '<div class="b-kpi"><div class="b-kpi-l">' + esc(label) + '</div>'
@@ -794,9 +837,10 @@ async function loadMetricas() {
   if (!M) { els.metK.innerHTML = ''; els.metN.textContent = 'No se pudieron cargar las métricas.'; return; }
   els.metK.innerHTML = '<div class="b-empty">Calculando…</div>';
   els.metN.textContent = '';
-  const hasta = (CURRENT && CURRENT.date) || HOY;
-  if (!hasta) return;
-  const desde = claveMasDias(hasta, -(PERIODO - 1));
+  const diaVisible = (CURRENT && CURRENT.date) || HOY;
+  if (!diaVisible) return;
+  const lim = limitesPeriodo(diaVisible);
+  const desde = lim.from, hasta = lim.to;
   try {
     const r = await window.SWData.getMyRange(desde, hasta);
     const bs = (r && r.bookings) || [];
@@ -817,12 +861,28 @@ async function loadMetricas() {
         : (d > 0 ? d + '% más que lo planificado' : (-d) + '% menos que lo planificado');
     }
 
+    // Recaudación = SOLO lo cerrado. mRevenue suma todo salvo los no_show, y
+    // en el admin se le pasa un set ya filtrado por mFilterPeriod; acá el rango
+    // viene crudo, así que aplicarlo entero contaría canceladas y citas que
+    // todavía no ocurrieron: un barbero mirando 'este mes' vería como recaudado
+    // algo que aún no pasó. Lo agendado se muestra aparte, no sumado.
+    const recaudado = M.mRevenue(hechas);
+    const porVenir = bs.filter((b) => b.status === 'pending' || b.status === 'confirmed'
+      || b.status === 'arrived' || b.status === 'in_service');
+    const agendado = M.mRevenue(porVenir);
+
     els.metK.innerHTML = [
+      kpi('Recaudado', clp(recaudado),
+        agendado ? clp(agendado) + ' agendado sin cerrar' : 'atenciones cerradas'),
       kpi('Atenciones', String(a.atendidas), a.total + ' reservas en el período'),
       kpi('Asistencia', pct(a.atendidas, a.total), a.sinMarcar ? a.sinMarcar + ' sin marcar' : 'todo marcado'),
       kpi('No-show', pct(a.noShow, a.total), a.noShow + (a.noShow === 1 ? ' cita' : ' citas')),
       kpi('Tu tiempo', medReal != null ? Math.round(medReal) + ' min' : '—', desv || 'mediana de tus atenciones'),
     ].join('');
+
+    els.metR.textContent = desde === hasta
+      ? etiquetaDia(desde)
+      : etiquetaDia(desde) + ' — ' + etiquetaDia(hasta);
 
     // La mediana sobre tres atenciones no es una medición, es una anécdota.
     // El mismo umbral que usa insights.js para no opinar.
@@ -839,7 +899,7 @@ async function loadMetricas() {
 document.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-per]');
   if (!b) return;
-  PERIODO = Number(b.dataset.per) || 7;
+  PERIODO = b.dataset.per || 'dia';
   document.querySelectorAll('[data-per]').forEach((x) => x.classList.toggle('on', x === b));
   loadMetricas();
 });

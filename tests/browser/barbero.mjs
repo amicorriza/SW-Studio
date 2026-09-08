@@ -302,10 +302,10 @@ check('Métricas se ve y Agenda se esconde',
   (await page.isVisible('#b-met')) && !(await page.isVisible('#b-app')));
 check('Métricas pide el rango al servidor, no lo inventa',
   (await page.evaluate(() => window.__RANGOS.length)) === 1);
-// 7 días terminando en el día visible (2026-09-06) => desde el 2026-08-31.
-check('el período de 7 días se traduce a fechas correctas',
+// Por defecto, el día visible y nada más.
+check('Día pide solo el día visible',
   JSON.stringify(await page.evaluate(() => window.__RANGOS[0])) ===
-  JSON.stringify({ from:'2026-08-31', to:'2026-09-06' }),
+  JSON.stringify({ from:'2026-09-06', to:'2026-09-06' }),
   await page.evaluate(() => window.__RANGOS[0]));
 
 const met = await page.textContent('#b-met-k');
@@ -320,11 +320,43 @@ check('avisa que la muestra todavía es chica',
   /todavía se mueven mucho/.test(await page.textContent('#b-met-n')),
   await page.textContent('#b-met-n'));
 
-await page.click('[data-per="30"]');
+// La semana la define metrics.js (weekStartsBack): LUNES a domingo. El día
+// visible, 2026-09-06, es domingo, así que su semana arranca el 31 de agosto.
+await page.click('[data-per="semana"]');
 await page.waitForTimeout(400);
-check('cambiar el período vuelve a pedir, con otro rango',
-  (await page.evaluate(() => window.__RANGOS[1] && window.__RANGOS[1].from)) === '2026-08-08',
-  await page.evaluate(() => window.__RANGOS.slice()));
+check('Semana va de lunes a domingo, no 7 días hacia atrás',
+  JSON.stringify(await page.evaluate(() => window.__RANGOS[1])) ===
+  JSON.stringify({ from:'2026-08-31', to:'2026-09-06' }),
+  await page.evaluate(() => window.__RANGOS[1]));
+
+await page.click('[data-per="mes"]');
+await page.waitForTimeout(400);
+check('Mes es el mes calendario completo',
+  JSON.stringify(await page.evaluate(() => window.__RANGOS[2])) ===
+  JSON.stringify({ from:'2026-09-01', to:'2026-09-30' }),
+  await page.evaluate(() => window.__RANGOS[2]));
+check('el rótulo dice qué período se está mirando',
+  /mar 1 sep — mié 30 sep/.test(await page.textContent('#b-met-r')),
+  await page.textContent('#b-met-r'));
+
+// Recaudación: 3 atenciones cerradas de $14.000. La no_show NO suma.
+const rec = await page.textContent('#b-met-k');
+check('la recaudación cuenta solo lo cerrado', /42.000/.test(rec), rec);
+check('y no cuenta el no-show', !/56.000/.test(rec), rec);
+check('sin nada agendado lo dice así', /atenciones cerradas/.test(rec), rec);
+
+// Lo agendado va aparte, nunca sumado: si no, 'este mes' mostraría como
+// recaudado algo que todavía no ocurrió.
+await page.evaluate(() => {
+  window.__RANGO.push({ id:'r5', code:'H5', name:'Eva', time:'18:00', dur:45, svcId:'corte',
+    svcName:'Corte de cabello', price:20000, status:'confirmed', date:'2026-09-20',
+    actualDur:null, startedAt:null, endedAt:null, arrivedAt:null, nudgeEndCount:0 });
+});
+await page.click('[data-per="semana"]');
+await page.waitForTimeout(400);
+const rec2 = await page.textContent('#b-met-k');
+check('lo agendado se muestra aparte, no sumado a lo recaudado',
+  /42.000/.test(rec2) && /20.000 agendado sin cerrar/.test(rec2), rec2);
 
 // Clientes
 await page.click('.b-tab[data-tab="cli"]');
@@ -352,6 +384,36 @@ check('Perfil conserva los avisos y el salir',
 await page.click('.b-tab[data-tab="agenda"]');
 await page.waitForTimeout(200);
 check('se puede volver a la Agenda', await page.isVisible('#b-app'));
+
+// ── responsivo ──
+// El teléfono sigue siendo el caso por defecto; lo que se comprueba es que
+// la pantalla ancha no deje media ventana vacía ni el teléfono angosto
+// desborde. Se mide la grilla REAL, no la regla CSS.
+const columnas = (sel) => page.evaluate((s) =>
+  getComputedStyle(document.querySelector(s)).gridTemplateColumns.split(' ').length, sel);
+
+await page.setViewportSize({ width: 380, height: 800 });
+await page.waitForTimeout(200);
+check('en un teléfono la agenda va en una columna', (await columnas('#b-list')) === 1);
+const anchoBody = () => page.evaluate(() =>
+  document.documentElement.scrollWidth <= window.innerWidth + 1);
+check('en un teléfono angosto no hay scroll horizontal', await anchoBody());
+
+await page.setViewportSize({ width: 1280, height: 900 });
+await page.waitForTimeout(200);
+check('en pantalla ancha la agenda usa tres columnas', (await columnas('#b-list')) === 3);
+check('en pantalla ancha tampoco hay scroll horizontal', await anchoBody());
+
+await page.click('.b-tab[data-tab="met"]');
+await page.waitForTimeout(400);
+check('los KPI se reparten en la pantalla ancha en vez de quedar en dos',
+  (await columnas('.b-kpis')) >= 4, await columnas('.b-kpis'));
+await page.setViewportSize({ width: 380, height: 800 });
+await page.waitForTimeout(200);
+check('y en el teléfono los KPI caen a dos columnas',
+  (await columnas('.b-kpis')) === 2, await columnas('.b-kpis'));
+await page.click('.b-tab[data-tab="agenda"]');
+await page.waitForTimeout(200);
 
 check('sin errores JS tras ejercitar todo', errors.length === 0, errors.slice(0,4));
 

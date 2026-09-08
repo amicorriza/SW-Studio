@@ -9,7 +9,7 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { getMessaging } = require('firebase-admin/messaging');
-const { sendBookingEmails, sendReminderEmail, sendReminderResponseEmail } = require('./email.js');
+const { sendBookingEmails, sendReminderEmail, sendReminderResponseEmail, sendConfirmationEmail } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
 const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./shared/availability.js');
 const { resolveCreateBooking } = require('./createBooking.js');
@@ -551,6 +551,30 @@ exports.respondToBookingReminder = onCall(
       }
       // No relanzar: la transición de estado ya es válida y real, el aviso
       // al negocio es respaldo, no la fuente de verdad.
+    }
+
+    // Correo de vuelta al CLIENTE solo si confirmó -- si declinó, la propia
+    // página confirmar-cita.html ya le muestra "liberamos tu horario" sin
+    // necesitar un correo de respaldo (no hay "evidencia" que dar de que
+    // avisó que no iba). Mismo criterio best-effort que el aviso al
+    // negocio: si el envío falla, se loguea, pero la transición de estado
+    // ya es real y NO se revierte.
+    if (action === 'confirm') {
+      try {
+        await sendConfirmationEmail(b, {
+          apiKey: RESEND_API_KEY.value(),
+          fromEmail: FROM_EMAIL.value(),
+        });
+      } catch (err) {
+        logger.error('Fallo al enviar el correo de confirmación al cliente', err);
+        try {
+          await db.collection('adminLog').add({
+            action: 'confirmation_email_failed', item: b.code || '', date: new Date().toLocaleString('es-CL'),
+          });
+        } catch (err2) {
+          logger.error('Fallo al registrar adminLog de confirmation_email_failed', err2);
+        }
+      }
     }
 
     return { ok: true, already: false, status };

@@ -304,12 +304,31 @@ dispositivo guarda su token de FCM.
    `staff/{id}`, que es de lectura pública y dejaría el correo y el UID del
    profesional a la vista de cualquiera. Sin este paso, el barbero entra pero
    ve "esta cuenta no está vinculada".
-4. **Activar los avisos.** `businessInfo/main.nudgesEnabled = true`, a mano en
+4. **Permiso de Auth para el service account.** `linkStaffAccount` resuelve el
+   correo con `getUserByEmail`, y el service account de las funciones
+   (`<PROJECT_NUMBER>-compute@developer.gserviceaccount.com`) **no puede leer
+   usuarios de Auth por defecto**, aunque sí escriba en Firestore. Sin este
+   paso el panel responde `auth/insufficient-permission` al vincular:
+
+   ```powershell
+   gcloud projects add-iam-policy-binding scissor-white --member="serviceAccount:801854192115-compute@developer.gserviceaccount.com" --role="roles/firebaseauth.viewer"
+   ```
+
+   Alcanza con *viewer*: `getUserByEmail` es la ÚNICA llamada a `getAuth()` en
+   todo el repo y solo lee. No hace falta redesplegar -- IAM se evalúa en cada
+   invocación -- pero puede tardar hasta un minuto en propagarse.
+
+   > Ojo con la cuenta: `gcloud config get-value project` puede apuntar a otro
+   > proyecto. El proyecto va como argumento posicional, así que el comando de
+   > arriba es correcto igual, pero verificá con `gcloud auth list` que la
+   > cuenta activa sea la dueña de `scissor-white`.
+
+5. **Activar los avisos.** `businessInfo/main.nudgesEnabled = true`, a mano en
    Firestore. Hasta entonces `staffAttendanceNudges` corre cada 2 minutos y no
    manda nada — mismo interruptor que `remindersEnabled`. **Desplegar no es
    activar.** La anticipación del aviso se ajusta en el panel Info
    (*"Avisar al profesional (min antes)"*, default 10).
-5. **En el teléfono**, el barbero entra a `scissorwhite.cl/barbero/`, y toca
+6. **En el teléfono**, el barbero entra a `scissorwhite.cl/barbero/`, y toca
    **Activar avisos**.
 
 > **iPhone:** el push web exige **iOS 16.4 o superior** *y* que la app se haya

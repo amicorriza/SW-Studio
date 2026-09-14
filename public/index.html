@@ -408,6 +408,19 @@
     .s-rule{width:40px;height:1px;background:var(--steel-mid);margin:18px 0 28px}
     .s-body{font-size:16.5px;font-weight:400;line-height:1.75;color:#1A1A1A;max-width:580px}
 
+    /* ══ FAQ ══ */
+    .faq-list{max-width:720px;margin:0 auto}
+    .faq-item{border-bottom:1px solid rgba(17,17,17,.12);padding:22px 0}
+    .faq-item summary{
+      font-size:17px;font-weight:600;color:var(--ink);
+      cursor:pointer;list-style:none;
+      display:flex;align-items:center;justify-content:space-between;gap:16px
+    }
+    .faq-item summary::-webkit-details-marker{display:none}
+    .faq-item summary::after{content:'+';font-size:22px;font-weight:300;color:var(--steel-mid);flex-shrink:0;transition:transform .2s}
+    .faq-item[open] summary::after{transform:rotate(45deg)}
+    .faq-item p{margin:14px 0 0;font-size:15.5px;line-height:1.7;color:#3A3A3A}
+
     /* ══ ABOUT ══ */
     .ab-grid{
       display:grid;grid-template-columns:1fr 1fr;
@@ -2024,6 +2037,49 @@ body.sw-intro-lock{overflow:hidden;height:100vh;height:100dvh}
         <div class="bld-cap"><p>Cochrane 635 · Torre B · Of. 303 · Concepción</p></div>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" style="background:var(--off-white)">
+  <div class="rev" style="max-width:720px;margin:0 auto;text-align:center">
+    <p class="s-ey">Resolvemos tus dudas</p>
+    <h2 class="s-ti">Preguntas<br><em>frecuentes</em></h2>
+    <div class="s-rule" style="margin-inline:auto"></div>
+  </div>
+  <div class="faq-list rev" style="margin-top:32px">
+    <details class="faq-item">
+      <summary>¿Dónde queda Scissor White?</summary>
+      <p>Cochrane 635, Oficina 303, Torre B, Edificio Centro Plaza, Concepción, Chile.</p>
+    </details>
+    <details class="faq-item">
+      <summary>¿Cómo agendo una cita?</summary>
+      <p>Reserva online 24/7 en nuestra plataforma propia.</p>
+    </details>
+    <details class="faq-item">
+      <summary>¿Cuál es el horario de atención?</summary>
+      <p>Lunes a viernes de 10:00 a 20:00 hrs y sábado de 10:00 a 17:00 hrs. Domingo cerrado.</p>
+    </details>
+    <details class="faq-item">
+      <summary>¿Qué servicios ofrecen?</summary>
+      <p>Asesoría de imagen con visagismo, corte de cabello adulto y niño, corte con tijeras (mullet, moicano, mod cut, shaggy y warrior cut), corte con perfilado de barba simple o con toallas calientes, corte con lavado premium Reuzel y undercut mujer. Además somos distribuidores de productos Slick Gorilla.</p>
+    </details>
+    <details class="faq-item">
+      <summary>¿Atienden niños?</summary>
+      <p>Sí, atendemos niños de 2 a 10 años con un servicio de corte específico para ellos.</p>
+    </details>
+    <details class="faq-item">
+      <summary>¿Qué es el visagismo?</summary>
+      <p>El visagismo analiza la forma de tu rostro, tus rasgos y tu estilo de vida para definir el corte, la barba y el peinado que mejor armonizan contigo, y que además sean fáciles de mantener en el día a día.</p>
+    </details>
+    <details class="faq-item">
+      <summary>¿Puedo cancelar o modificar mi reserva?</summary>
+      <p>Puedes cancelar hasta 3 horas antes de tu hora agendada y modificar tu reserva hasta 2 veces.</p>
+    </details>
+    <details class="faq-item">
+      <summary>¿Atienden cortes de mujer?</summary>
+      <p>Sí. Ofrecemos undercut mujer: degradado de nuca y rapados con diseño.</p>
+    </details>
   </div>
 </section>
 

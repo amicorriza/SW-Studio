@@ -13,7 +13,7 @@ const booking = {
 };
 
 test('email al cliente incluye nombre, código y servicio', () => {
-  const { subject, html } = renderClientEmail(booking, 'abc123token');
+  const { subject, html } = renderClientEmail(booking);
   assert.match(subject, /SW-AB12345/);
   assert.match(html, /Juan Pérez/);
   assert.match(html, /Corte \+ Lavado Premium/);
@@ -21,7 +21,7 @@ test('email al cliente incluye nombre, código y servicio', () => {
 });
 
 test('email al cliente usa el diseño 2026-09-08 con fecha en hora de Chile', () => {
-  const { html } = renderClientEmail(booking, 'abc123token');
+  const { html } = renderClientEmail(booking);
   assert.match(html, /Tu próxima visita,<br>ya está reservada\./);
   assert.match(html, /Miércoles 10 de junio de 2026/);
   assert.match(html, /11:00/);
@@ -38,7 +38,7 @@ test('email al cliente usa la zona guardada en la reserva, no siempre Santiago',
   // Punta Arenas (GMT-3, no cambia de hora) -- el resultado debe seguir
   // mostrando el 10 de junio: `date`/`time` son hora de PARED en `tz`, no un
   // instante que se reinterpreta al convertir de zona.
-  const { html } = renderClientEmail({ ...booking, tz: 'America/Punta_Arenas' }, 'abc123token');
+  const { html } = renderClientEmail({ ...booking, tz: 'America/Punta_Arenas' });
   assert.match(html, /Miércoles 10 de junio de 2026/);
 });
 
@@ -49,35 +49,43 @@ test('email al cliente muestra el día calendario correcto cerca de la medianoch
   // como medianoche UTC y mostraría el 14, no el 15.
   const { html } = renderClientEmail({
     ...booking, date: '2026-06-15', time: '23:30', tz: 'America/Punta_Arenas',
-  }, 'abc123token');
+  });
   assert.match(html, /15 de junio de 2026/);
   assert.doesNotMatch(html, /14 de junio de 2026/);
 });
 
 test('email al cliente omite la fila Duración si la reserva no trae dur', () => {
-  const { html } = renderClientEmail({ ...booking, dur: undefined }, 'abc123token');
+  const { html } = renderClientEmail({ ...booking, dur: undefined });
   assert.doesNotMatch(html, /Duración/);
 });
 
 test('los datos del cliente se escapan para evitar inyección de HTML', () => {
-  const { html } = renderClientEmail({ ...booking, name: 'Juan <script>alert(1)</script>' }, 'abc123token');
+  const { html } = renderClientEmail({ ...booking, name: 'Juan <script>alert(1)</script>' });
   assert.doesNotMatch(html, /<script>alert/);
   assert.match(html, /Juan &lt;script&gt;/);
 });
 
-test('email al cliente incluye los botones Confirmar/Declinar con code+token+r correctos (no espera al recordatorio de 24h)', () => {
-  const { html } = renderClientEmail(booking, 'abc123token');
-  assert.match(html, /confirmar-cita\.html\?code=SW-AB12345&t=abc123token&r=confirm/);
-  assert.match(html, /confirmar-cita\.html\?code=SW-AB12345&t=abc123token&r=decline/);
-  assert.match(html, /Confirmar asistencia/);
-  assert.match(html, /No podré ir/);
+test('email al cliente NO incluye botones Confirmar/Declinar -- esa acción vive solo en el recordatorio de 24h', () => {
+  // Antes este correo ofrecía confirmar/declinar al instante de reservar; los
+  // clientes lo usaban al minuto de agendar, anulando el propósito del
+  // recordatorio (una señal cercana a la cita). Ver
+  // docs/superpowers/specs/2026-09-14-confirmacion-solo-recordatorio-design.md.
+  const { html } = renderClientEmail(booking);
+  assert.doesNotMatch(html, /Confirmar asistencia/);
+  assert.doesNotMatch(html, /No podré ir/);
+  assert.doesNotMatch(html, /confirmar-cita\.html/);
+});
+
+test('email al cliente anticipa que llegará un recordatorio para confirmar asistencia', () => {
+  const { html } = renderClientEmail(booking);
+  assert.match(html, /Te enviaremos un recordatorio antes de tu cita para que confirmes tu asistencia/);
 });
 
 test('email al cliente avisa la ventana de 3 horas para cambios y la tolerancia de 10 minutos por atraso', () => {
   // Confirmado por Aldo 2026-09-08: cancelar/cambiar sigue siendo 3 horas
   // (el texto viejo decía 2). La tolerancia de 10 minutos es algo distinto:
   // cuánto atraso se acepta EL DÍA de la cita, no la ventana para cancelar.
-  const { html } = renderClientEmail(booking, 'abc123token');
+  const { html } = renderClientEmail(booking);
   assert.match(html, /hasta 3 horas antes/);
   assert.match(html, /tolerancia de 10 minutos/);
   assert.doesNotMatch(html, /2 horas/);

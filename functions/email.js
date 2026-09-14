@@ -100,9 +100,11 @@ function whatsappChangeNoteHtml() {
 }
 
 // Bloque de dos botones (Confirmar/Declinar) del diseño 2026-09-08 -- usado
-// por renderClientEmail y renderReminderEmail (los dos correos con una
-// acción pendiente; renderConfirmationEmail no lo usa, ya no hay nada que
-// decidir). Cargar el link NUNCA ejecuta la acción: ambos apuntan a
+// solo por renderReminderEmail (el único correo con una acción pendiente
+// desde 2026-09-14; renderClientEmail ya no lo ofrece, ver
+// docs/superpowers/specs/2026-09-14-confirmacion-solo-recordatorio-design.md;
+// renderConfirmationEmail tampoco, ya no hay nada que decidir). Cargar el
+// link NUNCA ejecuta la acción: apunta a
 // confirmar-cita.html (code+token+r), que exige un tap explícito antes de
 // llamar a respondToBookingReminder -- necesario porque clientes de correo
 // (Gmail, Outlook Safe Links) siguen/prefetchean links automáticamente por
@@ -140,10 +142,10 @@ function renderNewDesignShell({ preheader, eyebrow, headlineHtml, introHtml, fec
 <!--[if gte mso 9]></v:textbox></v:rect><![endif]--></td></tr><tr><td class="pad" style="padding:30px 40px"><p style="font-size:11px;letter-spacing:2px;color:#596676;margin:0 0 10px">${citaLabel}</p><p style="font-size:19px;line-height:1.5;font-weight:600;margin:0 0 8px">${esc(fecha)}</p><p style="font-size:34px;font-weight:700;letter-spacing:-1px;margin:0 0 18px">${esc(hora)} <span style="font-size:14px;font-weight:400;color:#505965">hrs · Chile</span></p><table role="presentation" width="100%" style="table-layout:fixed">${rows}</table><p style="font-size:14px;line-height:1.7;margin:22px 0"><strong>SW Studio · Concepción</strong><br>${esc(ADDRESS_LINE)}</p>${belowRowsHtml}</td></tr>${showVisitNotice ? visitNoticeHtml() : ''}<tr><td class="pad" style="padding:28px 40px;background:#111111;color:#ffffff"><p style="font-size:17px;line-height:1.5;margin:0 0 18px">Más que cortes,<br><strong>creamos identidad.</strong></p><a href="${SITE_URL}" style="font-size:12px;color:#c8d0da">scissorwhite.cl</a></td></tr></table><!--[if mso]></td></tr></table><![endif]--></td></tr></table></body></html>`;
 }
 
-// URLs de acción del recordatorio de citas -- comparten forma entre
-// renderClientEmail (email inicial) y renderReminderEmail (24h antes), así
-// que un cliente puede usar el link de CUALQUIERA de los dos correos
-// indistintamente mientras el token siga siendo válido.
+// URL de acción del recordatorio de citas -- usada solo por
+// renderReminderEmail (24h antes). renderClientEmail (email inicial) dejó de
+// usarla el 2026-09-14, ver
+// docs/superpowers/specs/2026-09-14-confirmacion-solo-recordatorio-design.md.
 function confirmDeclineUrls(code, token) {
   return {
     confirmUrl: `${SITE_URL}/confirmar-cita.html?code=${encodeURIComponent(code)}&t=${encodeURIComponent(token)}&r=confirm`,
@@ -153,22 +155,24 @@ function confirmDeclineUrls(code, token) {
 
 // Template "SW Studio — Reserva Recibida": diseño 2026-09-08 (Audiowide +
 // Inter, foto hero + tarjeta semitransparente) vía renderNewDesignShell().
-// `token` llega desde buildBookingDoc() (functions/createBooking.js), generado
-// junto con la reserva -- así el cliente puede confirmar/declinar desde este
-// mismo correo, sin esperar al recordatorio de 24h antes.
-function renderClientEmail(b, token) {
+// Puramente informativo -- confirmar/declinar la asistencia vive solo en
+// renderReminderEmail (recordatorio 24h antes). Hasta 2026-09-14 este correo
+// también traía esos botones (mismo reminderToken), pero los clientes los
+// usaban al minuto de reservar, anulando el propósito del recordatorio como
+// señal cercana a la cita -- ver
+// docs/superpowers/specs/2026-09-14-confirmacion-solo-recordatorio-design.md.
+function renderClientEmail(b) {
   const tz = b.tz || DEFAULT_TZ;
   const fecha = fmtFechaLarga(b.date, b.time, tz);
-  const { confirmUrl, declineUrl } = confirmDeclineUrls(b.code, token);
   const subject = `Tu reserva en SW Studio · ${fecha} a las ${b.time} — ${b.code}`;
   const html = renderNewDesignShell({
-    preheader: 'Tu hora quedó reservada. Confirma tu asistencia para que sepamos que contamos contigo.',
+    preheader: 'Tu hora quedó reservada. Te avisaremos antes de tu cita para que confirmes tu asistencia.',
     eyebrow: 'RESERVA RECIBIDA',
     headlineHtml: 'Tu próxima visita,<br>ya está reservada.',
-    introHtml: `Hola, ${esc(b.name)}.<br>Tu hora quedó reservada. Confirma tu asistencia para que sepamos que contamos contigo.`,
+    introHtml: `Hola, ${esc(b.name)}.<br>Tu hora quedó reservada. Te enviaremos un recordatorio antes de tu cita para que confirmes tu asistencia.`,
     fecha, hora: b.time,
     rows: citaDetailRows(b),
-    belowRowsHtml: confirmDeclineButtonsHtml(confirmUrl, declineUrl) + whatsappChangeNoteHtml(),
+    belowRowsHtml: whatsappChangeNoteHtml(),
   });
   return { subject, html };
 }
@@ -306,9 +310,9 @@ function assertResendOk(results) {
   }
 }
 
-async function sendBookingEmails(b, token, { apiKey, fromEmail, shopEmail }) {
+async function sendBookingEmails(b, { apiKey, fromEmail, shopEmail }) {
   const resend = new Resend(apiKey);
-  const client = renderClientEmail(b, token);
+  const client = renderClientEmail(b);
   const shop = renderShopEmail(b);
   const results = await Promise.all([
     resend.emails.send({ from: fromEmail, to: b.email, subject: client.subject, html: client.html }),

@@ -73,7 +73,7 @@ exports.onBookingCreated = onDocumentCreated(
     // con fallos de un envío que nunca correspondía intentar.
     if (email) {
       try {
-        await sendBookingEmails({ ...b, email }, reminderToken, {
+        await sendBookingEmails({ ...b, email }, {
           apiKey: RESEND_API_KEY.value(),
           fromEmail: FROM_EMAIL.value(),
           shopEmail: SHOP_EMAIL.value(),

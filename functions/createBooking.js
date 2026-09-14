@@ -90,11 +90,12 @@ function buildBookingDoc({ payload, service, barber, now, businessTz }) {
     status: DEFAULT_BOOKING_STATUS,
     emailStatus: 'pending',
     tz: businessTz,
-    // Generado desde la creación (no recién a las 24h) para que el email de
-    // "reserva confirmada" ya pueda ofrecer Confirmar/Declinar con el mismo
-    // link -- ver renderClientEmail (functions/email.js) y
+    // Generado desde la creación (no recién a las 24h) -- ver
     // exports.sendBookingReminders (functions/index.js), que reutiliza este
-    // mismo token en vez de generar uno nuevo si ya existe.
+    // mismo token en vez de generar uno nuevo si ya existe. Antes del
+    // 2026-09-14 esto también le servía al correo de reserva recibida para
+    // ofrecer Confirmar/Declinar; ya no (ver
+    // docs/superpowers/specs/2026-09-14-confirmacion-solo-recordatorio-design.md).
     reminderToken: generateReminderToken(),
     // Marca de origen: permite verificar en Firestore que el 100% de los
     // creates nuevos pasan por este callable antes de cerrar la vía pública

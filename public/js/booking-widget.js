@@ -309,7 +309,17 @@ async function applySiteImageOverrides(){
     const overrides = await window.SWData.loadSiteImages();
     Object.keys(overrides).forEach(slot=>{
       document.querySelectorAll('[data-img-slot="'+slot+'"]').forEach(el=>{
-        if(el.tagName === 'IMG') el.src = overrides[slot].url;
+        if(el.tagName === 'IMG'){
+          el.src = overrides[slot].url;
+          // Si el <img> vive dentro de un <picture> (ej. el hero, con un
+          // <source type="image/webp">), ese <source> sigue ganando la
+          // selección aunque cambiemos el src del <img> -- la imagen
+          // personalizada del admin quedaría invisible en cualquier
+          // navegador con soporte WebP. Se quitan los <source> para que el
+          // override real siempre sea lo que se ve.
+          const picture = el.closest('picture');
+          if(picture) picture.querySelectorAll('source').forEach(s=>s.remove());
+        }
         else el.style.backgroundImage = "url('"+overrides[slot].url+"')";
       });
     });

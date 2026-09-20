@@ -1,3 +1,9 @@
+// public/js/booking-widget.js -- motor del widget de reservas del landing
+// (catálogo, calendario, disponibilidad, formulario y confirmación).
+// <script> CLÁSICO sin bundler (NO type="module") a propósito: cargado con
+// defer en index.html -- module cambiaría a strict mode ~1000 líneas de
+// código nunca auditado para eso. Expone window.closeBK/openBK/bkGoTo
+// porque los onclick del HTML los llaman directo.
 (function(){
 // ═══════════════════════════════════════
 // DATA — catálogo de servicios SW Studio

@@ -302,6 +302,8 @@ con:
 Run: `grep -c 'href="#"' public/index.html`
 Expected: `0` (era el único link con `href="#"` puro en todo el archivo; si el conteo da distinto de 0, hay otro más que no estaba contemplado — repórtalo, no lo toques).
 
+**Fe de erratas (post-implementación, 2026-09-20):** el conteo real da `2`, no `0` — quedan `#gr-see` y `#gr-write` (widget de reseñas de Google, `public/index.html`), placeholders que `public/js/booking-widget.js` llena en runtime con la URL real. Son de la feature de reseñas (commit `5dea74b`, 2026-08-23), no de este goal, y CLAUDE.md prohíbe tocar ese módulo — correctamente dejados sin tocar (commit `c3c6055`).
+
 - [ ] **Step 4: Commit**
 
 ```bash

@@ -112,8 +112,10 @@
   <meta name="format-detection" content="telephone=no">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- LCP: el hero.jpg de abajo se precarga con prioridad alta para que el
-       navegador no espere a que el parser llegue a la sección .hero. -->
+  <!-- LCP: el hero.webp de abajo se precarga con prioridad alta para que el
+       navegador no espere a que el parser llegue a la sección .hero.
+       Los navegadores sin soporte WebP ignoran este preload (por el type
+       que no calza) y descubren el hero.jpg del <picture> más abajo igual. -->
   <link rel="preload" as="image" href="/assets/hero.webp" type="image/webp" fetchpriority="high">
   <!-- LCP real (medido con Lighthouse, no sospecha): el elemento que Chrome
        reporta como largest-contentful-paint es #sw-intro-logo, que carga

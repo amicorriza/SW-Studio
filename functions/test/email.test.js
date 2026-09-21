@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { renderClientEmail, renderShopEmail, renderReminderEmail, renderReminderResponseEmail, renderConfirmationEmail, parseRecipients, assertResendOk } = require('../email.js');
+const { renderClientEmail, renderShopEmail, renderReminderEmail, renderReminderResponseEmail, renderConfirmationEmail, renderSurveyEmail, parseRecipients, assertResendOk } = require('../email.js');
 
 const booking = {
   // date = medianoche en Chile (UTC-4) serializada con toISOString(), como hace el frontend.
@@ -259,6 +259,42 @@ test('renderConfirmationEmail no incluye los botones Confirmar/Declinar -- la at
 
 test('renderConfirmationEmail escapa los datos del cliente para evitar inyección de HTML', () => {
   const { html } = renderConfirmationEmail({ ...booking, name: 'Juan <script>alert(1)</script>' });
+  assert.doesNotMatch(html, /<script>alert/);
+  assert.match(html, /Juan &lt;script&gt;/);
+});
+
+test('email de encuesta incluye nombre, servicio y profesional', () => {
+  const { subject, html } = renderSurveyEmail(booking, 'abc123token');
+  assert.match(subject, /SW-AB12345/);
+  assert.match(html, /Juan Pérez/);
+  assert.match(html, /Corte \+ Lavado Premium/);
+  assert.match(html, /Felipe/);
+});
+
+test('email de encuesta trae 5 botones de estrella, cada uno con su rating y el mismo code\\/token', () => {
+  const { html } = renderSurveyEmail(booking, 'abc123token');
+  for (let n = 1; n <= 5; n++) {
+    assert.match(html, new RegExp(`encuesta\\.html\\?code=SW-AB12345&t=abc123token&rating=${n}`));
+  }
+  // 5 estrellas rellenas es el botón destacado (1+2+3+4+5 = 15 caracteres '★' en total)
+  assert.strictEqual((html.match(/★/g) || []).length, 15);
+});
+
+test('email de encuesta menciona el sorteo pero NUNCA la reseña de Google', () => {
+  const { html } = renderSurveyEmail(booking, 'abc123token');
+  assert.match(html, /sorteo mensual de un 30% de descuento/);
+  assert.doesNotMatch(html, /[Rr]eseña/);
+  assert.doesNotMatch(html, /[Gg]oogle/);
+});
+
+test('email de encuesta usa la foto real del sitio, no una imagen embebida', () => {
+  const { html } = renderSurveyEmail(booking, 'abc123token');
+  assert.match(html, /assets\/email\/hero-actual\.jpg/);
+  assert.doesNotMatch(html, /data:image/);
+});
+
+test('los datos del cliente en el correo de encuesta se escapan para evitar inyección de HTML', () => {
+  const { html } = renderSurveyEmail({ ...booking, name: 'Juan <script>alert(1)</script>' }, 'abc123token');
   assert.doesNotMatch(html, /<script>alert/);
   assert.match(html, /Juan &lt;script&gt;/);
 });

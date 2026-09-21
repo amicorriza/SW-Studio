@@ -199,6 +199,63 @@ function renderConfirmationEmail(b) {
   return { subject, html };
 }
 
+// URL de una calificación de la encuesta de satisfacción -- code+token
+// reutilizan el mismo reminderToken que ya usa el resto del flujo de
+// confirmar/declinar (mismo criterio: un cliente puede usar el link de
+// cualquier correo suyo mientras el token siga siendo válido). `rating`
+// solo precarga la selección en encuesta.html -- el cliente puede
+// cambiarla ahí antes de enviar.
+function surveyUrl(code, token, rating) {
+  return `${SITE_URL}/encuesta.html?code=${encodeURIComponent(code)}&t=${encodeURIComponent(token)}&rating=${rating}`;
+}
+
+// Fila de 5 botones de estrellas (1 a 5) para el correo de encuesta de
+// satisfacción -- el de 5 va destacado (fondo negro), mismo criterio visual
+// que un botón primario en el resto de los correos.
+function surveyStarsHtml(code, token) {
+  const cell = (n, primary) => `<td class="star-col" width="20%" style="padding:0 4px"><a href="${surveyUrl(code, token, n)}" style="display:block;text-align:center;text-decoration:none;padding:16px 0;border:1px solid ${primary ? '#111111' : '#e0e4e8'};border-radius:8px;${primary ? 'background:#111111;' : ''}color:${primary ? '#ffffff' : '#111111'}"><span style="font-size:22px;display:block;line-height:1;${primary ? 'color:#ffffff' : ''}">${'★'.repeat(n)}</span></a></td>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed"><tr>${[1, 2, 3, 4, 5].map((n) => cell(n, n === 5)).join('')}</tr></table>`;
+}
+
+// Template "SW Studio — Encuesta de satisfacción": correo que dispara
+// exports.sendSatisfactionSurveys 10 minutos después de que el barbero
+// marca "Finalizar atención" (functions/surveys.js). NO reutiliza
+// renderNewDesignShell -- ese shell está armado para una cita FUTURA
+// (número de hora grande, aviso de ventana de cambios de 3h); acá se avisa
+// sobre una visita que YA terminó, así que este correo tiene su propio
+// shell, más compacto (pensado para caber en una pantalla sin scroll --
+// diseño validado con Aldo vía mockup visual durante el brainstorming del
+// 2026-09-20, ver docs/superpowers/specs/2026-09-20-encuesta-satisfaccion-design.md).
+// El premio del sorteo se menciona SIN mencionar la reseña de Google a
+// propósito -- condicionar el premio a dejar una reseña viola las
+// políticas de Google (riesgo real: eliminación de reseñas o suspensión de
+// la ficha). La invitación a reseñar vive aparte, en encuesta.html,
+// después de responder, sin condicionar nada.
+function renderSurveyEmail(b, token) {
+  const svcName = esc(b.svcName || 'tu servicio');
+  const barberName = esc(b.barberName || 'nuestro equipo');
+  const subject = `¿Cómo estuvo tu visita a SW Studio? — ${b.code}`;
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>SW Studio</title><style>body,table,td,a{font-family:${NEW_SANS}}table{border-collapse:collapse;text-align:left}a:focus-visible{outline:3px solid #6A7888;outline-offset:4px}@media(max-width:480px){.pad{padding-left:24px!important;padding-right:24px!important}.headline{font-size:28px!important}.star-col{padding:0 2px!important}}</style></head><body style="margin:0;padding:0;background:#eef0f2;color:#111111"><div style="display:none;max-height:0;overflow:hidden;mso-hide:all">Tu opinión nos ayuda a mejorar — cuéntanos cómo estuvo tu visita, toma 30 segundos.</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#eef0f2"><tr><td align="center" style="padding:16px 10px"><!--[if mso]><table role="presentation" width="600"><tr><td><![endif]--><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fafafa" bgcolor="#fafafa">
+<tr><td class="pad" style="padding:20px 36px;border-bottom:1px solid #d7dce2"><table role="presentation" width="100%"><tr><td style="vertical-align:middle"><img src="${SITE_URL}/assets/logo.png" width="46" alt="SW Studio" style="display:block;width:46px;height:auto;border:0"></td><td align="right" style="font-size:11px;letter-spacing:2px;color:#505965;vertical-align:middle">SCISSOR WHITE<br><span style="font-size:10px;line-height:20px">CONCEPCIÓN</span></td></tr></table></td></tr>
+<tr><td background="${EMAIL_HERO_URL}" bgcolor="#24282d" width="600" height="200" valign="bottom" style="height:200px;background-color:#24282d;background-image:url('${EMAIL_HERO_URL}');background-size:cover;background-position:center 58%;background-repeat:no-repeat;padding:0;text-align:left">
+<!--[if gte mso 9]><v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="width:600px;height:200px;"><v:fill type="frame" src="${EMAIL_HERO_URL}" color="#24282d"/><v:textbox inset="0,0,0,0"><![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" height="200"><tr><td valign="bottom" style="background:linear-gradient(to top,rgba(10,10,10,.78) 20%,rgba(10,10,10,0));padding:22px 36px" height="200"><p style="margin:0 0 4px;font-size:10px;line-height:1.4;letter-spacing:2px;color:#dce2e9">SCISSOR WHITE · CONCEPCIÓN</p><p style="margin:0;font-size:22px;line-height:1.25;font-weight:600;color:#ffffff">Gracias por confiar<br>en nosotros.</p></td></tr></table>
+<!--[if gte mso 9]></v:textbox></v:rect><![endif]--></td></tr>
+<tr><td class="pad" style="padding:28px 36px 6px"><p style="margin:0 0 12px;font-size:10px;font-weight:700;letter-spacing:2px;color:#596676">TU OPINIÓN</p><h1 class="headline" style="font-family:${NEW_DISPLAY};font-size:32px;line-height:1.18;letter-spacing:-.8px;margin:0 0 14px;color:#111111">¿Cómo estuvo<br><em style="font-style:normal;background:linear-gradient(115deg,#5C6878,#9AAABB,#3A4452);-webkit-background-clip:text;background-clip:text;color:transparent">tu visita?</em></h1><p style="font-size:15px;line-height:1.65;margin:0;color:#3a3a3a">Hola, ${esc(b.name)} — gracias por venir. Cuéntanos en 30 segundos cómo estuvo tu <strong>${svcName}</strong> con <strong>${barberName}</strong>.</p></td></tr>
+<tr><td class="pad" style="padding:24px 36px 6px"><p style="margin:0 0 14px;font-size:10.5px;letter-spacing:1.8px;color:#596676;text-align:center">TOCA TU CALIFICACIÓN</p>${surveyStarsHtml(b.code, token)}</td></tr>
+<tr><td class="pad" style="padding:16px 36px 26px"><p style="margin:0;text-align:center;font-size:12px;line-height:1.6;color:#8a94a1">Responder te deja participando en el sorteo mensual de un 30% de descuento en tu próximo corte.</p></td></tr>
+<tr><td class="pad" style="padding:20px 36px;background:#111111;color:#ffffff"><table role="presentation" width="100%"><tr><td style="font-size:13px;color:#c8d0da">Más que cortes,<br><strong style="color:#ffffff">creamos identidad.</strong></td><td align="right" valign="bottom" style="font-size:11px;color:#8a94a1"><a href="${SITE_URL}" style="color:#8a94a1;text-decoration:none">scissorwhite.cl</a></td></tr></table></td></tr>
+</table><!--[if mso]></td></tr></table><![endif]--></td></tr></table></body></html>`;
+  return { subject, html };
+}
+
+async function sendSurveyEmail(b, token, { apiKey, fromEmail }) {
+  const resend = new Resend(apiKey);
+  const { subject, html } = renderSurveyEmail(b, token);
+  const result = await resend.emails.send({ from: fromEmail, to: b.email, subject, html });
+  assertResendOk([result]);
+}
+
 // Template del aviso interno de nueva reserva — diseño 2026-09-08, mismo
 // shell que los correos al cliente (renderNewDesignShell) para que toda la
 // correspondencia se sienta de la misma familia de marca. Sin CTA (nada que
@@ -323,6 +380,6 @@ async function sendBookingEmails(b, { apiKey, fromEmail, shopEmail }) {
 
 module.exports = {
   renderClientEmail, renderShopEmail, renderReminderEmail, renderReminderResponseEmail,
-  renderConfirmationEmail, sendConfirmationEmail,
-  sendBookingEmails, sendReminderEmail, sendReminderResponseEmail, parseRecipients, assertResendOk,
+  renderConfirmationEmail, renderSurveyEmail, sendConfirmationEmail,
+  sendBookingEmails, sendReminderEmail, sendReminderResponseEmail, sendSurveyEmail, parseRecipients, assertResendOk,
 };

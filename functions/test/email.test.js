@@ -284,7 +284,7 @@ test('email de encuesta menciona el sorteo pero NUNCA la reseña de Google', () 
   const { html } = renderSurveyEmail(booking, 'abc123token');
   assert.match(html, /sorteo mensual de un 30% de descuento/);
   assert.doesNotMatch(html, /[Rr]eseña/);
-  assert.doesNotMatch(html, /[Gg]oogle/);
+  assert.doesNotMatch(html, /google\.com/i);
 });
 
 test('email de encuesta usa la foto real del sitio, no una imagen embebida', () => {

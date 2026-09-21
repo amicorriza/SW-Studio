@@ -9,13 +9,14 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { getMessaging } = require('firebase-admin/messaging');
-const { sendBookingEmails, sendReminderEmail, sendReminderResponseEmail, sendConfirmationEmail } = require('./email.js');
+const { sendBookingEmails, sendReminderEmail, sendReminderResponseEmail, sendConfirmationEmail, sendSurveyEmail } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
 const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./shared/availability.js');
 const { resolveCreateBooking } = require('./createBooking.js');
 const { resolveBusinessTz, resolveBufferMin, resolveNudgeLeadMin, dateKeyInZone } = require('./shared/timezone.js');
 const { searchPlaceId, fetchPlaceDetails, isFresh } = require('./googleReviews.js');
 const { REMINDER_LEAD_MS, REMINDER_WINDOW_MS, generateReminderToken, findBookingsNeedingReminder } = require('./reminders.js');
+const { findBookingsNeedingSurvey } = require('./surveys.js');
 const { ATTENDANCE_ACTIONS, applyAction, computeNudges, SNOOZE_MS } = require('./shared/attendance.js');
 const { aggregateMyClients } = require('./shared/clients.js');
 const { isValidAdminBookingPayload } = require('./shared/validate.js');
@@ -490,6 +491,95 @@ exports.sendBookingReminders = onSchedule(
       // estado de error -- la corrida siguiente, 15 min después, vuelve a
       // intentar desde cero. Mismo criterio que refreshGoogleReviews.
       logger.error('Fallo la corrida de sendBookingReminders', err);
+    }
+  }
+);
+
+// ══ ENCUESTA DE SATISFACCIÓN POST-ATENCIÓN ══
+// 10 minutos después de que el barbero marca "Finalizar atención"
+// (functions/shared/attendance.js, acción `end` -> status:'completed' +
+// endedAt), se manda un correo pidiendo calificar la visita. Responder deja
+// al cliente en un sorteo MENSUAL Y MANUAL de un 30% de descuento -- el
+// sistema solo guarda la respuesta en `surveys/{id}`; Aldo revisa esa
+// colección en la consola de Firebase para elegir al ganador. Cero canje de
+// cupón, cero automatización del sorteo (decisión explícita, ver
+// docs/superpowers/specs/2026-09-20-encuesta-satisfaccion-design.md). El
+// premio NUNCA se menciona junto a la reseña de Google -- condicionarlo
+// violaría las políticas de Google.
+//
+// Mismo criterio de resiliencia que sendBookingReminders: "debido" en vez
+// de ventana de coincidencia única (findBookingsNeedingSurvey tiene techo
+// de 24h porque el evento ya ocurrió, a diferencia de una cita futura).
+exports.sendSatisfactionSurveys = onSchedule(
+  { schedule: 'every 5 minutes', region: 'southamerica-east1', secrets: [RESEND_API_KEY, FROM_EMAIL] },
+  async () => {
+    try {
+      const db = getFirestore(app);
+      const now = new Date();
+      const businessInfoSnap = await db.collection('businessInfo').doc('main').get();
+      const businessInfoData = businessInfoSnap.exists ? businessInfoSnap.data() : null;
+
+      // Interruptor de seguridad, mismo patrón que remindersEnabled/
+      // nudgesEnabled: por defecto (campo ausente) no manda nada.
+      if (!businessInfoData || businessInfoData.surveysEnabled !== true) {
+        logger.info('sendSatisfactionSurveys: surveysEnabled no está activado, no se envía nada esta corrida.');
+        return;
+      }
+
+      const businessTz = resolveBusinessTz(businessInfoData);
+
+      // Ventana amplia por fecha calendario (reutiliza el índice
+      // bookings(status, date) que ya existe -- no hace falta declarar uno
+      // nuevo): desde ayer hasta mañana en la zona del negocio, cubre
+      // sobra cualquier atención terminada dentro de las últimas 24h+ sin
+      // importar en qué `date` calendario quedó agendada originalmente.
+      const startDateKey = dateKeyInZone(new Date(now.getTime() - 24 * 60 * 60 * 1000), businessTz);
+      const { end: endBound } = dayBoundsOf(dateKeyInZone(now, businessTz));
+
+      const snap = await db.collection('bookings')
+        .where('status', '==', 'completed')
+        .where('date', '>=', startDateKey)
+        .where('date', '<', endBound)
+        .get();
+
+      const items = snap.docs
+        .map((d) => ({ ref: d.ref, data: { ...d.data(), _docId: d.id } }))
+        .filter((item) => !item.data.surveySentAt);
+      const itemsByDocId = new Map(items.map((item) => [item.data._docId, item]));
+      const toSendData = findBookingsNeedingSurvey(items.map((item) => item.data), now,
+        (id, err) => logger.error('Reserva ilegible al buscar encuestas de satisfacción', {
+          bookingId: id || null, message: (err && err.message) || String(err),
+        }));
+      const toSend = toSendData.map((b) => itemsByDocId.get(b._docId)).filter(Boolean);
+
+      for (const item of toSend) {
+        const b = item.data;
+        // Sin email no hay a quién encuestar -- mismo criterio que
+        // onBookingCreated/sendBookingReminders.
+        if (!b.email) continue;
+        // Reutiliza el mismo reminderToken que ya tiene la reserva --
+        // mismo criterio que sendBookingReminders: nunca se genera uno
+        // nuevo, para que el cliente pueda usar el link de cualquiera de
+        // sus correos indistintamente.
+        const token = b.reminderToken;
+        if (!token) continue; // no debería pasar -- toda reserva trae reminderToken desde su creación
+        try {
+          await sendSurveyEmail(b, token, {
+            apiKey: RESEND_API_KEY.value(),
+            fromEmail: FROM_EMAIL.value(),
+          });
+          await item.ref.update({ surveySentAt: new Date().toISOString() });
+          logger.info('Encuesta de satisfacción enviada', { code: b.code });
+        } catch (err) {
+          logger.error('Fallo al enviar encuesta de satisfacción', err);
+          // No relanzar: un fallo individual no debe abortar el resto de
+          // la corrida, y como surveySentAt nunca se escribió, la corrida
+          // siguiente (5 min después) reintenta -- mientras siga dentro de
+          // la ventana de 24h de findBookingsNeedingSurvey.
+        }
+      }
+    } catch (err) {
+      logger.error('Fallo la corrida de sendSatisfactionSurveys', err);
     }
   }
 );

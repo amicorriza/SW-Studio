@@ -113,6 +113,42 @@ async function abrirAdmin(lic){
 }
 
 // ═══════════════ PWA BARBERO ═══════════════
+// Revisión final #3: con la licencia ya reactivada, una instancia de Functions
+// con el estado viejo en su caché de 60 s puede rechazar UNA llamada. El
+// overlay (que no se cierra) no debe volver si la lectura fresca dice activo.
+{
+  const { ctx, page } = await abrirAdmin({ status:'active', message:'', suspendAt:'' });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('sw:license-suspended')));
+  await page.waitForTimeout(300);
+  check('admin: aviso del servidor con licencia ya activa NO muestra el overlay', !(await page.isVisible('#adm-susp')));
+  await ctx.close();
+}
+
+// Revisión final #2: la PWA instalada vuelve sola al reactivar, sin matar la app.
+{
+  const { ctx, page } = await nuevaPagina({ width:420, height:840 });
+  await page.addInitScript(() => {
+    const u = { uid:'b', getIdTokenResult: async () => ({ claims:{} }) };
+    window.__SUSP = true;
+    window.SWAuth = { signIn: async () => u, signOut: async () => {}, onChange: (f) => { f(u); return () => {}; } };
+    window.SWData = {
+      getMyDay: async () => {
+        if (window.__SUSP) { const e = new Error('Servicio suspendido.'); e.code = 'functions/failed-precondition'; e.details = { license:'suspended' }; throw e; }
+        return { staffId:'victoria', name:'Victoria', date:'2026-10-06', tz:'America/Santiago', bookings:[], schedule:{} };
+      },
+      saveMyPushToken: async () => {},
+    };
+  });
+  await page.goto(`http://localhost:${PORT}/barbero/`, { waitUntil:'load' });
+  await page.waitForTimeout(900);
+  check('PWA: arranca suspendida', await page.isVisible('#b-susp-out'));
+  await page.evaluate(() => { window.__SUSP = false; document.dispatchEvent(new Event('visibilitychange')); });
+  await page.waitForTimeout(600);
+  check('PWA: al volver al frente reactivada muestra la agenda', await page.isVisible('#b-app'));
+  check('PWA: y esconde la pantalla de suspensión', !(await page.isVisible('#b-susp-out')));
+  await ctx.close();
+}
+
 {
   const { ctx, page } = await nuevaPagina({ width:420, height:840 });
   await page.addInitScript(() => {

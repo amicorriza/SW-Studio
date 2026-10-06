@@ -669,7 +669,9 @@ async function esAdmin() {
 // markAttendance; acá solo se explica y se para el polling, que si no
 // reintentaría cada pocos segundos contra un servidor que va a decir lo mismo.
 // El motivo NO se muestra: eso es entre Aldo y la dueña del salón.
+let SUSPENDIDO = false;
 function mostrarSuspension() {
+  SUSPENDIDO = true;
   if (ticker) { clearInterval(ticker); ticker = null; }
   if (poller) { clearInterval(poller); poller = null; }
   show('login');
@@ -683,6 +685,14 @@ async function loadDay(silencioso) {
     // La primera carga va sin fecha, así que la que vuelve ES hoy en la zona
     // del negocio. Es la única fuente de "hoy" que usa esta app.
     if (!DIA && !HOY) HOY = CURRENT.date;
+    // Reactivada mientras la app estaba en segundo plano: se vuelve a la agenda
+    // y al polling sin obligar a cerrar la app instalada.
+    if (SUSPENDIDO) {
+      SUSPENDIDO = false;
+      g('b-susp-out').hidden = true;
+      show('app');
+      startPolling();
+    }
     render();
     await applyDeepLink();
   } catch (e) {
@@ -1005,7 +1015,10 @@ function startPolling() {
   }, 60000);
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && USER && esHoy()) loadDay(true);
+  // Suspendida no hay "hoy" conocido (getMyDay nunca respondió), así que
+  // esHoy() daría false para siempre: volver al frente es la oportunidad de
+  // enterarse de que se reactivó.
+  if (document.visibilityState === 'visible' && USER && (SUSPENDIDO || esHoy())) loadDay(true);
 });
 
 // ── navegación de días ──

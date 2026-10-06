@@ -1841,10 +1841,13 @@ async function leerLicencia(){
   return window.SWData.readLicense();
 }
 // La suspensión puede llegar con el panel abierto: el próximo callable gateado
-// lo avisa (public/js/data.js, guarded()).
+// lo avisa (public/js/data.js, guarded()). Se confirma con una lectura fresca
+// antes de tapar el panel: recién reactivado, una instancia de Functions con
+// el estado viejo en su caché de 60 s puede rechazar UNA llamada, y un overlay
+// que no se cierra le volvería a bloquear el panel a quien ya pagó.
 window.addEventListener('sw:license-suspended', async function(){
   var l = await leerLicencia();
-  mostrarSuspension(l && l.message);
+  if (l && l.status === 'suspended') mostrarSuspension(l.message);
 });
 g('adm-susp-out').addEventListener('click', function(){ g('adm-lgout').click(); });
 

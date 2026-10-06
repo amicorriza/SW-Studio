@@ -112,6 +112,49 @@ async function abrirAdmin(lic){
   await ctx.close();
 }
 
+// ═══════════════ PWA BARBERO ═══════════════
+{
+  const { ctx, page } = await nuevaPagina({ width:420, height:840 });
+  await page.addInitScript(() => {
+    const u = { uid:'b', getIdTokenResult: async () => ({ claims:{} }) };
+    window.__SALIDAS = 0;
+    window.SWAuth = { signIn: async () => u, signOut: async () => { window.__SALIDAS++; }, onChange: (f) => { f(u); return () => {}; } };
+    window.SWData = {
+      getMyDay: async () => { const e = new Error('Servicio suspendido.'); e.code = 'functions/failed-precondition'; e.details = { license:'suspended' }; throw e; },
+      saveMyPushToken: async () => {},
+    };
+  });
+  await page.goto(`http://localhost:${PORT}/barbero/`, { waitUntil:'load' });
+  await page.waitForTimeout(900);
+  check('PWA suspendida: pantalla de suspensión', /suspendido/i.test((await page.textContent('#b-login-err')) || ''));
+  check('PWA suspendida: la agenda NO se ve', !(await page.isVisible('#b-app')));
+  check('PWA suspendida: botón Salir visible', await page.isVisible('#b-susp-out'));
+  if (await page.isVisible('#b-susp-out')) await page.click('#b-susp-out');
+  check('PWA suspendida: Salir cierra la sesión', (await page.evaluate(() => window.__SALIDAS)) === 1);
+  await ctx.close();
+}
+
+// ═══════════════ /login ═══════════════
+// Un barbero con licencia suspendida debe ir a /barbero/ (ve la explicación),
+// no recibir "tu cuenta no tiene acceso" y quedar deslogueado.
+{
+  const { ctx, page } = await nuevaPagina({ width:420, height:820 });
+  await page.addInitScript(() => {
+    const u = { uid:'b', getIdTokenResult: async () => ({ claims:{} }) };
+    window.SWAuth = { signIn: async () => u, signOut: async () => {}, onChange: () => () => {} };
+    window.SWData = {
+      getMyDay: async () => { const e = new Error('Servicio suspendido.'); e.code = 'functions/failed-precondition'; e.details = { license:'suspended' }; throw e; },
+    };
+  });
+  await page.goto(`http://localhost:${PORT}/login/`, { waitUntil:'load' });
+  await page.fill('#email', 'victoria@scissorwhite.cl');
+  await page.fill('#pass', 'buena');
+  await page.click('#btn');
+  await page.waitForTimeout(900);
+  check('login con licencia suspendida manda al barbero a /barbero/', /\/barbero\/$/.test(page.url()), page.url());
+  await ctx.close();
+}
+
 // ── fin ──
 await browser.close();
 server.close();

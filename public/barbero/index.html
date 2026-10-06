@@ -277,6 +277,7 @@
   <section class="b-login" id="b-login" hidden>
     <h1>SW Barbero</h1>
     <p id="b-login-err">Verificando tu acceso…</p>
+    <button class="b-ghost" id="b-susp-out" hidden>Salir</button>
   </section>
 
   <!-- Agenda -->
@@ -664,6 +665,18 @@ async function esAdmin() {
   }
 }
 
+// Suspensión por falta de pago (license/main). El servidor ya cortó getMyDay y
+// markAttendance; acá solo se explica y se para el polling, que si no
+// reintentaría cada pocos segundos contra un servidor que va a decir lo mismo.
+// El motivo NO se muestra: eso es entre Aldo y la dueña del salón.
+function mostrarSuspension() {
+  if (ticker) { clearInterval(ticker); ticker = null; }
+  if (poller) { clearInterval(poller); poller = null; }
+  show('login');
+  els.loginErr.textContent = 'El servicio está suspendido temporalmente. Consulta con la administración del salón.';
+  g('b-susp-out').hidden = false;
+}
+
 async function loadDay(silencioso) {
   try {
     CURRENT = await window.SWData.getMyDay(DIA);
@@ -674,6 +687,7 @@ async function loadDay(silencioso) {
     await applyDeepLink();
   } catch (e) {
     console.error('getMyDay', e);
+    if (e && e.details && e.details.license === 'suspended') { mostrarSuspension(); return; }
     // Esta app no puede servirle Y la otra sí: se lo manda para allá en vez de
     // dejarlo en un mensaje que no puede resolver. Mismo criterio que el panel
     // usa al revés.
@@ -1013,6 +1027,7 @@ document.addEventListener('click', (ev) => {
 });
 
 g('b-signout').addEventListener('click', () => window.SWAuth.signOut());
+g('b-susp-out').addEventListener('click', () => window.SWAuth.signOut());
 g('b-refresh').addEventListener('click', () => loadDay());
 g('b-push').addEventListener('click', function(){ activarAvisos(false); });
 

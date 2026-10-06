@@ -1,6 +1,6 @@
 // functions/shared/availability.js — lógica pura de disponibilidad de
 // horarios. Módulo único: functions/createBooking.js, functions/index.js y
-// functions/email.js lo importan de acá. public/index.html mantiene una
+// functions/email.js lo importan de acá. public/home.html mantiene una
 // copia deliberada de isBarberFreeAt() (mismo criterio, documentado ahí) por
 // ser <script> plano sin bundler. public/admin/index.html YA NO diverge:
 // checkConflict()/checkScheduleBlock() usan el mismo criterio de
@@ -18,7 +18,7 @@
 const { isBlockingStatus } = require('./status.js');
 
 // 'HH:MM' -> minutos desde medianoche. Tolerante a valores raros (mismo
-// espíritu defensivo que parseDt/checkConflict en public/index.html).
+// espíritu defensivo que parseDt/checkConflict en public/home.html).
 function toMinutes(hhmm) {
   const parts = String(hhmm || '0:0').split(':');
   const h = parseInt(parts[0], 10) || 0;
@@ -40,7 +40,7 @@ function addMinutesToTime(hhmm, durMin) {
 }
 
 // YYYY-MM-DD a partir de cualquier `date` de reserva -- normaliza el mismo
-// desajuste de formato que ya tolera checkConflict (public/index.html): las
+// desajuste de formato que ya tolera checkConflict (public/home.html): las
 // reservas del admin guardan la hora real de la cita en `date`
 // ('...T14:30:00.000Z'), las públicas guardan medianoche
 // ('...T00:00:00.000Z') -- ambas comparten el mismo prefijo de 10 caracteres.
@@ -79,7 +79,7 @@ function dayBoundsOf(dateKey) {
 // Esta función NO decide si un horario candidato está disponible — devuelve
 // los rangos ocupados en bruto. `isRangeFree()` (más abajo) es quien aplica
 // el criterio de solape sobre este resultado -- el widget público
-// (isBarberFreeAt, public/index.html) y el panel (checkConflict/
+// (isBarberFreeAt, public/home.html) y el panel (checkConflict/
 // checkScheduleBlock, admin/index.html) mantienen su propia copia porque son
 // <script> planos sin bundler y no pueden importar este archivo, pero
 // createBooking.js (server, autoridad real) sí usa esta.
@@ -147,7 +147,7 @@ function computeAvailability({ bookings, staff, barberId, dow, scheduleBlocks })
 // Predicado atómico de solape en minutos desde medianoche, con un margen de
 // limpieza opcional (bufferMin, default 0 = comportamiento idéntico al
 // criterio original). Único criterio en todo el repo -- antes vivía
-// duplicado en public/index.html (isBarberFreeAt) y admin/index.html
+// duplicado en public/home.html (isBarberFreeAt) y admin/index.html
 // (checkConflict/checkScheduleBlock); esta es la implementación real que el
 // comentario de computeAvailability ya prometía (una auditoría previa había
 // confundido esa mención en prosa con código).
@@ -178,7 +178,7 @@ function isRangeFree(busyRanges, startHHMM, endHHMM, bufferMin = 0) {
 // junto a la colación -- ambas leen el mismo staff.schedule[dow] -- para no
 // terminar con una tercera copia de "cómo se interpreta el horario de un
 // barbero" el día que alguien la necesite de nuevo. Mismo criterio que
-// hoursRangeFor() en public/index.html, pero server-side.
+// hoursRangeFor() en public/home.html, pero server-side.
 function isWithinOpenHours(schedule, dow, startHHMM, endHHMM) {
   const day = Array.isArray(schedule) ? schedule[dow] : null;
   if (!day || !day.open) return false;

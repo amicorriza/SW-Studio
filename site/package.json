@@ -1,0 +1,12 @@
+{
+  "name": "scissor-white-site",
+  "private": true,
+  "engines": { "node": "22" },
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "firebase-functions": "^7.3.2"
+  }
+}

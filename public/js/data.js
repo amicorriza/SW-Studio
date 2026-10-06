@@ -78,7 +78,7 @@ function stripId(o) { const { id, ...rest } = o; return rest; }
 // auth) + el buffer de limpieza entre citas (businessInfo.bufferMin). Ambos
 // pueden venir ausentes (negocio recién configurado, o businessInfo/main de
 // antes de que existiera el campo) -- el fallback a DEFAULT_TZ/0 vive en
-// quien consuma esto (public/index.html), no acá: esta capa solo devuelve lo
+// quien consuma esto (public/home.html), no acá: esta capa solo devuelve lo
 // que hay en Firestore, sin lógica de negocio.
 async function loadCatalog() {
   const [services, staff, infoSnap] = await Promise.all([
@@ -181,7 +181,7 @@ function subscribeBookings(onChange) {
 // emailStatus/createdAt y dispara onBookingCreated igual que antes. Si el
 // horario ya no está libre, la Cloud Function rechaza con
 // HttpsError('already-exists'|'resource-exhausted'|...) -- ver el mapeo de
-// mensajes en public/index.html.
+// mensajes en public/home.html.
 async function createBooking(obj) {
   const call = httpsCallable(functions, 'createBooking');
   const { data } = await guarded(call(obj));
@@ -349,7 +349,7 @@ function subscribeAvailability(dateKey, onChange, onError) {
 // El doc trae DOS listas y no una por accidente: `reviews` son las que
 // devuelve Places, y `manualReviews` es la lista curada que el panel guarda
 // en el mismo doc y que ninguna sincronización pisa. Cuál se muestra lo
-// decide el landing (ver pickReviews en public/index.html), no esta capa --
+// decide el landing (ver pickReviews en public/home.html), no esta capa --
 // acá solo se devuelve lo que hay en Firestore.
 async function loadGoogleReviews() {
   const snap = await getDoc(doc(db, 'googleReviews', 'main'));

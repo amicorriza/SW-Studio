@@ -1,4 +1,5 @@
 User-agent: *
 Disallow: /admin/
+Disallow: /home.html
 
 Sitemap: https://scissorwhite.cl/sitemap.xml

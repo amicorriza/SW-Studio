@@ -2,7 +2,7 @@
   "name": "scissor-white",
   "private": true,
   "scripts": {
-    "test": "node --test \"tests/unit/**/*.test.js\"",
+    "test": "node --test \"tests/unit/**/*.test.js\" \"site/test/*.test.js\"",
     "test:rules": "firebase emulators:exec --only firestore,storage \"vitest run tests/rules\"",
     "test:e2e": "node tests/e2e/todos.mjs"
   },

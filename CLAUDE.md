@@ -11,7 +11,23 @@ public/login/index.html  puerta ÚNICA del equipo. Ni /admin/ ni /barbero/ tiene
                          sesión y dice qué falta. El scope de la PWA se amplió
                          a "/" para que la app instalada no salte al navegador
                          al ir a /login (start_url sigue en /barbero/).
-public/index.html        landing + widget de reservas, ~4.000 líneas, JS y CSS inline
+public/home.html         landing + widget de reservas, ~4.000 líneas, JS y CSS inline.
+                         Antes era public/index.html: se renombró porque Hosting
+                         sirve un index.html estático en "/" ANTES de mirar los
+                         rewrites, y "/" tiene que negociar Accept (ver site/).
+site/                    función `site` (codebase aparte, sin firebase-admin):
+                         firebase.json reescribe "**" a ella, así que recibe
+                         "/" y toda ruta que no sea un archivo estático. Con
+                         Accept: text/markdown devuelve public/index.md (o un
+                         404 en Markdown); si no, public/home.html (o
+                         public/404.html con 404). Trae esos archivos desde
+                         Hosting, no los copia. Siempre Vary: Accept. Tests
+                         puros en site/test (`npm test` en la raíz los corre).
+public/index.md,         lo que leen los agentes de IA. index.md es la portada en
+public/llms.txt          Markdown y es copia A MANO de la landing: si cambian
+                         servicios, precios u horario en home.html, actualizar
+                         también index.md, llms.txt y about/contact. Las páginas
+                         about/, contact/ y privacy/ usan public/assets/pages.css.
 public/admin/index.html  panel admin, ~3.700 líneas, JS y CSS inline
 public/js/data.js        única capa que habla con Firestore, Storage y Functions
 public/js/metrics.js     agregaciones puras del Dashboard de métricas (KPIs,
@@ -48,7 +64,7 @@ firestore.rules, storage.rules
 
 Estado conocido, a verificar antes de tocar nada:
 - Solape y zona horaria: la fuente única es functions/shared/availability.js
-  y functions/shared/timezone.js. public/index.html mantiene una copia
+  y functions/shared/timezone.js. public/home.html mantiene una copia
   deliberada y fiel (documentada como tal, <script> plano sin bundler).
   public/admin/index.html ya NO diverge: checkConflict()/checkScheduleBlock()
   usan el mismo criterio de minutos-desde-medianoche (antes usaban objetos
@@ -97,7 +113,7 @@ Estado conocido, a verificar antes de tocar nada:
   no borrar. El borrado duro sigue existiendo pero solo sobre servicios ya
   inactivos y tras doble confirmación (escribir el nombre exacto + modal).
   Cada servicio tiene `order` (entero) que gobierna el orden en el panel Y en
-  el widget de reservas (public/index.html refreshCatalog lo respeta); a los
+  el widget de reservas (public/home.html refreshCatalog lo respeta); a los
   servicios sin `order` se les asigna su índice al cargar (normalizeSvcOrder)
   y se persiste al primer guardado. `updatedAt` (ISO) se setea en cada
   alta/edición/duplicado/ajuste masivo. Reordenar a mano (arrastrar / ↑↓)

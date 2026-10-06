@@ -90,7 +90,11 @@ marcando **Sobrecupo** — nunca es un bloqueo duro.
 ```
 scissor-white/
 ├── public/               # Firebase Hosting
-│   ├── index.html        # sitio público: landing + widget de reservas
+│   ├── home.html         # sitio público: landing + widget de reservas (servida en "/" por la función site)
+│   ├── index.md          # portada en Markdown para agentes (Accept: text/markdown)
+│   ├── llms.txt          # guía para agentes de IA, con sección "When to use"
+│   ├── about/ contact/ privacy/  # páginas de confianza (estáticas, assets/pages.css)
+│   ├── 404.html          # 404 HTML; el 404 en Markdown lo arma site/negotiate.js
 │   ├── admin/index.html  # panel de administración (ruta /admin/)
 │   ├── robots.txt        # Disallow: /admin/
 │   ├── js/               # firebase-init.js, data.js (Firestore), auth.js (login),
@@ -105,6 +109,7 @@ scissor-white/
 │   ├── shared/           # availability.js, timezone.js, validate.js, status.js, attendance.js
 │   ├── scripts/          # reconcileCatalog, backfillAvailability, setAdminClaim
 │   └── test/             # node --test (sin emulador)
+├── site/                 # función `site` (codebase "site"): negociación HTML/Markdown en "/" y 404
 ├── seed/                 # carga inicial a Firestore
 ├── tests/unit/           # node --test de las agregaciones del Dashboard (npm test)
 ├── tests/browser/        # scripts Playwright standalone (no vitest)
@@ -232,6 +237,30 @@ functions:getMyDay,functions:markAttendance,functions:linkStaffAccount,\
 functions:staffAttendanceNudges,functions:getMyRange,functions:getMyClients,functions:adminSaveBooking,functions:adminLogEvent,\
 functions:sendBookingReminders,functions:respondToBookingReminder,functions:getBookingForReminderAction
 ```
+
+### Función `site` (portada y 404) — ANTES que hosting
+
+`firebase.json` reescribe `"/"` y toda ruta inexistente a la función `site`
+(codebase aparte en `site/`). Si se publica hosting con ese rewrite y la función
+no existe, la portada se cae. Orden obligatorio la primera vez:
+
+```bash
+cd site && npm ci && cd ..
+firebase deploy --project scissor-white --only functions:site
+firebase deploy --project scissor-white --only hosting
+```
+
+Verificar después (la primera debe responder Markdown, la segunda HTML, las dos
+con `Vary: Accept`; la tercera 404 con cuerpo Markdown):
+
+```bash
+curl -sS -i -H 'Accept: text/markdown' https://scissorwhite.cl/
+curl -sS -i -H 'Accept: text/html' https://scissorwhite.cl/
+curl -sS -i -H 'Accept: text/markdown' https://scissorwhite.cl/no-existe
+```
+
+Volver atrás: quitar `rewrites` de `firebase.json`, renombrar
+`public/home.html` a `public/index.html` y publicar hosting.
 
 Son **11 nombres — uno por cada `exports.` de `functions/index.js`**. Antes de
 deployar, verificar que no falte ninguno:

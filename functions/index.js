@@ -327,7 +327,7 @@ async function recomputeAvailabilityForDate(db, dateKey) {
   // La colación recurrente (staff.schedule[dow].break) NO entra acá a
   // propósito: es semanal, no por fecha, y `staff` es lectura pública que el
   // widget ya carga en refreshCatalog(), así que la aplica en cliente (ver
-  // isBarberFreeAt en public/index.html) junto al horario de apertura, que ya
+  // isBarberFreeAt en public/home.html) junto al horario de apertura, que ya
   // se resuelve ahí. Meterla también en la vista obligaría a recalcular todas
   // las fechas futuras ante cada escritura de `staff` -- y saveAdmin reescribe
   // todos los docs de staff en cada guardado del admin -- o dejaría la vista
@@ -461,7 +461,7 @@ exports.sendBookingReminders = onSchedule(
         .get();
 
       // `code` es generado en el cliente (Date.now() en base36 + un
-      // aleatorio de 3 dígitos, ver public/index.html) sin unicidad
+      // aleatorio de 3 dígitos, ver public/home.html) sin unicidad
       // reforzada del lado del servidor -- no es apto como clave de
       // emparejamiento: una colisión mandaría el recordatorio de una
       // reserva a los datos de otra. Se usa el ID real del doc de

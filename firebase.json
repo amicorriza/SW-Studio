@@ -9,7 +9,12 @@
       { "source": "/js/**", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
       { "source": "/assets/**", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }] },
       { "source": "/barbero/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-      { "source": "**/*.webmanifest", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
+      { "source": "**/*.webmanifest", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+      { "source": "**/*.md", "headers": [{ "key": "Content-Type", "value": "text/markdown; charset=utf-8" }, { "key": "Cache-Control", "value": "no-cache" }] },
+      { "source": "/llms.txt", "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }, { "key": "Cache-Control", "value": "no-cache" }] }
+    ],
+    "rewrites": [
+      { "source": "**", "function": { "functionId": "site", "region": "southamerica-east1" } }
     ]
   },
   "firestore": {
@@ -20,7 +25,8 @@
     "rules": "storage.rules"
   },
   "functions": [
-    { "source": "functions", "codebase": "default", "runtime": "nodejs22" }
+    { "source": "functions", "codebase": "default", "runtime": "nodejs22" },
+    { "source": "site", "codebase": "site", "runtime": "nodejs22" }
   ],
   "emulators": {
     "auth": { "port": 9099 },

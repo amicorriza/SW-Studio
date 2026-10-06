@@ -19,7 +19,7 @@ const MIME = { '.html':'text/html','.js':'text/javascript','.css':'text/css','.p
   '.webmanifest':'application/manifest+json' };
 const server = http.createServer((req,res)=>{
   let p = decodeURIComponent(req.url.split('?')[0]);
-  if(p==='/') p='/index.html';
+  if(p==='/') p='/home.html';
   if(p.endsWith('/')) p += 'index.html';
   if(!path.extname(p)) p += '/index.html';
   fs.readFile(path.join(ROOT,p),(e,b)=>{ if(e){res.writeHead(404);return res.end();}

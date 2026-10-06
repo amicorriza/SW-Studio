@@ -7,7 +7,7 @@
 // PRINCIPIO (Fase 2): la zona del NEGOCIO gobierna todo -- ni el navegador
 // del cliente ni el de quien administra el panel influyen en nada. La
 // contraparte de este archivo vive duplicada, a propósito, inline en
-// public/index.html y public/admin/index.html (son <script> planos sin
+// public/home.html y public/admin/index.html (son <script> planos sin
 // bundler, no pueden importar este módulo -- mismo motivo documentado para
 // overlaps()/isRangeFree() en ./availability.js). Cambiar la lógica acá sin
 // revisar esas dos copias es exactamente el tipo de divergencia silenciosa

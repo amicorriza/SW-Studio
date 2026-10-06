@@ -1,0 +1,29 @@
+/* Páginas de texto (about, contact, privacy, 404). Misma paleta y tipografías
+   que la landing (public/home.html): negro #0A0A0A, acero #C8D0DA/#9AAABB,
+   Orbitron para títulos, Barlow Condensed para etiquetas, Inter para texto. */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--black:#0A0A0A;--ink:#111;--steel-light:#C8D0DA;--steel-mid:#9AAABB;--text:rgba(255,255,255,.78)}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{background:var(--black);color:var(--text);font-family:'Inter',sans-serif;line-height:1.7;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;flex-direction:column}
+a{color:#fff;text-underline-offset:3px}
+a:hover{color:var(--steel-light)}
+.pg-nav{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px clamp(16px,5vw,64px);border-bottom:1px solid rgba(255,255,255,.08)}
+.pg-brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:#fff}
+.pg-brand img{width:40px;height:40px}
+.pg-brand span{font-family:'Orbitron',sans-serif;font-size:14px;letter-spacing:.08em}
+.pg-back{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;text-decoration:none;color:var(--steel-light)}
+main{flex:1;width:100%;max-width:760px;margin:0 auto;padding:clamp(40px,8vw,88px) 16px}
+.s-ey{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--steel-light);margin-bottom:14px}
+h1{font-family:'Orbitron',sans-serif;font-size:clamp(28px,6vw,48px);font-weight:500;line-height:1.1;color:#fff;margin-bottom:28px}
+h2{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#fff;margin:40px 0 12px}
+p,ul,dl{margin-bottom:16px}
+ul{padding-left:20px}
+li{margin-bottom:6px}
+dt{font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--steel-mid);font-size:13px;margin-top:14px}
+dd{color:#fff}
+.btn-p{display:inline-flex;align-items:center;gap:10px;margin-top:12px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;text-decoration:none;color:var(--ink);background:#fff;padding:15px 30px;transition:background .25s}
+.btn-p:hover{background:var(--steel-light);color:var(--ink)}
+.pg-meta{font-size:13px;color:var(--steel-mid)}
+footer{padding:28px 16px;text-align:center;font-size:13px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.08)}
+footer nav{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 20px;margin-bottom:10px}
+footer a{color:rgba(255,255,255,.7);text-decoration:none}

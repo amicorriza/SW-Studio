@@ -18,7 +18,7 @@ const MIME = { '.html':'text/html','.js':'text/javascript','.css':'text/css','.p
   '.ico':'image/x-icon','.webmanifest':'application/manifest+json' };
 const server = http.createServer((req,res)=>{
   let p = decodeURIComponent(req.url.split('?')[0]);
-  if(p==='/') p='/index.html';
+  if(p==='/') p='/home.html';
   if(p.endsWith('/')) p += 'index.html';
   fs.readFile(path.join(ROOT,p),(e,b)=>{ if(e){res.writeHead(404);return res.end();}
     res.writeHead(200,{'Content-Type':MIME[path.extname(p).toLowerCase()]||'application/octet-stream'}); res.end(b); });

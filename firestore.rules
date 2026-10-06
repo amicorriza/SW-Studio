@@ -66,7 +66,7 @@ service cloud.firestore {
     match /googleReviews/{id} { allow read: if true; allow write: if canAdminWrite(); }
 
     // Reservas: solo admin lee/crea/edita/borra. La creación pública ya NO
-    // pasa por acá -- el widget (public/index.html) llama al callable
+    // pasa por acá -- el widget (public/home.html) llama al callable
     // transaccional `createBooking` (functions/createBooking.js, Admin SDK,
     // no sujeto a estas reglas), que además verifica disponibilidad real
     // antes de escribir (algo que una regla no puede hacer: no puede

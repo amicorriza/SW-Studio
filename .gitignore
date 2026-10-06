@@ -9,6 +9,9 @@ functions/node_modules/
 functions/.env
 functions/.env.*
 !functions/.env.example
+# No es secreto: apunta la función `site` al Hosting del emulador.
+!site/.env.local
+site/node_modules/
 serviceAccountKey.json
 *-service-account.json
 

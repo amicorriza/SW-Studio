@@ -2916,7 +2916,7 @@ function renderAttendanceBlock(bk){
 // Aritmética en minutos-desde-medianoche (toMin), NUNCA objetos Date -- así
 // evita depender del huso horario del NAVEGADOR de quien administra. Mismo
 // criterio que overlaps()/isRangeFree() en functions/shared/availability.js
-// e isBarberFreeAt() en public/index.html (ver esos archivos para el
+// e isBarberFreeAt() en public/home.html (ver esos archivos para el
 // razonamiento completo). Antes de este cambio, checkConflict() armaba
 // objetos Date vía parseDt()/parseYmd() en hora local del navegador -- una
 // divergencia real con el invariante "la zona del negocio gobierna, nunca
@@ -2948,7 +2948,7 @@ function checkConflict(barberId, dateStr, timeStr, durMin, ignoreId, bufferMin){
   return null;
 }
 // 'HH:MM' -> minutos desde medianoche. Copia deliberada de toMin() en
-// public/index.html (que a su vez documenta el mismo motivo que
+// public/home.html (que a su vez documenta el mismo motivo que
 // functions/shared/availability.js#toMinutes) -- este <script> es plano,
 // sin bundler, no puede importar ningún módulo de functions/shared/.
 function toMin(hhmm){
@@ -2957,7 +2957,7 @@ function toMin(hhmm){
 }
 // 'YYYY-MM-DD' -> día de la semana (0=Dom..6=Sáb), para indexar
 // staff.schedule[dow]. Zona-independiente a propósito, igual que
-// dowOfDateKey() en public/index.html y el cálculo de `dow` en
+// dowOfDateKey() en public/home.html y el cálculo de `dow` en
 // functions/createBooking.js: el día de la semana de una fecha calendario
 // es el mismo mirado desde cualquier huso horario.
 function dowOfDateKey(dateKey){

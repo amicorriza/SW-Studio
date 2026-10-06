@@ -2,7 +2,7 @@
 
 - **Fecha:** 2026-10-05
 - **Proyecto:** Scissor White / SW Studio
-- **Alcance:** `firestore.rules`, `functions/index.js`, `functions/shared/license.js` (nuevo), `functions/scripts/license.js` (nuevo), `public/js/data.js`, `public/admin/index.html`, `public/barbero/index.html`, `public/index.html`. Aprobado por Aldo tras brainstorming (enfoque A).
+- **Alcance:** `firestore.rules`, `functions/index.js`, `functions/shared/license.js` (nuevo), `functions/scripts/license.js` (nuevo), `public/js/data.js`, `public/admin/index.html`, `public/barbero/index.html`, `public/login/index.html`, `public/js/booking-widget.js`, `public/index.html` (solo markup del overlay). Aprobado por Aldo tras brainstorming (enfoque A).
 
 ## Contexto (verificado en el código)
 
@@ -32,7 +32,8 @@ Documento nuevo, separado de `businessInfo`:
 ```js
 license/main = {
   status: 'active' | 'warning' | 'suspended',
-  message: string,     // opcional; lo que ve la dueña en el panel
+  message: string,     // opcional; lo que ve la dueña en el panel. OJO: license/main es de lectura
+                       // pública, así que el texto debe ser neutro ("Contacta a soporte para reactivar").
   suspendAt: string,   // opcional, 'YYYY-MM-DD'; solo para el texto del banner de warning
   updatedAt: string,   // ISO, lo escribe el script
 }
@@ -64,7 +65,7 @@ Mismo patrón que `status.js` y `attendance.js` (puro, testeable sin emulador):
 En `functions/index.js`:
 
 - `readLicense(db)`: lee `license/main` y normaliza. Cachea el resultado en memoria 60 s por instancia, para no agregar una lectura en cada llamada. Consecuencia aceptada: suspender o reactivar tarda hasta 1 minuto en verse en el servidor.
-- `assertActive(db)`: si está suspendido, lanza `HttpsError('failed-precondition', 'Servicio suspendido.', { license: 'suspended', message })`. Los frontends reconocen `details.license`.
+- `assertActive(db)`: si está suspendido, lanza `HttpsError('failed-precondition', 'Servicio suspendido.', { license: 'suspended' })`. Los frontends reconocen `details.license`. El `message` **no** viaja en el error: `createBooking` lo devolvería a cualquier visitante.
 
 Se llama al principio de estos callables (después de validar la auth, antes de cualquier escritura):
 
@@ -74,13 +75,13 @@ Se llama al principio de estos callables (después de validar la auth, antes de 
 | `adminSaveBooking` | reserva desde el panel |
 | `markAttendance` | operación del barbero y del admin |
 | `getMyDay`, `getMyRange`, `getMyClients` | la PWA entera |
-| `linkStaffAccount`, `syncGoogleReviews`, `adminLogEvent` | operaciones del panel |
+| `linkStaffAccount`, `adminLogEvent` | operaciones del panel |
 
 **Siguen funcionando a propósito:**
 
 - `getAvailability` y `getClubStatus`: solo leen, y el widget ya no llega a usarlos.
 - `getBookingForReminderAction` y `respondToBookingReminder`: los usa un cliente final que hace clic en un correo enviado *antes* de la suspensión. Castigarlo no le cobra nada a nadie.
-- `refreshGoogleReviews`: alimenta el landing, que sigue en línea.
+- `refreshGoogleReviews` y `syncGoogleReviews`: alimentan el landing, que sigue en línea, y CLAUDE.md prohíbe tocar el módulo de reseñas. El panel igual queda tapado por el overlay.
 - Triggers `onBookingCreated`, `onBookingWritten` y `onScheduleBlockWritten`: sin cambios, porque con los callables cerrados no se crean reservas nuevas.
 
 **Tareas programadas** `sendBookingReminders`, `sendSatisfactionSurveys` y `staffAttendanceNudges`: si `isSuspended(await readLicense(db))`, registran un log y salen sin enviar nada. Es el mismo patrón que sus interruptores actuales y va justo al lado de ellos.
@@ -107,7 +108,7 @@ Se llama al principio de estos callables (después de validar la auth, antes de 
 - **`public/js/data.js`:** `readLicense()` hace `getDoc(license/main)` y devuelve los datos crudos o `null`. Si la lectura falla, devuelve `null`; nunca lanza error, para fallar abierto. La normalización vive en cada consumidor con la misma regla (desconocido = activo), igual que la copia deliberada de `status.js` en el admin.
 - **Panel admin:** al arrancar (junto a `loadAdmin()`) lee la licencia. Con `suspended` muestra un overlay a pantalla completa que no se puede cerrar, con el `message` y el botón Cerrar sesión. Con `warning` muestra un banner fijo arriba. Además, cualquier error de callable con `details.license === 'suspended'` muestra el mismo overlay, por si la suspensión ocurre con el panel abierto. El overlay usa el estilo existente del panel, sin cambiar el diseño visual.
 - **PWA barbero:** no lee Firestore. Si `getMyDay` responde `failed-precondition` con `details.license === 'suspended'`, muestra la pantalla "Servicio suspendido temporalmente. Consulta con la administración", con el botón Salir.
-- **Widget (`public/index.html`):** `loadCatalog()` agrega la lectura de la licencia. Con `suspended`, el paso de reserva se reemplaza por el texto neutro y el CTA de WhatsApp. Si `createBooking` igual responde suspendido (por ejemplo, la página se cargó antes de suspender), muestra el mismo texto en vez de un error genérico.
+- **Widget (`public/js/booking-widget.js` + markup en `public/index.html`):** `openBK()` lee la licencia. Con `suspended`, el wizard se reemplaza por el texto neutro y el CTA de WhatsApp. Si `createBooking` igual responde suspendido (por ejemplo, la página se cargó antes de suspender), muestra el mismo texto en vez de un error genérico.
 
 ### Cómo suspende Aldo
 
@@ -117,6 +118,13 @@ Se llama al principio de estos callables (después de validar la auth, antes de 
 ### Despliegue
 
 Lo hace Aldo: reglas + las funciones modificadas (lista explícita de nombres, como dice el README; no hay funciones nuevas) + hosting. El orden no importa gracias al "ausente = activo". Después del deploy, crear `license/main` con `status:'active'` para dejar el documento a mano.
+
+## Fe de erratas (2026-10-05, al escribir el plan)
+
+- El widget vive en `public/js/booking-widget.js`, no inline en `public/index.html`. La licencia se lee en `openBK()` y no en `loadCatalog()`, para que `loadCatalog` siga devolviendo solo el catálogo.
+- `syncGoogleReviews` queda **sin** gatear: CLAUDE.md prohíbe tocar el módulo de reseñas.
+- `license/main` es de lectura pública, así que `message` debe ser neutro y no viaja en el `HttpsError`.
+- `/login` y `redirigirSiEsBarbero()` del panel tratan un `getMyDay` suspendido como "es barbero" y lo mandan a `/barbero/`, donde ve la pantalla de suspensión en vez de "tu cuenta no tiene acceso".
 
 ## Fuera de alcance
 

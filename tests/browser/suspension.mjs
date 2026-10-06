@@ -155,6 +155,52 @@ async function abrirAdmin(lic){
   await ctx.close();
 }
 
+// ═══════════════ WIDGET ═══════════════
+async function abrirWidget(licFn){
+  const { ctx, page } = await nuevaPagina({ width:1200, height:900 });
+  await page.addInitScript((licFn) => {
+    window.__LIC = licFn;
+    window.SWAuth = { onChange: () => () => {} };
+    window.SWData = {
+      loadCatalog: async () => ({ services:[], staff:[], tz:'America/Santiago', bufferMin:0 }),
+      readLicense: async () => {
+        if (window.__LIC === 'falla') throw new Error('offline');
+        return { status: window.__LIC, message:'motivo interno', suspendAt:'' };
+      },
+      subscribeAvailability: () => () => {},
+      loadGoogleReviews: async () => null, loadSiteImages: async () => ({}),
+    };
+  }, licFn);
+  await page.goto(`http://localhost:${PORT}/`, { waitUntil:'load' });
+  await page.waitForTimeout(600);
+  await page.evaluate(() => window.openBK());
+  await page.waitForTimeout(400);
+  return { ctx, page };
+}
+
+{
+  const { ctx, page } = await abrirWidget('suspended');
+  check('widget suspendido: aviso visible', await page.isVisible('#bk-suspended'));
+  check('widget suspendido: wizard oculto', !(await page.isVisible('#bk-body')));
+  const txt = (await page.textContent('#bk-suspended').catch(() => '')) || '';
+  check('widget suspendido: NO muestra el motivo interno', !txt.includes('motivo interno'), txt);
+  check('widget suspendido: ofrece WhatsApp', await page.isVisible('#bk-suspended a[href*="wa.me/56982514114"]'));
+  // Review Focus #4: reactivar sin recargar.
+  await page.evaluate(() => { window.closeBK(); window.__LIC = 'active'; window.openBK(); });
+  await page.waitForTimeout(400);
+  check('widget: reabrir con licencia activa vuelve a mostrar el wizard', await page.isVisible('#bk-body'));
+  check('widget: y esconde el aviso', !(await page.isVisible('#bk-suspended')));
+  await ctx.close();
+}
+
+// Review Focus #5: si no se puede leer la licencia, el widget falla abierto.
+{
+  const { ctx, page } = await abrirWidget('falla');
+  check('widget con lectura fallida: wizard visible', await page.isVisible('#bk-body'));
+  check('widget con lectura fallida: sin aviso', !(await page.isVisible('#bk-suspended')));
+  await ctx.close();
+}
+
 // ── fin ──
 await browser.close();
 server.close();

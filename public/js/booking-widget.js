@@ -215,6 +215,23 @@ function activeBarberIds(){ return BARBERS.filter(b=>!b.any).map(b=>b.id); }
 // esto, un lector de pantalla o alguien navegando por teclado quedaba con
 // el foco en lo que tenía detrás del overlay. lastFocusedBK guarda qué
 // tenía el foco antes de abrir para devolvérselo al cerrar.
+// Servicio suspendido por falta de pago (license/main; spec
+// 2026-10-05-suspension-servicio-design.md). Se lee al ABRIR el wizard, no al
+// cargar la página, para que una reactivación se vea sin recargar. Si la
+// lectura falla, el wizard queda como está: el widget falla abierto
+// (invariante) y createBooking igual rechaza en el servidor.
+function bkSetSuspended(on){
+  document.getElementById('bk-suspended').hidden = !on;
+  document.getElementById('bk-stepper').style.display = on ? 'none' : '';
+  document.getElementById('bk-body').style.display = on ? 'none' : '';
+}
+function bkCheckLicense(){
+  bkSetSuspended(false);
+  if(!window.SWData || typeof window.SWData.readLicense !== 'function') return;
+  window.SWData.readLicense()
+    .then(l=>{ if(l && l.status==='suspended') bkSetSuspended(true); })
+    .catch(()=>{});
+}
 let lastFocusedBK = null;
 function openBK(){
   // El CTA del menú móvil abre el wizard: hay que cerrar el menú antes, o queda
@@ -227,6 +244,7 @@ function openBK(){
   S = {step:1, svc:null, barber:null, date:null, time:null};
   renderSvcs(); renderBarbers(); renderCal(); updateSummary();
   bkGoTo(1);
+  bkCheckLicense();
   var first = document.getElementById('booking-overlay').querySelector('button,input,select,textarea,[tabindex]');
   if(first) first.focus();
   // Refrescar catálogo desde Firestore y re-pintar solo lo que el usuario
@@ -989,6 +1007,9 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
       saved = true;
     }catch(e){
       console.error('No se pudo guardar la reserva', e);
+      // La página se cargó antes de suspender: se muestra el mismo aviso
+      // neutro en vez de "problema de conexión".
+      if(e && e.details && e.details.license === 'suspended'){ bkSetSuspended(true); return; }
       const slotMsg = BK_SLOT_TAKEN_MESSAGES[bkErrorCode(e)];
       if(slotMsg){
         // No es un fallo de conexión: el horario elegido ya no está libre.

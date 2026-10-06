@@ -186,6 +186,28 @@ citas de hoy más un histórico ya medido.
 > justamente que eso no rompa nada). Probarlo de verdad exige un teléfono
 > contra staging.
 
+## Suspender / reactivar el servicio
+
+El documento `license/main` controla si SW Studio opera. Solo lo puede
+escribir el dueño del proyecto (las reglas lo dejan en `write: false`).
+
+| `status` | Efecto |
+|---|---|
+| ausente / `active` | normal |
+| `warning` | banner "Pago pendiente" en el panel, sin bloquear nada (`suspendAt` = fecha del texto) |
+| `suspended` | panel y app del barbero muestran "servicio suspendido"; el widget muestra "reservas online no disponibles"; no salen recordatorios, encuestas ni avisos. El landing sigue en línea y no se borra ningún dato. |
+
+```bash
+cd functions
+node scripts/license.js warning --suspend-at 2026-10-15
+node scripts/license.js suspended --message "Contacta a soporte para reactivar"
+node scripts/license.js active
+```
+
+También se puede editar `status` a mano en la consola de Firestore. Las
+funciones lo ven en hasta 1 minuto. `license/main` es de lectura pública:
+el `message` debe ser neutro.
+
 ## Deploy
 
 > **`functions/.env` rompe el deploy de funciones.** Cloud Run rechaza que

@@ -133,6 +133,21 @@ Estado conocido, a verificar antes de tocar nada:
 - staffAttendanceNudges (onSchedule, cada 2 min) manda los avisos, pero NO
   envía nada salvo businessInfo.nudgesEnabled === true -- mismo interruptor
   que remindersEnabled. Deploy != activación.
+- Suspensión por falta de pago: license/main {status: active|warning|suspended,
+  message, suspendAt}. Lo escribe SOLO Aldo (consola o
+  functions/scripts/license.js); las reglas lo dejan en write:false incluso
+  para el admin. NO va en businessInfo porque saveAdmin() reescribe
+  businessInfo/main entero y borraría la marca. Ausente o desconocido = ACTIVO
+  en todas las capas (functions/shared/license.js; copia deliberada en
+  public/js/data.js). El corte real: assertActive() en createBooking,
+  adminSaveBooking, markAttendance, getMyDay/Range/Clients, linkStaffAccount y
+  adminLogEvent (failed-precondition, details {license:'suspended'} SIN el
+  mensaje), las tres onSchedule de envío salen temprano, y canAdminWrite() en
+  firestore.rules gatea las ESCRITURAS del admin (las lecturas no: los datos
+  son de la dueña). syncGoogleReviews queda sin gatear (prohibido tocar
+  reseñas). En getMyDay va DESPUÉS del chequeo de ficha: /login decide con el
+  permission-denied. Caché de 60 s por instancia (0 en el emulador).
+  license/main es de lectura pública: message debe ser neutro.
 - Despliegue manual con diecinueve nombres de función a mano (ver README.md);
   createBooking ya quedó fuera de esa lista una vez y se congeló en silencio.
 

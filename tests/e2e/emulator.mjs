@@ -117,4 +117,23 @@ export async function patchDoc(path, data, idToken) {
   if (!r.ok) throw new Error('patchDoc ' + path + ': ' + r.status + ' ' + (await r.text()).slice(0, 200));
 }
 
+// Escritura con privilegios de dueño del proyecto: el emulador acepta el token
+// literal "owner" y se salta firestore.rules. Solo para documentos que ningún
+// cliente puede escribir (license/main tiene write:false). Sin updateMask, el
+// PATCH reemplaza el documento entero.
+export async function ownerSetDoc(path, data) {
+  const fields = {};
+  Object.entries(data).forEach(([k, v]) => { fields[k] = typed(v); });
+  const r = await fetch(`${FS}/${path}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
+    body: JSON.stringify({ fields }),
+  });
+  if (!r.ok) throw new Error('ownerSetDoc ' + path + ': ' + r.status + ' ' + (await r.text()).slice(0, 200));
+}
+
+export async function ownerDeleteDoc(path) {
+  await fetch(`${FS}/${path}`, { method: 'DELETE', headers: { Authorization: 'Bearer owner' } });
+}
+
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -21,6 +21,7 @@ const { ATTENDANCE_ACTIONS, applyAction, computeNudges, SNOOZE_MS } = require('.
 const { aggregateMyClients } = require('./shared/clients.js');
 const { isValidAdminBookingPayload } = require('./shared/validate.js');
 const { DEFAULT_BOOKING_STATUS } = require('./shared/status.js');
+const { normalizeLicense, isSuspended } = require('./shared/license.js');
 
 const app = initializeApp();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -39,6 +40,40 @@ function assertAdmin(request) {
   const auth = request.auth;
   if (!auth || auth.token.admin !== true) {
     throw new HttpsError('permission-denied', 'Solo el panel de administración puede hacer esto.');
+  }
+}
+
+// Suspensión por falta de pago (spec 2026-10-05-suspension-servicio-design.md).
+// license/main lo escribe solo Aldo. Se cachea por instancia para no sumar una
+// lectura a cada llamada: suspender o reactivar tarda hasta un minuto en verse.
+// En el emulador la caché va en 0 para que el e2e pueda alternar estados.
+//
+// Si la lectura FALLA, se asume activo y no se cachea: es un interruptor de
+// cobro, no de seguridad, y apagar el salón por un hiccup de Firestore sería
+// peor que dejarlo andar un minuto más.
+const LICENSE_TTL_MS = process.env.FUNCTIONS_EMULATOR === 'true' ? 0 : 60 * 1000;
+let licenseCache = { at: 0, value: null };
+
+async function readLicense(db) {
+  const now = Date.now();
+  if (licenseCache.value && now - licenseCache.at < LICENSE_TTL_MS) return licenseCache.value;
+  try {
+    const snap = await db.collection('license').doc('main').get();
+    const value = normalizeLicense(snap.exists ? snap.data() : null);
+    licenseCache = { at: now, value };
+    return value;
+  } catch (e) {
+    logger.error('readLicense: no se pudo leer license/main, se asume activo', e);
+    return normalizeLicense(null);
+  }
+}
+
+// Va SIEMPRE fuera de runTransaction (usa db.get suelto). El mensaje de
+// license/main NO viaja en el error: createBooking lo devolvería a cualquier
+// visitante del sitio.
+async function assertActive(db) {
+  if (isSuspended(await readLicense(db))) {
+    throw new HttpsError('failed-precondition', 'Servicio suspendido.', { license: 'suspended' });
   }
 }
 
@@ -151,6 +186,7 @@ exports.onBookingCreated = onDocumentCreated(
 exports.createBooking = onCall(
   { region: 'southamerica-east1' },
   async (request) => {
+    await assertActive(getFirestore(app));
     const payload = request.data || {};
     const svcId = typeof payload.svcId === 'string' ? payload.svcId : '';
     // Guard explícito: `.doc('')` lanza una excepción cruda de Admin SDK
@@ -398,6 +434,10 @@ exports.sendBookingReminders = onSchedule(
         logger.info('sendBookingReminders: remindersEnabled no está activado, no se envía nada esta corrida.');
         return;
       }
+      if (isSuspended(await readLicense(db))) {
+        logger.info('sendBookingReminders: servicio suspendido (license/main), no se envía nada.');
+        return;
+      }
 
       const businessTz = resolveBusinessTz(businessInfoData);
 
@@ -523,6 +563,10 @@ exports.sendSatisfactionSurveys = onSchedule(
       // nudgesEnabled: por defecto (campo ausente) no manda nada.
       if (!businessInfoData || businessInfoData.surveysEnabled !== true) {
         logger.info('sendSatisfactionSurveys: surveysEnabled no está activado, no se envía nada esta corrida.');
+        return;
+      }
+      if (isSuspended(await readLicense(db))) {
+        logger.info('sendSatisfactionSurveys: servicio suspendido (license/main), no se envía nada.');
         return;
       }
 
@@ -877,6 +921,7 @@ exports.getMyDay = onCall(
     const db = getFirestore(app);
     const staff = await resolveStaffFor(db, request);
     if (!staff) throw new HttpsError('permission-denied', 'Esta cuenta no está vinculada a ningún profesional.');
+    await assertActive(db);
 
     const businessInfoSnap = await db.collection('businessInfo').doc('main').get();
     const tz = resolveBusinessTz(businessInfoSnap.exists ? businessInfoSnap.data() : null);
@@ -930,6 +975,7 @@ exports.adminLogEvent = onCall(
   { region: 'southamerica-east1' },
   async (request) => {
     assertAdmin(request);
+    await assertActive(getFirestore(app));
     const db = getFirestore(app);
     const { action, item } = request.data || {};
     if (typeof action !== 'string' || action.trim() === '') {
@@ -964,6 +1010,7 @@ exports.adminSaveBooking = onCall(
   { region: 'southamerica-east1' },
   async (request) => {
     assertAdmin(request);
+    await assertActive(getFirestore(app));
     const db = getFirestore(app);
     const p = (request.data && request.data.booking) || {};
 
@@ -1043,6 +1090,7 @@ exports.getMyRange = onCall(
     const db = getFirestore(app);
     const staff = await resolveStaffFor(db, request);
     if (!staff) throw new HttpsError('permission-denied', 'Esta cuenta no está vinculada a ningún profesional.');
+    await assertActive(db);
 
     const from = dateKeyOf(request.data && request.data.from);
     const to = dateKeyOf(request.data && request.data.to);
@@ -1080,6 +1128,7 @@ exports.getMyClients = onCall(
     const db = getFirestore(app);
     const staff = await resolveStaffFor(db, request);
     if (!staff) throw new HttpsError('permission-denied', 'Esta cuenta no está vinculada a ningún profesional.');
+    await assertActive(db);
 
     const snap = await db.collection('bookings').where('barberId', '==', staff.id).get();
     const crudas = snap.docs.map((d) => {
@@ -1113,6 +1162,7 @@ exports.markAttendance = onCall(
     // Corregir una hora ya registrada es una operación de auditoría: la hace
     // el admin desde la Agenda, no el barbero desde el teléfono.
     if (at && !isAdmin) throw new HttpsError('permission-denied', 'Solo el panel puede corregir una hora.');
+    await assertActive(db);
 
     const ref = db.collection('bookings').doc(String(bookingId));
 
@@ -1158,6 +1208,7 @@ exports.linkStaffAccount = onCall(
   { region: 'southamerica-east1' },
   async (request) => {
     assertAdmin(request);
+    await assertActive(getFirestore(app));
     const db = getFirestore(app);
     const { staffId, email } = request.data || {};
     if (!staffId || !email) throw new HttpsError('invalid-argument', 'Falta el profesional o el correo.');
@@ -1238,6 +1289,10 @@ exports.staffAttendanceNudges = onSchedule(
       // Deploy != activación.
       if (!businessInfoData || businessInfoData.nudgesEnabled !== true) {
         logger.info('staffAttendanceNudges: nudgesEnabled no está activado, no se envía nada.');
+        return;
+      }
+      if (isSuspended(await readLicense(db))) {
+        logger.info('staffAttendanceNudges: servicio suspendido (license/main), no se envía nada.');
         return;
       }
 

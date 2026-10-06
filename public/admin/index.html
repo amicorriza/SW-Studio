@@ -427,6 +427,11 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
 .a-alert.a-show{display:flex;animation:admFI .3s ease}
 .a-alert.a-ok-t{background:#E8F5EE;color:var(--a-ok);border:1px solid #B8E0CA}
 .a-alert.a-err-t{background:#FFF0F0;color:var(--a-err);border:1px solid #F0C0C0}
+.a-alert.a-warn-t{background:#FFF6E0;color:var(--a-warn);border:1px solid #F0DBA0}
+#adm-susp{position:fixed;inset:0;z-index:10200;background:rgba(10,10,10,.6);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:16px}
+#adm-susp-box{background:#fff;border-radius:12px;max-width:420px;width:100%;padding:28px 24px;text-align:center;color:var(--a-txt)}
+#adm-susp-box h2{font-size:18px;font-weight:600;margin-bottom:10px}
+#adm-susp-box p{font-size:13.5px;color:var(--a-body);line-height:1.55;margin-bottom:18px}
 
 /* MODALS */
 .a-mb{position:fixed;inset:0;z-index:10100;background:rgba(10,10,10,.6);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
@@ -1071,6 +1076,17 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
   </style>
 </head>
 <body>
+<!-- Suspensión por falta de pago (license/main). No se puede cerrar: el
+     servidor y las reglas ya cortaron la operación, esto solo lo explica. Va
+     FUERA de #adm-shell porque ese contenedor crea su propio contexto de
+     apilamiento (z-index:1). -->
+<div id="adm-susp" role="alertdialog" aria-modal="true" aria-labelledby="adm-susp-h">
+  <div id="adm-susp-box">
+    <h2 id="adm-susp-h">Servicio suspendido</h2>
+    <p id="adm-susp-msg"></p>
+    <button class="a-btn a-btn-p" id="adm-susp-out">Cerrar sesión</button>
+  </div>
+</div>
 <div id="adm-shell">
 
   <!-- LOGIN -->
@@ -1162,6 +1178,9 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
       </div>
       <div id="adm-load-err-banner" class="a-alert a-err-t" role="alert" style="margin:12px 16px 0">
         ⚠ No se pudo cargar tu información real desde el servidor. Lo que ves abajo puede ser un catálogo de ejemplo -- recargá la página antes de guardar cualquier cambio.
+      </div>
+      <div id="adm-license-banner" class="a-alert a-warn-t" role="status" style="margin:12px 16px 0">
+        <span id="adm-license-banner-t"></span>
       </div>
       <div id="adm-scroll">
 
@@ -1792,6 +1811,46 @@ async function loadFromCloud(){
   }
 }
 
+// ═══ LICENCIA (suspensión por falta de pago) ═══
+// license/main lo controla Aldo, no este panel (write:false en las reglas).
+// Esto solo PINTA: el corte real lo hacen las Functions y firestore.rules.
+// readLicense() nunca rechaza y devuelve 'active' si no pudo leer.
+function fechaDMA(k){ return String(k).split('-').reverse().join('-'); }
+function mostrarSuspension(message){
+  g('adm-susp-msg').textContent = message ||
+    'Para reactivar el sistema, comunícate con soporte. Tus datos se conservan.';
+  g('adm-susp').style.display = 'flex';
+  // Sin esto la suscripción a bookings sigue viva detrás del overlay.
+  if (bkUnsubscribe) { bkUnsubscribe(); bkUnsubscribe = null; }
+}
+function pintarLicencia(lic){
+  var l = lic || { status:'active', message:'', suspendAt:'' };
+  var ban = g('adm-license-banner');
+  if (l.status === 'warning') {
+    g('adm-license-banner-t').textContent = '⚠ Pago pendiente.' +
+      (l.suspendAt ? ' El servicio se suspenderá el ' + fechaDMA(l.suspendAt) + '.' : '') +
+      (l.message ? ' ' + l.message : '');
+    ban.classList.add('a-show');
+  } else {
+    ban.classList.remove('a-show');
+  }
+  if (l.status === 'suspended') mostrarSuspension(l.message);
+}
+async function leerLicencia(){
+  if (!window.SWData || typeof window.SWData.readLicense !== 'function') return null;
+  return window.SWData.readLicense();
+}
+// La suspensión puede llegar con el panel abierto: el próximo callable gateado
+// lo avisa (public/js/data.js, guarded()). Se confirma con una lectura fresca
+// antes de tapar el panel: recién reactivado, una instancia de Functions con
+// el estado viejo en su caché de 60 s puede rechazar UNA llamada, y un overlay
+// que no se cierra le volvería a bloquear el panel a quien ya pagó.
+window.addEventListener('sw:license-suspended', async function(){
+  var l = await leerLicencia();
+  if (l && l.status === 'suspended') mostrarSuspension(l.message);
+});
+g('adm-susp-out').addEventListener('click', function(){ g('adm-lgout').click(); });
+
 // ═══ LOGIN ═══
 // Este panel y la PWA del barbero comparten la sesión de Firebase Auth -- mismo
 // origen, misma app -- así que quien entra acá ya queda logueado en /barbero/.
@@ -1813,9 +1872,13 @@ async function loadFromCloud(){
 // Un error de red tampoco redirige: si loadAdmin() cayó por conexión, getMyDay
 // también cae, y el panel se queda con el banner en vez de mandar al admin a
 // una app que no es la suya.
+//
+// Si getMyDay responde "suspendido" (license/main) también es un barbero
+// vinculado: en /barbero/ ve la pantalla de suspensión en vez de este panel
+// vacío. El servidor solo dice "suspendido" DESPUÉS de verificar la ficha.
 async function redirigirSiEsBarbero(){
   try { await window.SWData.getMyDay(); }
-  catch(e){ return false; }
+  catch(e){ if (!(e && e.details && e.details.license === 'suspended')) return false; }
   location.replace('/barbero/');
   return true;
 }
@@ -1834,6 +1897,7 @@ async function abrirPanel(){
   g('adm-login').style.display = 'none';
   g('adm-app').style.display = 'flex';
   renderAll();
+  pintarLicencia(await leerLicencia());
 }
 g('adm-lgout').addEventListener('click', async function(){
   await window.SWAuth.signOut();

@@ -19,20 +19,42 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.admin == true;
     }
 
+    // Interruptor de suspensión por falta de pago (spec
+    // 2026-10-05-suspension-servicio-design.md). license/main lo escribe SOLO
+    // Aldo (consola o functions/scripts/license.js): write:false abajo. Ausente
+    // o con un status que no sea exactamente 'suspended' = activo, misma regla
+    // que normalizeLicense() en functions/shared/license.js.
+    //
+    // NO es una sexta copia de isAdmin(): es otro predicado. Gatea solo las
+    // ESCRITURAS del admin; las lecturas quedan, porque los datos de los
+    // clientes del salón son de la dueña y suspender no se los niega.
+    function licenseActive() {
+      let p = /databases/$(database)/documents/license/main;
+      return !exists(p) || get(p).data.get('status', 'active') != 'suspended';
+    }
+    function canAdminWrite() {
+      return isAdmin() && licenseActive();
+    }
+
     // Catálogo público: lectura libre, escritura solo admin
-    match /services/{id}   { allow read: if true; allow write: if isAdmin(); }
-    match /staff/{id}      { allow read: if true; allow write: if isAdmin(); }
-    match /businessInfo/{id}{ allow read: if true; allow write: if isAdmin(); }
+    match /services/{id}   { allow read: if true; allow write: if canAdminWrite(); }
+    match /staff/{id}      { allow read: if true; allow write: if canAdminWrite(); }
+    match /businessInfo/{id}{ allow read: if true; allow write: if canAdminWrite(); }
 
     // Imágenes del sitio (herramienta de reemplazo manual desde el admin):
     // lectura libre porque el landing público las carga para TODOS los
     // visitantes, no solo el staff logueado. Mismo patrón que services/staff.
-    match /siteImages/{slot} { allow read: if true; allow write: if isAdmin(); }
+    match /siteImages/{slot} { allow read: if true; allow write: if canAdminWrite(); }
 
     // Vista materializada de disponibilidad (sin PII), mantenida por la Cloud
     // Function onBookingWritten (Admin SDK, no sujeta a estas reglas).
     // Lectura pública para el widget de reservas; nunca escritura de cliente.
     match /availability/{date} { allow read: if true; allow write: if false; }
+
+    // Ver licenseActive(). Lectura pública porque el widget la necesita para
+    // decidir si muestra el wizard -- por eso license/main.message debe ser
+    // neutro. Escritura de NADIE desde un cliente.
+    match /license/{id} { allow read: if true; allow write: if false; }
 
     // Espejo del perfil de Google Business (puntaje, total de opiniones y las
     // reseñas que devuelve Places), mantenido por refreshGoogleReviews /
@@ -41,7 +63,7 @@ service cloud.firestore {
     // que availability/siteImages. La escritura admin existe solo para el
     // campo `manualReviews` que cura el panel: la API key de Places jamás
     // baja al navegador, así que nadie puede "sincronizar" desde el cliente.
-    match /googleReviews/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /googleReviews/{id} { allow read: if true; allow write: if canAdminWrite(); }
 
     // Reservas: solo admin lee/crea/edita/borra. La creación pública ya NO
     // pasa por acá -- el widget (public/index.html) llama al callable
@@ -67,7 +89,8 @@ service cloud.firestore {
     // El borrado SÍ se conserva: es la salida de emergencia documentada para
     // una reserva de prueba y no puede corromper datos.
     match /bookings/{id} {
-      allow read, delete: if isAdmin();
+      allow read: if isAdmin();
+      allow delete: if canAdminWrite();
       allow create, update: if false;
     }
     // Ya NO la invoca ningún `allow`: era el único gate del camino de escritura
@@ -100,23 +123,23 @@ service cloud.firestore {
     // Clientes (v19): nombre, contacto, historial de visitas y fotos (PII).
     // Nunca hay escritura pública directa — el único creador/actualizador es
     // la Cloud Function onBookingCreated (Admin SDK, no sujeta a estas reglas).
-    match /patients/{id} { allow read, write: if isAdmin(); }
+    match /patients/{id} { allow read: if isAdmin(); allow write: if canAdminWrite(); }
 
     // Bloqueos de horario (colación puntual, trámites, etc.): solo admin.
     // El público nunca lee esta colección directo -- se refleja
     // indirectamente como rangos ocupados (sin `reason`) a través de
     // getAvailability, mismo patrón de privacidad que bookings.
-    match /scheduleBlocks/{id} { allow read, write: if isAdmin(); }
+    match /scheduleBlocks/{id} { allow read: if isAdmin(); allow write: if canAdminWrite(); }
 
     // Log de actividad: solo admin
-    match /adminLog/{id} { allow read, write: if isAdmin(); }
+    match /adminLog/{id} { allow read: if isAdmin(); allow write: if canAdminWrite(); }
 
     // Vínculo entre una ficha de `staff` y su cuenta de Firebase Auth.
     // Vive APARTE de staff/{id} a propósito: staff tiene lectura pública
     // porque el widget de reservas necesita nombres, fotos y horarios, y
     // guardar ahí el uid y el correo del profesional los dejaría legibles
     // por cualquiera que abra el sitio. Acá son admin-only.
-    match /staffAccounts/{staffId} { allow read, write: if isAdmin(); }
+    match /staffAccounts/{staffId} { allow read: if isAdmin(); allow write: if canAdminWrite(); }
 
     // Tokens de FCM del dispositivo de cada profesional (PWA /barbero,
     // medición de la atención real 2026-09). Es el ÚNICO lugar del repo

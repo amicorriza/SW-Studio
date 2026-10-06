@@ -103,9 +103,13 @@ async function esAdmin(user){
 // Se le pregunta al servidor si tiene ficha de profesional, en vez de leerlo
 // del cliente: `staffAccounts` es admin-only justamente para que un barbero no
 // pueda enumerar al equipo.
+//
+// "Suspendido" (license/main) también cuenta como barbero: getMyDay solo
+// responde eso DESPUÉS de verificar la ficha, y en /barbero/ la persona ve por
+// qué no puede trabajar en vez de "tu cuenta no tiene acceso".
 async function esBarbero(){
   try { await window.SWData.getMyDay(); return true; }
-  catch(e){ return false; }
+  catch(e){ return !!(e && e.details && e.details.license === 'suspended'); }
 }
 
 async function rutear(user){

@@ -35,7 +35,7 @@ async function sembrar() {
   if (b.code !== 0) throw new Error('falló el seed e2e:\n' + b.out.slice(-800));
 }
 
-const SUITES = ['callables', 'nudges', 'navegador'];
+const SUITES = ['callables', 'nudges', 'navegador', 'suspension'];
 let fallidas = 0;
 
 for (const suite of SUITES) {

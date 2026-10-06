@@ -277,6 +277,7 @@
   <section class="b-login" id="b-login" hidden>
     <h1>SW Barbero</h1>
     <p id="b-login-err">Verificando tu acceso…</p>
+    <button class="b-ghost" id="b-susp-out" hidden>Salir</button>
   </section>
 
   <!-- Agenda -->
@@ -664,16 +665,39 @@ async function esAdmin() {
   }
 }
 
+// Suspensión por falta de pago (license/main). El servidor ya cortó getMyDay y
+// markAttendance; acá solo se explica y se para el polling, que si no
+// reintentaría cada pocos segundos contra un servidor que va a decir lo mismo.
+// El motivo NO se muestra: eso es entre Aldo y la dueña del salón.
+let SUSPENDIDO = false;
+function mostrarSuspension() {
+  SUSPENDIDO = true;
+  if (ticker) { clearInterval(ticker); ticker = null; }
+  if (poller) { clearInterval(poller); poller = null; }
+  show('login');
+  els.loginErr.textContent = 'El servicio está suspendido temporalmente. Consulta con la administración del salón.';
+  g('b-susp-out').hidden = false;
+}
+
 async function loadDay(silencioso) {
   try {
     CURRENT = await window.SWData.getMyDay(DIA);
     // La primera carga va sin fecha, así que la que vuelve ES hoy en la zona
     // del negocio. Es la única fuente de "hoy" que usa esta app.
     if (!DIA && !HOY) HOY = CURRENT.date;
+    // Reactivada mientras la app estaba en segundo plano: se vuelve a la agenda
+    // y al polling sin obligar a cerrar la app instalada.
+    if (SUSPENDIDO) {
+      SUSPENDIDO = false;
+      g('b-susp-out').hidden = true;
+      show('app');
+      startPolling();
+    }
     render();
     await applyDeepLink();
   } catch (e) {
     console.error('getMyDay', e);
+    if (e && e.details && e.details.license === 'suspended') { mostrarSuspension(); return; }
     // Esta app no puede servirle Y la otra sí: se lo manda para allá en vez de
     // dejarlo en un mensaje que no puede resolver. Mismo criterio que el panel
     // usa al revés.
@@ -991,7 +1015,10 @@ function startPolling() {
   }, 60000);
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && USER && esHoy()) loadDay(true);
+  // Suspendida no hay "hoy" conocido (getMyDay nunca respondió), así que
+  // esHoy() daría false para siempre: volver al frente es la oportunidad de
+  // enterarse de que se reactivó.
+  if (document.visibilityState === 'visible' && USER && (SUSPENDIDO || esHoy())) loadDay(true);
 });
 
 // ── navegación de días ──
@@ -1013,6 +1040,7 @@ document.addEventListener('click', (ev) => {
 });
 
 g('b-signout').addEventListener('click', () => window.SWAuth.signOut());
+g('b-susp-out').addEventListener('click', () => window.SWAuth.signOut());
 g('b-refresh').addEventListener('click', () => loadDay());
 g('b-push').addEventListener('click', function(){ activarAvisos(false); });
 

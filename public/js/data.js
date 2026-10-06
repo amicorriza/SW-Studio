@@ -88,6 +88,47 @@ async function loadCatalog() {
   return { services, staff, tz: info.tz, bufferMin: info.bufferMin };
 }
 
+// Licencia del servicio (spec 2026-10-05-suspension-servicio-design.md).
+// Copia DELIBERADA de normalizeLicense() de functions/shared/license.js: el
+// navegador no puede importar ese archivo. Misma regla: ausente o desconocido
+// = activo. Cualquier cambio va en las dos.
+const LICENSE_STATUSES = ['active', 'warning', 'suspended'];
+function normalizeLicense(data) {
+  const d = data && typeof data === 'object' ? data : {};
+  return {
+    status: LICENSE_STATUSES.indexOf(d.status) !== -1 ? d.status : 'active',
+    message: typeof d.message === 'string' ? d.message : '',
+    suspendAt: typeof d.suspendAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.suspendAt) ? d.suspendAt : '',
+  };
+}
+
+// Nunca rechaza: si la lectura falla (offline, reglas), se asume activo. El
+// widget falla abierto (invariante) y el corte real lo hace el servidor.
+async function readLicense() {
+  try {
+    const snap = await getDoc(doc(db, 'license', 'main'));
+    return normalizeLicense(snap.exists() ? snap.data() : null);
+  } catch (e) {
+    console.warn('readLicense: no se pudo leer license/main, se asume activo', e);
+    return normalizeLicense(null);
+  }
+}
+
+// Envuelve un callable gateado por assertActive(): si el servidor dice que el
+// servicio está suspendido, avisa a la página (el panel muestra su overlay aunque
+// la suspensión haya ocurrido con el panel abierto) y relanza el error igual,
+// para que el llamador siga manejando su propio fallo.
+async function guarded(promise) {
+  try {
+    return await promise;
+  } catch (e) {
+    if (e && e.details && e.details.license === 'suspended') {
+      window.dispatchEvent(new CustomEvent('sw:license-suspended'));
+    }
+    throw e;
+  }
+}
+
 // Reservas
 async function getBookings() {
   return await readCol('bookings');
@@ -143,7 +184,7 @@ function subscribeBookings(onChange) {
 // mensajes en public/index.html.
 async function createBooking(obj) {
   const call = httpsCallable(functions, 'createBooking');
-  const { data } = await call(obj);
+  const { data } = await guarded(call(obj));
   return data.id;
 }
 
@@ -342,7 +383,7 @@ async function syncGoogleReviews(force = false) {
 // zona horaria del negocio, resuelta server-side.
 async function getMyDay(date) {
   const call = httpsCallable(functions, 'getMyDay');
-  const { data } = await call({ date: date || null });
+  const { data } = await guarded(call({ date: date || null }));
   return data; // { staffId, name, date, tz, bookings: [...], schedule }
 }
 
@@ -350,7 +391,7 @@ async function getMyDay(date) {
 // servidor topea el rango en 92 días; pedir más devuelve invalid-argument.
 async function getMyRange(from, to) {
   const call = httpsCallable(functions, 'getMyRange');
-  const { data } = await call({ from, to });
+  const { data } = await guarded(call({ from, to }));
   return data; // { staffId, from, to, bookings: [...] }
 }
 
@@ -365,19 +406,19 @@ async function getMyRange(from, to) {
 // para auditar nada.
 async function adminLogEvent(action, item) {
   const call = httpsCallable(functions, 'adminLogEvent');
-  const { data } = await call({ action, item });
+  const { data } = await guarded(call({ action, item }));
   return data;
 }
 
 async function adminSaveBooking(booking) {
   const call = httpsCallable(functions, 'adminSaveBooking');
-  const { data } = await call({ booking });
+  const { data } = await guarded(call({ booking }));
   return data; // { ok, id, created, price, dur, svcName }
 }
 
 async function getMyClients() {
   const call = httpsCallable(functions, 'getMyClients');
-  const { data } = await call({});
+  const { data } = await guarded(call({}));
   return data; // { staffId, clients: [{key, name, visits, lastVisit, topService}] }
 }
 
@@ -387,7 +428,7 @@ async function getMyClients() {
 // pisar la hora original.
 async function markAttendance(bookingId, action, opts) {
   const call = httpsCallable(functions, 'markAttendance');
-  const { data } = await call({ bookingId, action, ...(opts || {}) });
+  const { data } = await guarded(call({ bookingId, action, ...(opts || {}) }));
   return data; // { ok, already, status, actualDur }
 }
 
@@ -395,7 +436,7 @@ async function markAttendance(bookingId, action, opts) {
 // profesional. Admin-only.
 async function linkStaffAccount(staffId, email) {
   const call = httpsCallable(functions, 'linkStaffAccount');
-  const { data } = await call({ staffId, email });
+  const { data } = await guarded(call({ staffId, email }));
   return data; // { ok, uid }
 }
 
@@ -410,7 +451,7 @@ async function saveMyPushToken(uid, token) {
 }
 
 window.SWData = {
-  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBooking, deleteBooking, subscribeBookings, createBooking,
+  loadAdmin, saveAdmin, loadCatalog, readLicense, getBookings, saveBooking, deleteBooking, subscribeBookings, createBooking,
   getPatients, savePatients, deletePatient,
   uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability, subscribeAvailability,
   loadSiteImages, saveSiteImage, deleteSiteImage,
@@ -421,7 +462,7 @@ window.SWData = {
   adminSaveBooking, adminLogEvent,
 };
 export {
-  loadAdmin, saveAdmin, loadCatalog, getBookings, saveBooking, deleteBooking, subscribeBookings, createBooking,
+  loadAdmin, saveAdmin, loadCatalog, readLicense, getBookings, saveBooking, deleteBooking, subscribeBookings, createBooking,
   getPatients, savePatients, deletePatient,
   uploadPatientPhoto, deletePatientPhoto, getClubStatus, getAvailability, subscribeAvailability,
   loadSiteImages, saveSiteImage, deleteSiteImage,

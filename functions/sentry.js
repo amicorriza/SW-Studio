@@ -158,6 +158,9 @@ function patchLogger() {
     const msg = a.filter((x) => typeof x === 'string').join(' ');
     const err = a.find((x) => x instanceof Error)
       || (a[1] && a[1].error instanceof Error ? a[1].error : null);
+    // Resend rechazó por culpa del dato (correo inválido) o por límite de uso: se
+    // reintenta solo y no hay nada que arreglar. Queda en Cloud Logging, no en Sentry.
+    if (err && (err.resendKind === 'client' || err.resendKind === 'transient')) return;
     if (throttled(scrubString(msg || (err && err.message) || 'logger.error'))) return;
     report(err || new Error(scrubString(msg || 'logger.error')), 'logger.error', msg);
   };

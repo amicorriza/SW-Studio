@@ -51,3 +51,14 @@ test('scrubString cubre teléfonos 56 9 y tokens largos, no versiones de SO', ()
   const out = scrubString('56912345678 abcdefghijklmnopqrstuvwxyz0123456789 Windows 10.0.26300');
   assert.equal(out, '[teléfono] [token] Windows 10.0.26300');
 });
+
+test('logger.error no reporta fallos de Resend por culpa del dato o del límite de uso', () => {
+  const logger = require('firebase-functions/logger');
+  const s = require('../sentry.js');
+  const mk = (kind) => Object.assign(new Error('Resend rechazó ' + kind + Math.random()), { resendKind: kind });
+  const contar = (kind) => s.__als.run({ n: 0 }, () => { logger.error('Fallo al enviar emails', mk(kind)); return s.__als.getStore().n; });
+  assert.equal(contar('client'), 0);
+  assert.equal(contar('transient'), 0);
+  assert.equal(contar('config'), 1);
+  assert.equal(contar('server'), 1);
+});

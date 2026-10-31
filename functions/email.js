@@ -378,8 +378,29 @@ async function sendStaffInviteEmail({ to, name, link }, { apiKey, fromEmail }) {
 function assertResendOk(results) {
   const errs = results.map(r => r && r.error).filter(Boolean);
   if (errs.length) {
-    throw new Error('Resend rechazó el envío: ' + errs.map(e => e.message || JSON.stringify(e)).join(' | '));
+    const err = new Error('Resend rechazó el envío: ' + errs.map(e => e.message || JSON.stringify(e)).join(' | '));
+    err.resendKind = classifyResendError(errs);
+    throw err;
   }
+}
+
+// Qué clase de falla es, para que Sentry solo reciba las que alguien puede
+// arreglar. Un correo mal escrito por el cliente (400/422) o el límite de uso
+// (429) se repiten solos en cada reintento (cada 5-15 min) y no son un bug:
+// 'client' y 'transient' NO se reportan. 401/403 (API key o dominio sin
+// verificar) y 5xx SÍ: ahí falla todo, no un correo.
+function classifyResendError(errs) {
+  const kinds = errs.map(e => {
+    const code = Number(e && (e.statusCode || e.status)) || 0;
+    const name = String((e && e.name) || '').toLowerCase();
+    if (code === 429 || name === 'rate_limit_exceeded') return 'transient';
+    if (code === 401 || code === 403 || /api_key|restricted|missing_api_key|invalid_from/.test(name)) return 'config';
+    if (code === 400 || code === 422 || /validation|invalid_to|invalid_parameter|missing_required/.test(name)) return 'client';
+    return 'server';
+  });
+  // Si cualquiera de los errores es grave, el conjunto es grave.
+  for (const k of ['config', 'server', 'transient', 'client']) if (kinds.includes(k)) return k;
+  return 'server';
 }
 
 async function sendBookingEmails(b, { apiKey, fromEmail, shopEmail }) {
@@ -396,6 +417,6 @@ async function sendBookingEmails(b, { apiKey, fromEmail, shopEmail }) {
 module.exports = {
   renderClientEmail, renderShopEmail, renderReminderEmail, renderReminderResponseEmail,
   renderConfirmationEmail, renderSurveyEmail, sendConfirmationEmail,
-  sendBookingEmails, sendReminderEmail, sendReminderResponseEmail, sendSurveyEmail, parseRecipients, assertResendOk,
+  sendBookingEmails, sendReminderEmail, sendReminderResponseEmail, sendSurveyEmail, parseRecipients, assertResendOk, classifyResendError,
   renderStaffInviteEmail, sendStaffInviteEmail,
 };

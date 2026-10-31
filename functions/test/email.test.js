@@ -298,3 +298,13 @@ test('los datos del cliente en el correo de encuesta se escapan para evitar inye
   assert.doesNotMatch(html, /<script>alert/);
   assert.match(html, /Juan &lt;script&gt;/);
 });
+
+test('classifyResendError separa lo que es del dato de lo que es del sistema', () => {
+  const { classifyResendError: c, assertResendOk } = require('../email.js');
+  assert.equal(c([{ statusCode: 422, name: 'validation_error' }]), 'client');
+  assert.equal(c([{ statusCode: 429 }]), 'transient');
+  assert.equal(c([{ statusCode: 403, name: 'invalid_api_key' }]), 'config');
+  assert.equal(c([{ statusCode: 500 }]), 'server');
+  assert.equal(c([{ statusCode: 422 }, { statusCode: 403 }]), 'config');
+  assert.throws(() => assertResendOk([{ error: { statusCode: 422, message: 'x' } }]), (e) => e.resendKind === 'client');
+});

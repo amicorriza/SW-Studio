@@ -28,3 +28,26 @@ test('scrubEvent limpia aunque el evento tenga referencias circulares', () => {
   ev.sdkProcessingMetadata.self = ev;
   assert.equal(scrubEvent(ev).exception.values[0].value, 'fallo [correo]');
 });
+
+test('guard no cuenta dos veces un logger.error seguido de HttpsError internal', async () => {
+  const logger = require('firebase-functions/logger');
+  const s = require('../sentry.js');
+  let n = 0;
+  await assert.rejects(
+    s.__als.run({ n: 0 }, async () => {
+      const h = s.guard('t', async () => {
+        logger.error('fallo inesperado ' + Math.random());
+        n = s.__als.getStore().n;
+        throw new HttpsError('internal', 'x');
+      });
+      return h();
+    })
+  );
+  assert.equal(n, 1);
+});
+
+test('scrubString cubre teléfonos 56 9 y tokens largos, no versiones de SO', () => {
+  const { scrubString } = require('../sentry.js');
+  const out = scrubString('56912345678 abcdefghijklmnopqrstuvwxyz0123456789 Windows 10.0.26300');
+  assert.equal(out, '[teléfono] [token] Windows 10.0.26300');
+});

@@ -1821,7 +1821,7 @@ async function loadFromCloud(){
     PT = await window.SWData.getPatients();    // cache de clientes (ver Task 5.6)
     SB = await window.SWData.getScheduleBlocks(); // cache de bloqueos de horario
   } catch(e){
-    console.error('Error cargando datos', e);
+    console.error('Error cargando datos', e); window.swReport && window.swReport(e, 'admin-carga'); 
     // defaults() sigue siendo necesario para que el panel tenga algo que
     // renderizar en vez de crashear -- pero es catálogo DEMO, no real, así
     // que dataLoadFailed bloquea admSave() y el banner avisa antes de que
@@ -1961,7 +1961,7 @@ async function admSave(){
     setTimeout(function(){ el.textContent = ''; }, 2500);
     return { ok:true, removedElsewhere:gone };
   } catch(e){
-    console.error('Error guardando', e);
+    console.error('Error guardando', e); window.swReport && window.swReport(e, 'admin-guardar'); 
     // Sin esto el error queda invisible en celulares: #adm-ss tiene
     // display:none bajo 560px (ver CSS), y acá SÍ necesitamos que se vea.
     el.style.display = 'block';
@@ -2007,7 +2007,7 @@ function logAudit(action, item, extra){
   if(window.SWData && window.SWData.adminLogEvent){
     var pr = window.SWData.adminLogEvent(action, item, extra);
     return Promise.resolve(pr).catch(function(e){
-      console.error('No se pudo registrar la actividad', e);
+      console.error('No se pudo registrar la actividad', e); window.swReport && window.swReport(e, 'admin-actividad'); 
     });
   }
   return Promise.resolve();
@@ -5015,7 +5015,7 @@ function renderSiteImages(){
             log('Actualizó imagen', slotDef ? slotDef.label : slot);
             showAlert('a-img-alert','ok','Imagen actualizada.');
           }).catch(function(err){
-            console.error('Error subiendo imagen del sitio', err);
+            console.error('Error subiendo imagen del sitio', err); window.swReport && window.swReport(err, 'admin-imagen'); 
             card.classList.remove('a-img-uploading');
             showAlert('a-img-alert','err','No se pudo subir la imagen.');
           });
@@ -5113,7 +5113,7 @@ var patSearch = '';
 function getPatients(){ return PT; }
 function savePatients(arr){
   PT = arr || [];
-  window.SWData.savePatients(PT).catch(function(e){ console.error('Error guardando clientes', e); });
+  window.SWData.savePatients(PT).catch(function(e){ console.error('Error guardando clientes', e); window.swReport && window.swReport(e, 'admin-clientes'); });
   updatePatBadge();
 }
 function updatePatBadge(){
@@ -5347,7 +5347,7 @@ function renderPatPhotos(p){
         var pidx = PT.findIndex(function(x){return x.id===p.id});
         if(pidx>-1) PT[pidx].photos = p.photos;
         renderPatPhotos(p);
-      }).catch(function(e){ console.error('Error eliminando foto', e); alert('No se pudo eliminar la foto.'); });
+      }).catch(function(e){ console.error('Error eliminando foto', e); window.swReport && window.swReport(e, 'admin-foto'); alert('No se pudo eliminar la foto.'); });
     });
   });
 

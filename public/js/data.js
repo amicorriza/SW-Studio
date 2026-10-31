@@ -157,6 +157,10 @@ async function guarded(promise) {
     if (e && e.details && e.details.license === 'suspended') {
       window.dispatchEvent(new CustomEvent('sw:license-suspended'));
     }
+    // Un solo punto para casi todas las callables. swReport filtra lo esperado
+    // (permission-denied, licencia, red) y marca el error para no duplicarlo
+    // si el llamador también lo reporta.
+    if (window.swReport) window.swReport(e, 'callable');
     throw e;
   }
 }

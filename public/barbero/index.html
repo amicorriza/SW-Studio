@@ -837,7 +837,7 @@ async function activarAvisos(silencioso) {
     avisar('Avisos activados en este teléfono.');
     pintarBotonPush();
   } catch (e) {
-    console.error('activarAvisos', e);
+    console.error('activarAvisos', e); window.swReport && window.swReport(e, 'barbero-push'); 
     PUSH_LISTO = false;
     pintarBotonPush();
     avisar('No se pudieron activar los avisos: ' + ((e && e.message) || 'error'), true);

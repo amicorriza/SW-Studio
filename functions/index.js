@@ -1253,9 +1253,13 @@ exports.linkStaffAccount = onCall(
       // Auth una cuenta que ya existía, y no dejaba ni una línea de log para
       // desmentirlo. Ahora el código real siempre va al log, y solo el caso
       // genuino conserva el mensaje amable.
-      logger.error('linkStaffAccount getUserByEmail', {
-        code: (e && e.code) || null, message: (e && e.message) || String(e), who: maskEmail(correo),
-      });
+      // user-not-found es el caso normal (la cuenta aún no existe): no es un error
+      // del sistema y no debe llegar a Sentry.
+      if (!(e && e.code === 'auth/user-not-found')) {
+        logger.error('linkStaffAccount getUserByEmail', {
+          code: (e && e.code) || null, message: (e && e.message) || String(e), who: maskEmail(correo),
+        });
+      }
       if (e && e.code === 'auth/user-not-found') {
         throw new HttpsError('not-found', 'No existe ninguna cuenta con ese correo. Creala primero en Firebase Auth.');
       }
@@ -1452,7 +1456,10 @@ exports.createStaffAccount = onCall(
         user = await auth.createUser({ email: correo, password: randomPassword(), displayName: name || undefined });
         creada = true;
       } catch (e) {
-        logger.error('createStaffAccount createUser', { code: (e && e.code) || null, message: (e && e.message) || String(e), who: maskEmail(correo) });
+        // Correo mal escrito o contraseña débil: culpa del dato, no del sistema.
+        if (!(e && (e.code === 'auth/invalid-email' || e.code === 'auth/email-already-exists'))) {
+          logger.error('createStaffAccount createUser', { code: (e && e.code) || null, message: (e && e.message) || String(e), who: maskEmail(correo) });
+        }
         if (e && e.code === 'auth/invalid-email') throw new HttpsError('invalid-argument', 'Ese correo no es válido.');
         throw new HttpsError('internal', `No se pudo crear la cuenta (${(e && e.code) || 'sin código'}). El detalle quedó en los logs de createStaffAccount.`);
       }
@@ -1468,9 +1475,16 @@ exports.createStaffAccount = onCall(
       await db.collection('staffUids').doc(user.uid).set({ staffId: String(staffId) });
     } catch (e) {
       // Sin vínculo no hay motivo para dejar un usuario huérfano en Auth.
-      if (creada) { try { await auth.deleteUser(user.uid); } catch (_) { /* queda en el log de abajo */ } }
-      logger.error('createStaffAccount vínculo', { code: (e && e.code) || null, message: (e && e.message) || String(e) });
-      if (e && (e.code === 6 || /already exists/i.test(e.message || ''))) {
+      if (creada) {
+        try { await auth.deleteUser(user.uid); }
+        catch (de) {
+          // Quedó un usuario huérfano en Auth: sin este registro no habría rastro.
+          logger.error('createStaffAccount rollback deleteUser', { code: (de && de.code) || null, uid: user.uid });
+        }
+      }
+      const yaVinculada = !!(e && (e.code === 6 || /already exists/i.test(e.message || '')));
+      if (!yaVinculada) logger.error('createStaffAccount vínculo', { code: (e && e.code) || null, message: (e && e.message) || String(e) });
+      if (yaVinculada) {
         throw new HttpsError('already-exists', 'Ese profesional ya tiene una cuenta vinculada.');
       }
       throw new HttpsError('internal', 'No se pudo vincular la cuenta. No quedó nada creado: reintentá.');
@@ -1498,7 +1512,15 @@ exports.resendStaffInvite = onCall(
     const auth = getAuth(app);
     let user;
     try { user = await auth.getUser(acc.data().uid); }
-    catch (e) { throw new HttpsError('not-found', 'La cuenta vinculada ya no existe en Firebase Auth.'); }
+    catch (e) {
+      // Solo "no existe" es not-found; un fallo de permisos o de red no debe
+      // disfrazarse de eso (not-found es un código esperado y Sentry lo ignora).
+      if (e && e.code === 'auth/user-not-found') {
+        throw new HttpsError('not-found', 'La cuenta vinculada ya no existe en Firebase Auth.');
+      }
+      logger.error('resendStaffInvite getUser', { code: (e && e.code) || null, message: (e && e.message) || String(e) });
+      throw new HttpsError('internal', 'No se pudo consultar la cuenta. Reintentá en un momento.');
+    }
     if (cuentaEnUso(user)) {
       throw new HttpsError('failed-precondition', 'Esa persona ya entró alguna vez. Si olvidó su contraseña, que use "¿Olvidaste tu contraseña?" en la pantalla de entrada.');
     }

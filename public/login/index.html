@@ -131,7 +131,7 @@ async function rutear(user){
     decir('Tu cuenta todavía no tiene acceso asignado. Pídele al salón que la vincule a tu ficha.', 'err');
     await window.SWAuth.signOut();
   } catch(e){
-    console.error('rutear', e);
+    console.error('rutear', e); window.swReport && window.swReport(e, 'login-rutear'); 
     decir('No pudimos verificar tu acceso. Revisa la conexión e intenta de nuevo.', 'err');
   } finally {
     yendo = false;

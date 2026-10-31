@@ -56,7 +56,7 @@ test('logger.error no reporta fallos de Resend por culpa del dato o del límite 
   const logger = require('firebase-functions/logger');
   const s = require('../sentry.js');
   const mk = (kind) => Object.assign(new Error('Resend rechazó ' + kind + Math.random()), { resendKind: kind });
-  const contar = (kind) => s.__als.run({ n: 0 }, () => { logger.error('Fallo al enviar emails', mk(kind)); return s.__als.getStore().n; });
+  const contar = (kind) => s.__als.run({ n: 0 }, () => { logger.error('Fallo al enviar emails ' + kind, mk(kind)); return s.__als.getStore().n; });
   assert.equal(contar('client'), 0);
   assert.equal(contar('transient'), 0);
   assert.equal(contar('config'), 1);

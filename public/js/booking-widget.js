@@ -235,6 +235,8 @@ let MAX_DATE = new Date(TODAY); MAX_DATE.setMonth(MAX_DATE.getMonth()+2);
 // cierra al cerrar el widget -- ver loadAvailability/closeBK).
 let AVAIL = {barberBusy:{}};
 let AVAIL_LOADING = false;
+// Pedido pendiente de llevar a la vista el aviso del paso 3 (ver renderSlots).
+let BK_REVEAL_TAKEN = false;
 // Horario del día elegido, por barbero ({start,end}|null), y colaciones. Vienen
 // de getAvailability: `staff` ya no es público, así que el widget no conoce el
 // horario semanal de nadie, solo el del día que consulta. WORK_DATE dice a qué
@@ -275,8 +277,21 @@ function openBK(){
   lastFocusedBK = document.activeElement;
   document.getElementById('booking-overlay').style.display='flex';
   document.body.style.overflow='hidden';
-  // Reset state
-  S = {step:1, svc:null, barber:null, date:null, time:null};
+  // Reset state. club se conserva (por defecto 'member', que es lo que el HTML
+  // trae marcado): antes se perdía acá y, con "Miembro Club SW" a la vista, la
+  // reserva salía como 'guest' y la visita no sumaba. Si el cliente eligió otra
+  // cosa y reabre, es la misma persona: se respeta su elección.
+  S = {step:1, svc:null, barber:null, date:null, time:null, club:(S && S.club) || 'member'};
+  updateClubUI();
+  // Lo elegido en una apertura anterior ya no existe, así que los "Siguiente"
+  // vuelven a empezar deshabilitados (renderBarbers puede habilitar el del
+  // paso 2 al preseleccionar). Sin esto, al reabrir el widget se llegaba al
+  // paso 4 sin servicio o sin fecha: en producción, 400 inmediatos y 500 por
+  // date:'' en createBooking (oct-2026).
+  ['bk-next1','bk-next2','bk-next3'].forEach(id=>{ document.getElementById(id).disabled=true; });
+  document.getElementById('bk-submit-err').style.display='none';
+  const takenEl=document.getElementById('bk-slot-taken-msg');
+  takenEl.style.display='none'; takenEl.textContent='';
   renderSvcs(); renderBarbers(); renderCal(); updateSummary();
   bkGoTo(1);
   bkCheckLicense();
@@ -890,12 +905,14 @@ function isSlotAvailable(candStart, candEnd){
 // closeBK) para no dejar listeners huérfanos.
 // FALLA ABIERTO: cualquier error de la suscripción se trata como "todo
 // disponible" -- nunca debe bloquear ni romper la reserva.
-function loadAvailability(){
+function loadAvailability(keepTakenMsg){
   // Limpia el aviso de "ese horario ya fue tomado" de un intento anterior --
   // cualquier cambio de fecha/barbero que llegue hasta acá invalida ese
-  // aviso (ver el catch de #bk-submit).
+  // aviso (ver el catch de #bk-submit). Las re-entradas internas (después de
+  // leer el horario del día) pasan keepTakenMsg: no son un cambio del cliente
+  // y borrarían el aviso que el submit acaba de poner.
   const takenEl=document.getElementById('bk-slot-taken-msg');
-  if(takenEl){ takenEl.style.display='none'; takenEl.textContent=''; }
+  if(takenEl && !keepTakenMsg){ takenEl.style.display='none'; takenEl.textContent=''; BK_REVEAL_TAKEN=false; }
   if(availUnsub){ availUnsub(); availUnsub=null; }
   if(!S.date){ AVAIL_LOADING=false; renderSlots(); return; }
   const dow=dowOfDateKey(S.date);
@@ -911,19 +928,24 @@ function loadAvailability(){
   renderSlots();
   const askedDate=S.date;
   if(WORK_DATE!==askedDate){
-    // Fail-open: si falla, el widget sigue con el horario general.
-    window.SWData.getAvailability(askedDate,'any').then(function(r){
+    // Fail-open: si falla (o no responde en 8 s), el widget sigue con el
+    // horario general. Antes el catch solo repintaba con AVAIL_LOADING en
+    // true y la grilla quedaba en "Buscando horarios disponibles…" para
+    // siempre. Las dos ramas ignoran una respuesta de una fecha que el
+    // cliente ya cambió: pisaría el horario de la fecha nueva.
+    withTimeout(window.SWData.getAvailability(askedDate,'any'), 8000, 'getAvailability').then(function(r){
       if(S.date!==askedDate) return;
       WORK=(r&&r.workHours)||{};
       BREAKS={};
       const bb=(r&&r.barberBusy)||{};
       Object.keys(bb).forEach(id=>{ BREAKS[id]=bb[id].filter(x=>x.kind==='break'); });
       WORK_DATE=askedDate;
-      loadAvailability();
+      loadAvailability(true);
     }).catch(function(e){
       console.error('No se pudo leer el horario del día (fail-open: horario general)', e);
+      if(S.date!==askedDate) return;
       WORK={}; BREAKS={}; WORK_DATE=askedDate;
-      renderSlots();
+      loadAvailability(true);
     });
     return;
   }
@@ -941,7 +963,18 @@ function loadAvailability(){
   });
 }
 
+// El submit pide mostrar el aviso de "horario no disponible" (ver el catch de
+// #bk-submit). Se lleva a la vista recién con la grilla ya pintada: mientras
+// dice "Buscando…" el bloque mide menos, el scroll se queda corto y al llegar
+// las horas el aviso termina otra vez fuera de la pantalla del teléfono.
 function renderSlots(){
+  renderSlotsNow();
+  if(BK_REVEAL_TAKEN && !AVAIL_LOADING){
+    BK_REVEAL_TAKEN = false;
+    document.getElementById('bk-slots-wrap').scrollIntoView({ block:'start' });
+  }
+}
+function renderSlotsNow(){
   const lbl=document.getElementById('bk-slots-lbl');
   const cont=document.getElementById('bk-slots');
   if(!S.date){cont.innerHTML=`<div class="bk-slots-empty">Elige un día del calendario.</div>`;return}
@@ -1046,18 +1079,41 @@ function genCode(){
 // nunca la resuelve ni la rechaza -- el botón "Procesando..." se queda
 // colgado sin dar error. withTimeout() fuerza un rechazo a los N ms para que
 // el flujo siga por el mismo camino de error que ya manejan los try/catch.
+// Lleva code 'deadline-exceeded', el mismo que usa el SDK de Functions para su
+// propio vencimiento, así el submit lo reconoce como falla de conexión.
 function withTimeout(promise, ms, label){
   return Promise.race([
     promise,
-    new Promise((_, reject)=>setTimeout(()=>reject(new Error(`${label} timed out after ${ms}ms`)), ms)),
+    new Promise((_, reject)=>setTimeout(()=>{
+      const e = new Error(`${label} timed out after ${ms}ms`);
+      e.code = 'deadline-exceeded';
+      reject(e);
+    }, ms)),
   ]);
 }
 
 // Mapa explícito error -> mensaje para el submit de reserva. Punto de
 // extensión único: sumar una entrada nueva no implica reescribir el handler.
+//
+// `default` NO culpa a la conexión. Antes decía "problema de conexión" para
+// todo lo no mapeado, y del 24 al 30-oct-2026 producción rechazó con HTTP 400
+// horas fuera del horario real de la barbera (ver BK_SLOT_TAKEN_MESSAGES): el
+// cliente leía "falla de red" y reintentaba la misma hora. Solo se habla de
+// conexión cuando hay señal de eso: sin red, o el servidor no disponible. Un
+// 'internal' NO alcanza: el SDK usa ese code tanto para un fetch caído como
+// para un 500 del servidor.
+//
+// 'deadline-exceeded' (el timeout de 15 s de withTimeout, o el del SDK) tiene
+// mensaje propio porque NO se sabe si quedó agendada: withTimeout no aborta la
+// llamada y createBooking puede confirmar igual después (un arranque en frío),
+// con correo incluido. Decir "no quedó nada" ahí invitaría a duplicarla.
 const BK_SUBMIT_WHATSAPP_LINK = '<a href="https://wa.me/56982514114?text=Hola%2C%20tuve%20un%20problema%20al%20agendar%20mi%20cita" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">escríbenos por WhatsApp</a>';
+const BK_SUBMIT_CONNECTION_MESSAGE = 'No fue posible confirmar tu reserva por un problema de conexión y no quedó ninguna hora agendada. Por favor, verifica que tengas internet e inténtalo nuevamente, o ' + BK_SUBMIT_WHATSAPP_LINK + ' para coordinarla directamente.';
+const BK_SUBMIT_TIMEOUT_MESSAGE = 'No recibimos a tiempo la confirmación de tu reserva y es posible que haya quedado agendada. Antes de intentarlo nuevamente, revisa si te llegó el correo de confirmación, o ' + BK_SUBMIT_WHATSAPP_LINK + ' para verificarla.';
 const BK_SUBMIT_ERROR_MESSAGES = {
-  default: 'No pudimos confirmar tu reserva por un problema de conexión. Nada quedó agendado -- ' + BK_SUBMIT_WHATSAPP_LINK + ' y lo coordinamos al toque, o inténtalo de nuevo.',
+  'deadline-exceeded': BK_SUBMIT_TIMEOUT_MESSAGE,
+  'unavailable': BK_SUBMIT_CONNECTION_MESSAGE,
+  default: 'No fue posible confirmar tu reserva y no quedó ninguna hora agendada. Por favor, inténtalo nuevamente o ' + BK_SUBMIT_WHATSAPP_LINK + ' para coordinarla directamente.',
 };
 // Códigos de createBooking (Fase A) que significan "ese horario específico
 // ya no está disponible" -- NO es un problema de conexión: hay que refrescar
@@ -1066,9 +1122,16 @@ const BK_SUBMIT_ERROR_MESSAGES = {
 // usuario necesita saber cosas distintas: su horario se lo ganaron
 // (already-exists, elige otro) versus no queda nadie disponible
 // (resource-exhausted, elige otro horario u otro barbero).
+//
+// failed-precondition, una vez descartados la licencia y barber-not-qualified
+// (el catch los atiende antes), es "esa hora no se puede": fuera del horario
+// real del profesional, o ya pasada. El widget no debería ofrecerla, pero si
+// getAvailability falla abre con el horario general (falla abierto) y es el
+// servidor quien la rechaza.
 const BK_SLOT_TAKEN_MESSAGES = {
   'already-exists': 'Ese horario acaba de ser tomado. Elige otro horario o barbero.',
   'resource-exhausted': 'No queda ningún barbero disponible en ese horario. Elige otro horario o barbero.',
+  'failed-precondition': 'Ese horario no está disponible. Elige otro horario o barbero.',
 };
 // El SDK de Functions antepone 'functions/' al code de un HttpsError
 // (ej. 'functions/already-exists') -- se saca acá una sola vez para que
@@ -1079,10 +1142,20 @@ function bkErrorCode(err){
 }
 function bkSubmitErrorMessage(err){
   const key = bkErrorCode(err) || (err && err.message) || '';
+  // El timeout va primero: si la red se cayó DESPUÉS de mandar la reserva,
+  // igual pudo quedar agendada.
+  if(key === 'deadline-exceeded') return BK_SUBMIT_TIMEOUT_MESSAGE;
+  if(navigator.onLine === false) return BK_SUBMIT_CONNECTION_MESSAGE;
   return BK_SUBMIT_ERROR_MESSAGES[key] || BK_SUBMIT_ERROR_MESSAGES.default;
 }
 
 document.getElementById('bk-submit').addEventListener('click',()=>{
+  // Red de seguridad: sin servicio, profesional, fecha y hora no hay reserva
+  // que mandar. Los "Siguiente" ya lo impiden (ver openBK), pero un payload
+  // incompleto es justo lo que createBooking recibió en producción (oct-2026).
+  if(!S.svc){ bkGoTo(1); return; }
+  if(!S.barber){ bkGoTo(2); return; }
+  if(!S.date || !S.time){ bkGoTo(3); return; }
   if(!validate()) return;
   const btn=document.getElementById('bk-submit');
   const errEl=document.getElementById('bk-submit-err');
@@ -1134,11 +1207,25 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
         // Se vuelve al paso 3 con la grilla recargada en vez de mostrar la
         // pantalla de error genérica -- loadAvailability() limpia este
         // mismo aviso en su próxima llamada (cambio de fecha/barbero).
+        // La hora rechazada se suelta: si no, "Continuar" seguía habilitado
+        // sin ninguna hora marcada y reenviaba la misma.
+        S.time = null;
+        document.getElementById('bk-next3').disabled = true;
+        updateSummary();
+        // failed-precondition = fuera del horario real: la grilla que lo ofreció
+        // venía del horario general (getAvailability había fallado). Se vuelve
+        // a pedir el horario del día en vez de repetir el mismo error.
+        if(bkErrorCode(e) === 'failed-precondition') WORK_DATE = null;
         bkGoTo(3);
-        loadAvailability();
         const takenEl = document.getElementById('bk-slot-taken-msg');
         takenEl.textContent = slotMsg;
         takenEl.style.display = 'block';
+        // bkGoTo() deja el paso arriba, y en un teléfono el aviso (bajo el
+        // calendario y la grilla) quedaba fuera de la pantalla: renderSlots()
+        // lleva el bloque de horarios a la vista cuando termina de pintar.
+        BK_REVEAL_TAKEN = true;
+        // keepTakenMsg: el aviso recién puesto no se borra al recargar.
+        loadAvailability(true);
       } else {
         errEl.innerHTML = bkSubmitErrorMessage(e);
         errEl.style.display='block';

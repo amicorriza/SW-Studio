@@ -13,8 +13,6 @@ const SITE_URL = 'https://scissorwhite.cl';
 // publicar a mano.
 const EMAIL_HERO_URL = `${SITE_URL}/assets/email/hero-actual.jpg`;
 const ADDRESS_LINE = 'Cochrane 635, Of. 303, Torre B, Concepción';
-// Copia fija del aviso interno de nueva reserva, además de SHOP_EMAIL.
-const SHOP_EMAIL_CC = ['amellado@micorriza.bio', 'scissorswhite111@gmail.com'];
 
 function esc(s) {
   return String(s == null ? '' : s)
@@ -354,7 +352,24 @@ function renderReminderResponseEmail(b, action) {
 async function sendReminderResponseEmail(b, action, { apiKey, fromEmail, shopEmail }) {
   const resend = new Resend(apiKey);
   const { subject, html } = renderReminderResponseEmail(b, action);
-  const result = await resend.emails.send({ from: fromEmail, to: parseRecipients(shopEmail), cc: SHOP_EMAIL_CC, subject, html });
+  const result = await resend.emails.send({ from: fromEmail, to: parseRecipients(shopEmail), subject, html });
+  assertResendOk([result]);
+}
+
+// Invitación al equipo: el enlace para elegir contraseña viaja SOLO por este
+// correo, directo al buzón del profesional. Nunca vuelve al navegador de la
+// administradora: que el enlace pase por WhatsApp o el portapapeles equivale a
+// repartir la llave de la cuenta. Sobrio a propósito (sin foto ni cita).
+function renderStaffInviteEmail({ name, link }) {
+  const subject = 'Tu acceso a SW Studio';
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>SW Studio</title></head><body style="margin:0;padding:0;background:#eef0f2;color:#111111;font-family:${NEW_SANS}"><div style="display:none;max-height:0;overflow:hidden">Elige tu contraseña para entrar a la app de SW Studio.</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#eef0f2"><tr><td align="center" style="padding:24px 10px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fafafa" bgcolor="#fafafa"><tr><td style="padding:26px 36px;border-bottom:1px solid #d7dce2"><img src="${SITE_URL}/assets/logo.png" width="56" alt="SW Studio" style="display:block;width:56px;height:auto;border:0"></td></tr><tr><td style="padding:32px 36px 12px"><p style="margin:0 0 14px;font-size:10px;font-weight:700;letter-spacing:2px;color:#596676">ACCESO AL EQUIPO</p><h1 style="font-family:${NEW_DISPLAY};font-size:26px;line-height:1.25;margin:0 0 18px">Hola, ${esc(name || '')}</h1><p style="font-size:15px;line-height:1.7;margin:0 0 22px">Te dieron acceso a la app de SW Studio, donde verás tu agenda y tus clientes. Para entrar, elige tu contraseña:</p><p style="margin:0 0 22px"><a href="${esc(link)}" style="display:inline-block;background:#111111;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:14px 26px;border-radius:8px">Elegir mi contraseña</a></p><p style="font-size:13px;line-height:1.7;color:#505965;margin:0 0 8px">El enlace es de un solo uso y caduca en aproximadamente una hora. Si caduca, entra a <a href="${SITE_URL}/login/" style="color:#111111">${SITE_URL.replace('https://', '')}/login</a> y usa &laquo;¿Olvidaste tu contraseña?&raquo;.</p><p style="font-size:13px;line-height:1.7;color:#505965;margin:0 0 28px">Si no esperabas este correo, ignóralo: sin el enlace nadie puede entrar a tu cuenta.</p></td></tr><tr><td style="padding:22px 36px;background:#111111;color:#ffffff"><p style="font-size:14px;line-height:1.5;margin:0">SW Studio &middot; Concepción</p></td></tr></table></td></tr></table></body></html>`;
+  return { subject, html };
+}
+
+async function sendStaffInviteEmail({ to, name, link }, { apiKey, fromEmail }) {
+  const resend = new Resend(apiKey);
+  const { subject, html } = renderStaffInviteEmail({ name, link });
+  const result = await resend.emails.send({ from: fromEmail, to, subject, html });
   assertResendOk([result]);
 }
 
@@ -373,7 +388,7 @@ async function sendBookingEmails(b, { apiKey, fromEmail, shopEmail }) {
   const shop = renderShopEmail(b);
   const results = await Promise.all([
     resend.emails.send({ from: fromEmail, to: b.email, subject: client.subject, html: client.html }),
-    resend.emails.send({ from: fromEmail, to: parseRecipients(shopEmail), cc: SHOP_EMAIL_CC, subject: shop.subject, html: shop.html }),
+    resend.emails.send({ from: fromEmail, to: parseRecipients(shopEmail), subject: shop.subject, html: shop.html }),
   ]);
   assertResendOk(results);
 }
@@ -382,4 +397,5 @@ module.exports = {
   renderClientEmail, renderShopEmail, renderReminderEmail, renderReminderResponseEmail,
   renderConfirmationEmail, renderSurveyEmail, sendConfirmationEmail,
   sendBookingEmails, sendReminderEmail, sendReminderResponseEmail, sendSurveyEmail, parseRecipients, assertResendOk,
+  renderStaffInviteEmail, sendStaffInviteEmail,
 };

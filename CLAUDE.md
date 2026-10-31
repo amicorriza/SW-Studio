@@ -59,7 +59,11 @@ public/barbero/          PWA instalable del profesional. Cuatro secciones en la
                          llegó / Iniciar / Finalizar) viven en la Agenda.
                          index.html + manifest + sw.js, todo vanilla. Íconos
                          generados por scripts/make-barbero-icons.mjs.
-functions/               callables y triggers
+functions/               callables y triggers. functions/sentry.js exporta onCall/
+                         onSchedule/onDocument* envueltos (reportan a Sentry lo
+                         inesperado, nunca los HttpsError de cliente) y parcha
+                         logger.error; public/js/sentry-init.js es el equivalente
+                         del navegador. Ambos NO HACEN NADA sin DSN (ver README).
 firestore.rules, storage.rules
 
 Estado conocido, a verificar antes de tocar nada:
@@ -122,12 +126,36 @@ Estado conocido, a verificar antes de tocar nada:
   (functions/shared/status.js; el admin mantiene una copia deliberada por ser
   <script> plano). declined, no_show y cancelled liberan el horario; una
   reserva SIN status lo ocupa, que es el default seguro.
+- Servicios por profesional: `staff/{id}.serviceIds` es OPCIONAL. Ausente o null =
+  presta TODOS, incluidos los futuros (por eso desplegar no cambió nada); lista =
+  solo esos; [] = ninguno. Un servicio nuevo NO entra solo a una lista. La fuente
+  es functions/shared/staffServices.js, con copias deliberadas en
+  public/js/booking-widget.js y el admin; lo que impide reservar de verdad son
+  createBooking y adminSaveBooking. adminSaveBooking deja seguir editando una cita
+  que YA tenía ese cruce (canAssignBooking): si no, quitarle un servicio a alguien
+  dejaría sus citas imposibles de reprogramar. Se configura en la ficha de
+  Personal y llega al widget por el espejo staffPublic sin código extra. Spec:
+  docs/superpowers/specs/2026-10-31-servicios-por-barbero-design.md.
 - Acceso del equipo: el vínculo ficha<->cuenta de Auth vive en
-  staffAccounts/{staffId} (admin-only), NO en staff/{id}. staff tiene lectura
-  PÚBLICA porque el widget de reservas necesita nombres, fotos y horarios;
+  staffAccounts/{staffId} (admin-only), NO en staff/{id}. staff lleva el horario
+  semanal y es de lectura SOLO admin (decisión del 2026-10-30: un barbero no
+  debe leer el horario de otro); el público lee `staffPublic/{id}`, espejo sin
+  `schedule` que mantiene el trigger mirrorStaffPublic, y el horario del día
+  elegido le llega por getAvailability (`workHours` + colaciones). Antes staff
+  era PÚBLICA porque el widget necesitaba nombres, fotos y horarios;
   guardar ahí el uid y el correo del profesional los dejaría legibles por
   cualquiera que abra el sitio. Lo escribe exports.linkStaffAccount desde el
-  panel Personal (la cuenta se crea a mano en la consola), y el panel lo lee
+  panel Personal (la cuenta la crea la administradora desde ese mismo panel con
+  exports.createStaffAccount, que MANDA POR CORREO (Resend) el enlace para elegir
+  contraseña y NUNCA lo devuelve al navegador: pasaría por WhatsApp o el
+  portapapeles, que es repartir la llave de la cuenta. resendStaffInvite lo
+  reenvía mientras la cuenta no se haya usado (tope 1/min y 5/día en
+  staffInvites). Una cuenta de Auth sin verificar ni usada que ya existía con
+  ese correo se TOMA (contraseña nueva + sesiones revocadas): con el registro
+  público abierto pudo ser un pre-registro de un tercero. linkStaffAccount
+  sigue para cuentas ya usadas y rechaza las que nadie reclamó. El índice
+  staffUids/{uid} impide un uid en dos fichas. Auditoría en adminLog escrita
+  por el servidor. /login tiene "¿Olvidaste tu contraseña?"), y el panel lo lee
   en un mapa D.staffAccounts aparte -- nunca pegado al objeto de staff,
   porque saveAdmin() persiste ese array entero y lo devolvería a staff/{id}.
   staffDevices/{uid} guarda los tokens de FCM y es el ÚNICO lugar donde

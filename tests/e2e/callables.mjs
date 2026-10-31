@@ -10,7 +10,7 @@
 //
 // Uso: node tests/e2e/callables.mjs
 import { readFileSync } from 'node:fs';
-import { makeChecker, token, call, getDoc, FS } from './emulator.mjs';
+import { makeChecker, token, call, getDoc, patchDoc, sleep, FS, AUTH } from './emulator.mjs';
 
 const check = makeChecker();
 
@@ -142,6 +142,51 @@ check('linkStaffAccount rechaza vincular un UID ya usado por otra ficha',
 const linkNoUser = await call('linkStaffAccount', { staffId: 'ariel', email: 'nadie@e2e.cl' }, tAdm);
 check('linkStaffAccount avisa si la cuenta no existe en Auth',
   linkNoUser.error && /not[-_]found/i.test(JSON.stringify(linkNoUser.error)), linkNoUser.error);
+
+// ═══════════════════ createStaffAccount ═══════════════════
+const csNoAdm = await call('createStaffAccount', { staffId: 'ariel', email: 'nuevo@e2e.cl' }, tVic);
+check('createStaffAccount es admin-only',
+  csNoAdm.error && /permission[-_]denied/i.test(JSON.stringify(csNoAdm.error)), csNoAdm.error);
+
+const csBad = await call('createStaffAccount', { staffId: 'ariel', email: 'no-es-correo' }, tAdm);
+check('createStaffAccount rechaza un correo inválido',
+  csBad.error && /invalid[-_]argument/i.test(JSON.stringify(csBad.error)), csBad.error || csBad.result);
+
+const csOk = await call('createStaffAccount', { staffId: 'ariel', email: 'Nuevo.Barbero@E2E.cl' }, tAdm);
+check('createStaffAccount crea y vincula la cuenta',
+  csOk.result && csOk.result.ok && csOk.result.uid && csOk.result.authEmail === 'nuevo.barbero@e2e.cl', csOk.error || csOk.result);
+check('createStaffAccount NO devuelve el enlace al navegador (va solo por correo)',
+  csOk.result && !('resetLink' in csOk.result) && typeof csOk.result.emailSent === 'boolean'
+  && csOk.result.masked === 'n***@e2e.cl', csOk.result);
+
+const csDosVeces = await call('createStaffAccount', { staffId: 'ariel', email: 'otro@e2e.cl' }, tAdm);
+check('createStaffAccount no pisa una ficha que ya tiene cuenta',
+  csDosVeces.error && /already[-_]exists/i.test(JSON.stringify(csDosVeces.error)), csDosVeces.error || csDosVeces.result);
+
+// Cuenta ya usada (esteban inició sesión arriba): no se toma ni se pisa.
+const csExiste = await call('createStaffAccount', { staffId: 'ariel', email: 'esteban@scissorwhite.cl' }, tAdm);
+check('createStaffAccount no toma una cuenta que ya fue usada',
+  csExiste.error && /already[-_]exists/i.test(JSON.stringify(csExiste.error)), csExiste.error || csExiste.result);
+
+// resendStaffInvite: admin-only, con tope de tasa y solo mientras nunca entró.
+const rsNoAdm = await call('resendStaffInvite', { staffId: 'ariel' }, tVic);
+check('resendStaffInvite es admin-only',
+  rsNoAdm.error && /permission[-_]denied/i.test(JSON.stringify(rsNoAdm.error)), rsNoAdm.error);
+const rsRapido = await call('resendStaffInvite', { staffId: 'ariel' }, tAdm);
+check('resendStaffInvite aplica el tope de 1 por minuto (justo después de crear)',
+  rsRapido.error && /resource[-_]exhausted/i.test(JSON.stringify(rsRapido.error)), rsRapido.error || rsRapido.result);
+const rsSinCuenta = await call('resendStaffInvite', { staffId: 'victoria' }, tAdm);
+check('resendStaffInvite no reenvía a quien ya entró',
+  rsSinCuenta.error && /failed[-_]precondition/i.test(JSON.stringify(rsSinCuenta.error)), rsSinCuenta.error || rsSinCuenta.result);
+
+// Pre-registro: una cuenta que nunca se usó no se vincula directo.
+const preRegMail = 'prereg' + Date.now() + '@e2e.cl';
+const preReg = await fetch(AUTH + '/accounts:signUp?key=fake',
+  { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: preRegMail, password: 'atacante123' }) });
+const linkPre = await call('linkStaffAccount', { staffId: 'esteban', email: preRegMail }, tAdm);
+check('linkStaffAccount rechaza una cuenta pre-registrada sin verificar ni usar',
+  preReg.ok && linkPre.error && /failed[-_]precondition/i.test(JSON.stringify(linkPre.error)), linkPre.error || linkPre.result);
 
 // ═══════════════════ getMyRange ═══════════════════
 const hoyK = new Date().toISOString().slice(0, 10);
@@ -305,6 +350,62 @@ check('y conserva la fecha de creación original',
   docEditado && docEditado.createdAt === (docCreado && docCreado.createdAt),
   { antes: docCreado && docCreado.createdAt, despues: docEditado && docEditado.createdAt });
 
+// ═══════════════════ Servicios por profesional ═══════════════════
+// La cadena real: el panel escribe la lista en staff/{id}, el trigger la copia
+// al espejo público que lee el widget y los callables la hacen cumplir.
+// E2E-ADM1 ya existe con (manifiesto.svcId, manifiesto.barberId).
+const fichaPath = `staff/${manifiesto.barberId}`;
+const espejoPath = `staffPublic/${manifiesto.barberId}`;
+const otroSvc = manifiesto.svcId === 'nino' ? 'cb' : 'nino';
+await patchDoc(fichaPath, { serviceIds: [otroSvc] }, tAdm);
+
+let espejo = null;
+for (let i = 0; i < 40; i++) {
+  espejo = await getDoc(espejoPath, tAdm);
+  if (espejo && Array.isArray(espejo.serviceIds)) break;
+  await sleep(250);
+}
+check('la lista llega sola al espejo público que lee el widget',
+  espejo && JSON.stringify(espejo.serviceIds) === JSON.stringify([otroSvc]), espejo && espejo.serviceIds);
+check('y el espejo sigue sin el horario', espejo && !('schedule' in espejo), espejo && Object.keys(espejo));
+
+const reservaPublica = {
+  code: 'E2E-PUB1', name: 'Cliente Web', email: 'web@e2e.cl', phone: '+56944444444',
+  svcId: manifiesto.svcId, barberId: manifiesto.barberId, date: manifiesto.hoy, time: '23:30', club: 'guest',
+};
+const sinCalificar = await call('createBooking', reservaPublica, null);
+check('createBooking rechaza a quien no presta el servicio',
+  sinCalificar.error && /failed[-_]precondition/i.test(JSON.stringify(sinCalificar.error)), sinCalificar.error);
+check('y el motivo llega al cliente en details',
+  sinCalificar.error && sinCalificar.error.details && sinCalificar.error.details.reason === 'barber-not-qualified',
+  sinCalificar.error);
+
+const cruceNuevo = await call('adminSaveBooking',
+  { booking: { ...nuevaCita, code: 'E2E-ADM5', email: '' } }, tAdm);
+check('adminSaveBooking rechaza un cruce nuevo no calificado',
+  cruceNuevo.error && /failed[-_]precondition/i.test(JSON.stringify(cruceNuevo.error)), cruceNuevo.error);
+check('con un mensaje que dice qué hacer', cruceNuevo.error && /Personal/.test(cruceNuevo.error.message), cruceNuevo.error);
+check('el cruce rechazado no se escribe', !(await getDoc('bookings/E2E-ADM5', tAdm)));
+
+const citaHeredada = await call('adminSaveBooking',
+  { booking: { ...nuevaCita, name: 'Editada Tras Perder Servicio' } }, tAdm);
+check('la cita que ya tenía ese cruce se puede seguir editando',
+  citaHeredada.status === 200 && citaHeredada.result && citaHeredada.result.created === false, citaHeredada.error);
+
+const calificado = await call('adminSaveBooking',
+  { booking: { ...nuevaCita, code: 'E2E-ADM6', svcId: otroSvc, email: '' } }, tAdm);
+check('un servicio de la lista se agenda normal', calificado.status === 200, calificado.error);
+
+const cambioAFuera = await call('adminSaveBooking',
+  { booking: { ...nuevaCita, code: 'E2E-ADM6', svcId: manifiesto.svcId, email: '' } }, tAdm);
+check('cambiar una cita a un servicio que no presta se rechaza',
+  cambioAFuera.error && /failed[-_]precondition/i.test(JSON.stringify(cambioAFuera.error)), cambioAFuera.error);
+
+await patchDoc(fichaPath, { serviceIds: null }, tAdm);
+const sinLista = await call('adminSaveBooking',
+  { booking: { ...nuevaCita, code: 'E2E-ADM7', email: '' } }, tAdm);
+check('al quitar la lista vuelve a prestar todo', sinLista.status === 200, sinLista.error);
+
 // Y la puerta directa quedó cerrada, incluso para el admin.
 const directo = await fetch(`${FS}/bookings/E2E-DIRECTO`, {
   method: 'PATCH', headers: { Authorization: `Bearer ${tAdm}`, 'Content-Type': 'application/json' },
@@ -354,6 +455,16 @@ const largo = await call('adminLogEvent',
   { action: 'A'.repeat(500), item: 'B'.repeat(2000) }, tAdm);
 check('adminLogEvent acepta el texto largo', largo.status === 200, largo.error);
 const gigante = (await leerLog()).find((f) => ((f.action || {}).stringValue || '').startsWith('AAAA'));
+const conExtra = await call('adminLogEvent',
+  { action: 'Borrado test', item: 'Svc', serviceId: 'sv_x', price: 9000, outcome: 'attempt', sessionId: 'ses_1',
+    before: { name: 'Svc', blob: 'z'.repeat(5000) }, outcome2: 'ignorado' }, tAdm);
+check('adminLogEvent acepta los campos opcionales', conExtra.status === 200 && conExtra.result && conExtra.result.ok, conExtra.error);
+const extraDoc = (await leerLog()).find((f) => (f.action || {}).stringValue === 'Borrado test');
+check('guarda serviceId, outcome y precio',
+  extraDoc && extraDoc.serviceId.stringValue === 'sv_x' && extraDoc.outcome.stringValue === 'attempt'
+  && Number(extraDoc.price.integerValue || extraDoc.price.doubleValue) === 9000, extraDoc);
+check('before se acota a 2 KB', extraDoc && extraDoc.before.stringValue.length <= 2048, extraDoc && extraDoc.before);
+check('no guarda campos desconocidos', extraDoc && !extraDoc.outcome2, extraDoc);
 check('pero lo recorta antes de escribirlo',
   gigante && gigante.action.stringValue.length <= 120 && gigante.item.stringValue.length <= 300,
   gigante && { action: gigante.action.stringValue.length, item: gigante.item.stringValue.length });

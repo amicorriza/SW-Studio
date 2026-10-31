@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <script src="/js/sentry-init.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Admin — SW Studio</title>
   <meta name="robots" content="noindex, nofollow">
@@ -419,6 +420,8 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
 .a-pu span{font-size:12px;color:var(--a-meta)}
 .a-chk{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--a-body);line-height:1.5;cursor:pointer;padding-top:4px}
 .a-chk input{width:15px;height:15px;flex-shrink:0;margin-top:2px;accent-color:var(--a-ink)}
+.a-stf-svcs{max-height:220px;overflow-y:auto;padding:2px 10px 8px;border:1px solid var(--a-g2);border-radius:8px}
+.a-stf-svcs-cat{font-size:11px;font-weight:600;color:var(--a-meta);padding-top:8px}
 .a-conflict{display:none;padding:10px 13px;border-radius:8px;background:#FFF6E0;border:1px solid #F0DBA0;font-size:12px;color:var(--a-warn);line-height:1.5;margin-top:8px}
 .a-conflict.show{display:block}
 
@@ -1364,6 +1367,18 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
               <input class="a-in" id="ai-nudgeLeadMin" type="number" min="0" step="5">
               <span style="font-size:11px;color:var(--a-meta)">Anticipación del aviso "se acerca la hora" en la app del barbero. 0 avisa justo a la hora.</span>
             </div>
+            <div class="a-f">
+              <label class="a-lbl">Horario que se muestra en el sitio web</label>
+              <div class="a-fr">
+                <div class="a-f"><label class="a-lbl" for="ai-hwStart">Lunes a Viernes · desde</label><input class="a-in" id="ai-hwStart" type="time"></div>
+                <div class="a-f"><label class="a-lbl" for="ai-hwEnd">hasta</label><input class="a-in" id="ai-hwEnd" type="time"></div>
+              </div>
+              <div class="a-fr">
+                <div class="a-f"><label class="a-lbl" for="ai-hsStart">Sábado · desde</label><input class="a-in" id="ai-hsStart" type="time"></div>
+                <div class="a-f"><label class="a-lbl" for="ai-hsEnd">hasta</label><input class="a-in" id="ai-hsEnd" type="time"></div>
+              </div>
+              <span style="font-size:11px;color:var(--a-meta)">Solo es el texto de la landing. Los horarios para reservar se editan por profesional en Horarios.</span>
+            </div>
             <button class="a-btn a-btn-p" id="ai-save" style="align-self:flex-start;margin-top:4px">Guardar información</button>
           </div>
 
@@ -1488,6 +1503,12 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
       <div class="a-f"><label class="a-lbl" for="a-stf-r">Especialidad / Cargo</label><input class="a-in" id="a-stf-r"></div>
       <div class="a-f"><label class="a-lbl" for="a-stf-dy">Días de atención (texto)</label><input class="a-in" id="a-stf-dy" placeholder="Ej: Mar — Sáb"></div>
       <div class="a-f"><label class="a-lbl" for="a-stf-b">Bio</label><textarea class="a-in a-ta" id="a-stf-b" rows="3"></textarea></div>
+      <div class="a-f">
+        <div class="a-lbl">Servicios que presta</div>
+        <label class="a-chk"><input type="checkbox" id="a-stf-all"><span>Todos, incluidos los que se agreguen después</span></label>
+        <div id="a-stf-svcs" class="a-stf-svcs" style="display:none"></div>
+        <span id="a-stf-svcs-hint" style="font-size:11px;color:var(--a-err);display:none"></span>
+      </div>
     </div>
     <div class="a-mf"><button class="a-btn a-btn-g" data-close="a-stm">Cancelar</button><button class="a-btn a-btn-p" id="a-stf-save">Guardar</button></div>
   </div>
@@ -1507,7 +1528,7 @@ th.a-svc-dc,td.a-svc-dc{width:1%;padding-right:2px;text-align:center}
       <div class="a-f"><label class="a-lbl" for="a-bkm-email">Email</label><input class="a-in" id="a-bkm-email" type="email"><span class="a-fe">Formato de email inválido.</span><span id="a-bkm-email-hint" style="font-size:11px;color:var(--a-meta);display:none"></span></div>
       <div class="a-fr">
         <div class="a-f"><label class="a-lbl" for="a-bkm-svc">Servicio *</label><select class="a-in" id="a-bkm-svc"></select><span class="a-fe">Selecciona servicio.</span></div>
-        <div class="a-f"><label class="a-lbl" for="a-bkm-barber">Barbero *</label><select class="a-in" id="a-bkm-barber"></select><span class="a-fe">Selecciona barbero.</span></div>
+        <div class="a-f"><label class="a-lbl" for="a-bkm-barber">Barbero *</label><select class="a-in" id="a-bkm-barber"></select><span class="a-fe">Selecciona barbero.</span><span id="a-bkm-barber-hint" style="font-size:11px;color:var(--a-meta);display:none"></span></div>
       </div>
       <div class="a-fr">
         <div class="a-f"><label class="a-lbl" for="a-bkm-date">Fecha *</label><input class="a-in" id="a-bkm-date" type="date"><span class="a-fe">Selecciona fecha.</span></div>
@@ -1926,12 +1947,19 @@ async function admSave(){
     return { ok:false };
   }
   try {
-    await window.SWData.saveAdmin(D);
+    var saved = await window.SWData.saveAdmin(D);
+    // saveAdmin NO re-crea servicios que otra sesion borro (guarda
+    // anti-resurreccion, public/js/data.js): los saca de D y avisa aca.
+    var gone = (saved && saved.removedElsewhere) || [];
+    if(gone.length){
+      renderSvcs(); renderDash(); updateBadges();
+      showAlert('a-svc-alert', 'err', 'Otro dispositivo eliminó "' + gone.map(function(x){ return x.name; }).join('", "') + '". Recargá la página para ver el catálogo actual.');
+    }
     el.style.color = '';
     el.style.display = '';
     el.textContent = '✓ ' + new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
     setTimeout(function(){ el.textContent = ''; }, 2500);
-    return { ok:true };
+    return { ok:true, removedElsewhere:gone };
   } catch(e){
     console.error('Error guardando', e);
     // Sin esto el error queda invisible en celulares: #adm-ss tiene
@@ -1939,7 +1967,7 @@ async function admSave(){
     el.style.display = 'block';
     el.style.color = 'var(--a-err)';
     el.textContent = '⚠ Error al guardar -- reintentá';
-    return { ok:false };
+    return { ok:false, code:e && e.code, message:e && e.message };
   }
 }
 g('adm-save-btn').addEventListener('click', admSave);
@@ -1960,18 +1988,32 @@ g('adm-save-btn').addEventListener('click', admSave);
 // Hasta el 2026-09-07 esto solo empujaba a un array en memoria que nadie
 // persistía ni mostraba: 23 llamadas anotando operaciones reales que se
 // perdían al recargar.
-function log(action, item){
+// Id de esta pestaña/sesion, para rastrear en la auditoria desde donde se hizo
+// cada cambio (dos pestañas con el catalogo desincronizado son la causa
+// probable de servicios "resucitados").
+var SESSION_ID = 'ses_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+// Solo anota (D.log local + adminLogEvent sin esperar); no guarda. `extra`
+// lleva los campos opcionales de auditoria (serviceId, price, before, after,
+// outcome, sessionId). Devuelve la promesa del registro (nunca rechaza).
+function logAudit(action, item, extra){
   var ahora = new Date();
   D.log.unshift({
     action:action, item:item, ts:ahora.getTime(),
     at:ahora.toISOString(), date:ahora.toLocaleString('es-CL'), byEmail:'tú',
+    outcome:extra && extra.outcome, price:extra && extra.price, serviceId:extra && extra.serviceId,
   });
   if(D.log.length > 30) D.log.pop();
   if(window.SWData && window.SWData.adminLogEvent){
-    window.SWData.adminLogEvent(action, item).catch(function(e){
+    var pr = window.SWData.adminLogEvent(action, item, extra);
+    return Promise.resolve(pr).catch(function(e){
       console.error('No se pudo registrar la actividad', e);
     });
   }
+  return Promise.resolve();
+}
+function log(action, item){
+  logAudit(action, item);
   return admSave();
 }
 
@@ -1997,7 +2039,9 @@ function renderActivity(){
   box.innerHTML = filas.map(function(e){
     return '<div class="a-act">'
       + '<div class="a-act-m"><b>' + esc(e.action || '') + '</b>'
-      + (e.item ? '<span>' + esc(e.item) + '</span>' : '') + '</div>'
+      + (e.item ? '<span>' + esc(e.item) + '</span>' : '')
+      + (e.outcome ? '<span>' + esc(e.outcome) + (typeof e.price === 'number' ? ' · $' + e.price : '') + (e.serviceId ? ' · ' + esc(e.serviceId) : '') + '</span>' : '')
+      + '</div>'
       + '<div class="a-act-t">' + esc(actFecha(e))
       + (e.byEmail ? '<small>' + esc(e.byEmail) + '</small>' : '') + '</div>'
       + '</div>';
@@ -2723,7 +2767,11 @@ function saveBookingAnd(b, okMsg){
     showAlert('a-bk-alert', 'ok', okMsg);
   }).catch(function(e){
     console.error('Error guardando reserva', e);
-    showAlert('a-bk-alert', 'err', 'No se pudo guardar: ' + ((e && e.code) || 'error desconocido') + '. La cita NO quedó registrada.');
+    // Este rechazo se resuelve desde el panel, así que se muestra el motivo: el
+    // código ('functions/failed-precondition') no le dice nada a quien agenda.
+    var motivo = (e && e.details && e.details.reason === 'barber-not-qualified')
+      ? e.message : ((e && e.code) || 'error desconocido') + '.';
+    showAlert('a-bk-alert', 'err', 'No se pudo guardar: ' + motivo + ' La cita NO quedó registrada.');
   });
 }
 // SIN USO desde la medición de la atención real (2026-09): cancelar ya no
@@ -3406,6 +3454,47 @@ function renderCalendar(){
 }
 
 // ═══ BOOKING MODAL ═══
+// ¿Este profesional presta este servicio? Copia deliberada de
+// canPerformService() en functions/shared/staffServices.js (<script> plano, sin
+// bundler). Sin lista, presta todos.
+function canPerformService(staff, svcId){
+  if(!staff) return false;
+  return !Array.isArray(staff.serviceIds) || staff.serviceIds.indexOf(svcId) !== -1;
+}
+
+// Cita abierta en el modal (null = nueva). Es una variable y no un closure de
+// openBookingModal porque los listeners de abajo se registran una sola vez.
+var bkmEditing = null;
+
+// Llena el select de barberos con quienes prestan el servicio elegido y deja
+// seleccionado a `wanted` si corresponde. Una cita que YA tenía ese cruce
+// conserva a su profesional aunque le hayan quitado el servicio después, igual
+// que en adminSaveBooking: si no, no se podría editar nada de esa cita.
+function fillBkmBarbers(wanted){
+  var bSel = g('a-bkm-barber'), svcId = g('a-bkm-svc').value;
+  var activos = D.staff.filter(function(s){ return s.status === 'active'; });
+  var lista = activos.filter(function(s){ return !svcId || canPerformService(s, svcId); });
+  var pedido = activos.find(function(s){ return s.id === wanted; }) || null;
+  var califica = !!pedido && lista.indexOf(pedido) !== -1;
+  var heredado = !!pedido && !califica && !!bkmEditing
+    && bkmEditing.barberId === wanted && bkmEditing.svcId === svcId;
+  var opcion = function(s){
+    return '<option value="'+esc(s.id)+'" data-name="'+esc(s.name)+'">'+esc(s.name)+'</option>';
+  };
+  bSel.innerHTML = '<option value="">— Selecciona —</option>' +
+    (heredado ? opcion(pedido) : '') + lista.map(opcion).join('');
+  bSel.value = (califica || heredado) ? wanted : '';
+
+  var hint = g('a-bkm-barber-hint');
+  hint.textContent = heredado ? pedido.name + ' no tiene este servicio asignado. Puedes mantener la cita o pasarla a otra persona.'
+    : (svcId && !lista.length) ? 'Nadie tiene asignado este servicio. Asígnalo en Personal.'
+    : (pedido && !califica) ? pedido.name + ' no presta este servicio. Elige a otra persona.'
+    : '';
+  hint.style.display = hint.textContent ? 'block' : 'none';
+}
+g('a-bkm-svc').addEventListener('change', function(){ fillBkmBarbers(g('a-bkm-barber').value); });
+g('a-bkm-barber').addEventListener('change', function(){ fillBkmBarbers(g('a-bkm-barber').value); });
+
 function openBookingModal(bk, presetHour){
   g('a-bkm-t').textContent = bk ? 'Editar cita' : 'Nueva cita';
   g('a-bkm-id').value = bk ? bk.code : '';
@@ -3436,12 +3525,8 @@ function openBookingModal(bk, presetHour){
     g('a-bkm-dur').value = opt && opt.dataset.dur ? opt.dataset.dur : '';
   });
 
-  var bSel = g('a-bkm-barber');
-  bSel.innerHTML = '<option value="">— Selecciona —</option>' +
-    D.staff.filter(function(s){return s.status==='active'}).map(function(s){
-      return '<option value="'+esc(s.id)+'" data-name="'+esc(s.name)+'">'+esc(s.name)+'</option>';
-    }).join('');
-  if(bk) bSel.value = bk.barberId || '';
+  bkmEditing = bk || null;
+  fillBkmBarbers(bk ? (bk.barberId || '') : '');
 
   // Date / time
   if(bk && bk.date){
@@ -3816,7 +3901,10 @@ function renderSvcs(){
       '<td data-label="Min."><span class="a-tdur">'+(s.dur||0)+'m</span></td>'+
       '<td data-label="Precio"><span class="a-tp">'+fmtCLP(s.price)+'</span></td>'+
       '<td data-label="$/hora"><span class="a-svc-pph">'+(s.dur > 0 ? fmtCLP(svcPPH(s)) : '—')+'</span></td>'+
-      '<td data-label="Estado"><span class="a-tag a-t'+(isActive?'ok':'no')+'">'+(isActive?'Activo':'Inactivo')+'</span></td>'+
+      '<td data-label="Estado"><span class="a-tag a-t'+(isActive?'ok':'no')+'">'+(isActive?'Activo':'Inactivo')+'</span>'+
+        // Sin esto el servicio desaparece de la web sin que nadie sepa por qué.
+        (isActive && !svcHasStaff(s.id) ? ' <span class="a-tag a-tno" title="Nadie lo tiene asignado, así que no aparece en la web. Asígnalo en Personal.">Sin profesional</span>' : '')+
+      '</td>'+
       '<td data-label="Editado"><span class="a-svc-when">'+esc(svcWhen(s))+'</span></td>'+
       '<td><div class="a-tacts">'+
         '<span class="a-svc-ord">'+
@@ -3827,7 +3915,8 @@ function renderSvcs(){
         '<button class="a-btn a-btn-g" data-dup-svc="'+esc(s.id)+'">⧉<span class="a-bl"> Duplicar</span></button>'+
         (isActive
           ? '<button class="a-btn a-btn-danger" data-retire-svc="'+esc(s.id)+'">Retirar</button>'
-          : '<button class="a-btn a-btn-g" data-react-svc="'+esc(s.id)+'">Reactivar</button>')+
+          : '<button class="a-btn a-btn-g" data-react-svc="'+esc(s.id)+'">Reactivar</button>'+
+            '<button class="a-btn a-btn-danger" data-del-svc="'+esc(s.id)+'">Eliminar</button>')+
       '</div></td>'+
     '</tr>';
   }).join('');
@@ -3837,6 +3926,17 @@ function renderSvcs(){
   });
   body.querySelectorAll('[data-dup-svc]').forEach(function(b){
     b.addEventListener('click', function(){ dupSvc(b.dataset.dupSvc); });
+  });
+  // El borrado definitivo vive en el modal (doble confirmación); este botón solo
+  // lo abre con la zona de peligro ya desplegada, para que no haya que adivinar
+  // que "Duplicar" no es la salida.
+  body.querySelectorAll('[data-del-svc]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var sv = D.services.find(function(s){ return s.id === b.dataset.delSvc; });
+      if(!sv) return;
+      openSvcModal(sv);
+      g('a-sf-dz').open = true;
+    });
   });
   body.querySelectorAll('[data-retire-svc]').forEach(function(b){
     b.addEventListener('click', function(){ setSvcStatus(b.dataset.retireSvc, 'inactive'); });
@@ -3968,6 +4068,9 @@ function setSvcStatus(id, status){
 }
 
 function dupSvc(id){
+  // Doble disparo (doble clic / toque doble): con el modal ya abierto no se
+  // crea otra copia.
+  if(g('a-sm').classList.contains('a-open')) return;
   var s = D.services.find(function(x){ return x.id === id; });
   if(!s) return;
   var clone = JSON.parse(JSON.stringify(s));
@@ -3983,6 +4086,55 @@ function dupSvc(id){
   renderSvcs(); renderDash(); updateBadges();
   openSvcModal(clone);
   log('Duplicó servicio', s.name);
+}
+
+// Borrado duro de un servicio ya retirado. Espera el guardado real: si falla,
+// restaura el servicio en D y avisa (antes avisaba "eliminado" igual y el doc
+// seguia en Firestore). Antes de guardar anota un intento y despues el
+// resultado, para poder reconstruir que paso. svcDeleting evita el doble clic.
+var svcDeleting = false;
+function deleteSvcForever(s){
+  if(svcDeleting) return Promise.resolve();
+  svcDeleting = true;
+  var btn = g('a-sf-dz-btn'); if(btn) btn.disabled = true;
+  var okBtn = g('a-dm-ok'); if(okBtn) okBtn.disabled = true;
+  var idx = D.services.findIndex(function(x){ return x.id === s.id; });
+  var snapshot = JSON.parse(JSON.stringify(idx > -1 ? D.services[idx] : s));
+  // Auditoria sin la foto (data URL enorme); el servidor acota igual a ~2 KB.
+  var brief = JSON.parse(JSON.stringify(snapshot));
+  if(brief.photo) brief.photo = '[foto]';
+  var extra = function(outcome){
+    return { serviceId:s.id, price:s.price, outcome:outcome, sessionId:SESSION_ID, before:brief };
+  };
+  var finish = function(){
+    svcDeleting = false;
+    if(btn) btn.disabled = false;
+    if(okBtn) okBtn.disabled = false;
+  };
+  // El intento se anota ANTES de tocar nada; la espera es corta para que una
+  // red lenta no bloquee la operacion.
+  var attempt = Promise.race([
+    logAudit('Intento de eliminar servicio (definitivo)', s.name + ' [' + s.status + ']', extra('attempt')),
+    new Promise(function(r){ setTimeout(r, 3000); })
+  ]);
+  return attempt.then(function(){
+    D.services = D.services.filter(function(x){ return x.id !== s.id; });
+    normalizeSvcOrder();
+    closeModal('a-sm');
+    renderSvcs(); renderDash(); updateBadges();
+    return admSave();
+  }).then(function(res){
+    if(res && res.ok){
+      logAudit('Eliminó servicio (definitivo)', s.name, extra('ok'));
+      showAlert('a-svc-alert', 'ok', '"'+s.name+'" eliminado definitivamente.');
+    } else {
+      D.services.splice(Math.min(Math.max(idx, 0), D.services.length), 0, snapshot);
+      normalizeSvcOrder();
+      renderSvcs(); renderDash(); updateBadges();
+      logAudit('Falló eliminar servicio (definitivo)', s.name, extra('failed'));
+      showAlert('a-svc-alert', 'err', 'No se pudo eliminar "'+s.name+'". El servicio sigue en el catálogo. Reintentá.');
+    }
+  }).then(finish, function(e){ finish(); throw e; });
 }
 
 function openSvcModal(s){
@@ -4020,12 +4172,7 @@ function openSvcModal(s){
       btn.onclick = function(){
         if(nameIn.value.trim() !== s.name) return;
         openDel('¿Eliminar para siempre el servicio "<strong>'+esc(s.name)+'</strong>"? No se puede deshacer.', function(){
-          D.services = D.services.filter(function(x){ return x.id !== s.id; });
-          normalizeSvcOrder();
-          closeModal('a-sm');
-          renderSvcs(); renderDash(); updateBadges();
-          log('Eliminó servicio (definitivo)', s.name);
-          showAlert('a-svc-alert', 'ok', '"'+s.name+'" eliminado definitivamente.');
+          deleteSvcForever(s);
         });
       };
     }
@@ -4045,7 +4192,7 @@ g('a-svc-save').addEventListener('click', async function(){
   var tag = g('a-sf-tag').value;
   var prevSvc = eid ? D.services.find(function(x){ return x.id === eid; }) : null;
   var s = {
-    id: eid || 'sv_'+Date.now(),
+    id: eid || 'sv_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name: ne.value.trim(), cat: g('a-sf-c').value,
     price: parseInt(pe.value), dur: parseInt(de.value),
     desc: g('a-sf-desc').value.trim(),
@@ -4065,7 +4212,19 @@ g('a-svc-save').addEventListener('click', async function(){
   closeModal('a-sm');
   renderSvcs(); renderDash(); updateBadges();
   var res = await log(eid ? 'Editó servicio' : 'Creó servicio', s.name);
-  showAlert('a-svc-alert', res.ok ? 'ok' : 'err', res.ok ? '"'+s.name+'" guardado.' : 'No se pudo guardar. Reintentá.');
+  // Si otro dispositivo lo borro, admSave() ya aviso: no pisar ese aviso.
+  if(res.removedElsewhere && res.removedElsewhere.some(function(x){ return x.id === s.id; })) return;
+  // Un servicio nuevo no entra solo a las listas propias (ver
+  // functions/shared/staffServices.js): sin este aviso, quedaría sin ofrecerse
+  // con esos profesionales y nadie sabría por qué.
+  var sinAsignar = (!eid && s.status === 'active')
+    ? D.staff.filter(function(b){ return b.status === 'active' && !canPerformService(b, s.id); })
+        .map(function(b){ return b.name; })
+    : [];
+  var aviso = sinAsignar.length
+    ? ' No se asignó a ' + sinAsignar.join(', ') + ': tiene' + (sinAsignar.length > 1 ? 'n' : '') + ' lista propia. Agrégalo en su ficha de Personal si corresponde.'
+    : '';
+  showAlert('a-svc-alert', res.ok ? 'ok' : 'err', res.ok ? '"'+s.name+'" guardado.'+aviso : 'No se pudo guardar. Reintentá.');
 });
 g('a-sp-file').addEventListener('change', function(e){
   var f = e.target.files[0]; if(!f) return;
@@ -4174,6 +4333,21 @@ g('a-spm-apply').addEventListener('click', async function(){
 });
 
 // ═══ STAFF ═══
+function activeSvcs(){
+  return D.services.filter(function(v){ return v.status === 'active'; });
+}
+function svcHasStaff(svcId){
+  return D.staff.some(function(b){ return b.status === 'active' && canPerformService(b, svcId); });
+}
+// Resumen de la tarjeta. Cuenta solo los activos: la lista puede conservar
+// servicios retirados (ver readStfSvcs).
+function staffSvcSummary(s){
+  if(!Array.isArray(s.serviceIds)) return 'Todos los servicios';
+  var activos = activeSvcs();
+  var n = activos.filter(function(v){ return s.serviceIds.indexOf(v.id) !== -1; }).length;
+  return n ? 'Presta ' + n + ' de ' + activos.length + ' servicios' : 'Sin servicios asignados';
+}
+
 function renderStaff(){
   var sg = g('a-sg');
   if(!D.staff.length){
@@ -4189,6 +4363,7 @@ function renderStaff(){
       '<div class="a-stn">'+esc(s.name)+'</div>'+
       '<div class="a-str">'+esc(s.role||'—')+'</div>'+
       (s.days ? '<div class="a-sti">📅 '+esc(s.days)+'</div>' : '')+
+      '<div class="a-sti">'+esc(staffSvcSummary(s))+'</div>'+
       (s.bio ? '<div class="a-sti">'+esc(s.bio)+'</div>' : '')+
       '<div class="a-stgs"><span class="a-tag a-t'+(s.status==='active'?'ok':'no')+'">'+(s.status==='active'?'Activo':'Inactivo')+'</span></div>'+
       // Acceso a la app del barbero (/barbero). Sin cuenta vinculada, ese
@@ -4202,12 +4377,16 @@ function renderStaff(){
             ? '<span class="a-sti" title="'+esc(cta.authEmail||'')+'">✓ Cuenta vinculada</span>'
             : '<span class="a-sti" style="color:var(--a-meta)">Sin acceso a la app</span>')+
           '<button class="a-btn a-btn-g a-btn-sm" data-link-stf="'+esc(s.id)+'">'+(cta && cta.uid?'Cambiar':'Vincular cuenta')+'</button>'+
+          (cta && cta.invitedAt ? '<button class="a-btn a-btn-g a-btn-sm" data-resend-stf="'+esc(s.id)+'">Reenviar invitación</button>' : '')+
         '</div>';
       })()+
     '</div>';
   }).join('');
   sg.querySelectorAll('[data-link-stf]').forEach(function(b){
     b.addEventListener('click', function(){ linkStaffPrompt(b.dataset.linkStf); });
+  });
+  sg.querySelectorAll('[data-resend-stf]').forEach(function(b){
+    b.addEventListener('click', function(){ resendStaffInviteFlow(b.dataset.resendStf, b); });
   });
   sg.querySelectorAll('[data-edit-stf]').forEach(function(b){
     b.addEventListener('click', function(){ openStfModal(D.staff.find(function(s){return s.id===b.dataset.editStf})); });
@@ -4235,7 +4414,7 @@ function linkStaffPrompt(staffId){
   if(!s) return;
   var email = window.prompt(
     'Correo de la cuenta de '+s.name+'\n\n'+
-    'La cuenta tiene que existir ya en Firebase Auth (Consola → Authentication → Add user).',
+    'Si todavía no tiene cuenta, escribí su correo y te ofreceré crearla.',
     ((D.staffAccounts || {})[staffId] || {}).authEmail || ''
   );
   if(email === null) return;
@@ -4249,8 +4428,103 @@ function linkStaffPrompt(staffId){
     log('Vinculó cuenta', s.name);
   }).catch(function(e){
     console.error('linkStaffAccount', e);
+    // La cuenta no existe: la administradora la crea desde acá, sin pasar por
+    // la consola de Firebase.
+    if(e && ((e.code === 'functions/not-found' && /No existe ninguna cuenta/.test(e.message || '')) || (e.code === 'functions/failed-precondition' && /nunca se usó/.test(e.message || '')))){
+      if(window.confirm('No existe una cuenta con '+email+'.' + String.fromCharCode(10,10) + '¿Crear su acceso ahora? Se enviará un correo a '+email+' para que '+s.name+' elija su contraseña.')){
+        createStaffAccountFlow(staffId, email, s);
+      }
+      return;
+    }
     showAlert('a-stf-alert','err','No se pudo vincular: '+((e && e.message) || 'error desconocido'));
   });
+}
+
+function createStaffAccountFlow(staffId, email, s){
+  showAlert('a-stf-alert','ok','Creando acceso…');
+  window.SWData.createStaffAccount(staffId, email).then(function(r){
+    if(!D.staffAccounts) D.staffAccounts = {};
+    D.staffAccounts[staffId] = { uid: r.uid, authEmail: r.authEmail || email, invitedAt: new Date().toISOString() };
+    renderStaff();
+    // El enlace NO se muestra ni se copia: viaja solo por correo al buzón del
+    // profesional. La auditoría la escribe el servidor.
+    if(r.emailSent){
+      showAlert('a-stf-alert','ok','Acceso creado. Se envió una invitación a '+(r.masked || email)+'. Si no la ve, que revise spam; el enlace caduca en cerca de una hora.');
+    } else {
+      showAlert('a-stf-alert','err','El acceso quedó creado, pero no se pudo enviar el correo. Usá "Reenviar invitación" en su ficha.');
+    }
+  }).catch(function(e){
+    console.error('createStaffAccount', e);
+    showAlert('a-stf-alert','err','No se pudo crear el acceso: '+((e && e.message) || 'error desconocido'));
+  });
+}
+
+function resendStaffInviteFlow(staffId, btn){
+  if(btn) btn.disabled = true;
+  window.SWData.resendStaffInvite(staffId).then(function(r){
+    showAlert('a-stf-alert', r.emailSent ? 'ok' : 'err',
+      r.emailSent ? 'Invitación reenviada a '+(r.masked || '')+'.' : 'No se pudo enviar el correo. Reintentá en un minuto.');
+  }).catch(function(e){
+    console.error('resendStaffInvite', e);
+    showAlert('a-stf-alert','err',(e && e.message) || 'No se pudo reenviar la invitación.');
+  }).then(function(){ if(btn) btn.disabled = false; });
+}
+
+// Checklist "Servicios que presta" de la ficha. Con "Todos" marcado no se guarda
+// lista, y por eso los servicios nuevos entran solos; sin él, presta solo lo
+// marcado. Se parte con todo marcado porque lo normal es desmarcar unos pocos.
+function renderStfSvcs(s){
+  var ids = s && Array.isArray(s.serviceIds) ? s.serviceIds : null;
+  g('a-stf-all').checked = !ids;
+  var cats = Object.keys(CN);
+  var rank = function(v){ var i = cats.indexOf(v.cat); return i === -1 ? cats.length : i; };
+  var actual = null, html = '';
+  activeSvcs().slice().sort(function(a, b){
+    return (rank(a) - rank(b)) || ((a.order || 0) - (b.order || 0));
+  }).forEach(function(v){
+    if(v.cat !== actual){
+      actual = v.cat;
+      html += '<div class="a-stf-svcs-cat">'+esc(CN[v.cat] || v.cat)+'</div>';
+    }
+    var on = !ids || ids.indexOf(v.id) !== -1;
+    html += '<label class="a-chk"><input type="checkbox" data-stfsvc="'+esc(v.id)+'"'+(on?' checked':'')+'><span>'+esc(v.name)+'</span></label>';
+  });
+  g('a-stf-svcs').innerHTML = html || '<div class="a-stf-svcs-cat">No hay servicios activos.</div>';
+  syncStfSvcs();
+}
+function syncStfSvcs(){
+  var todos = g('a-stf-all').checked;
+  var box = g('a-stf-svcs');
+  box.style.display = todos ? 'none' : 'block';
+  var hint = g('a-stf-svcs-hint');
+  var vacia = !todos && !box.querySelector('input:checked');
+  hint.textContent = vacia ? 'Sin servicios marcados no aparecerá en la web para reservar.' : '';
+  hint.style.display = vacia ? 'block' : 'none';
+}
+g('a-stf-all').addEventListener('change', syncStfSvcs);
+g('a-stf-svcs').addEventListener('change', syncStfSvcs);
+
+// null = todos. Un servicio retirado no se lista, pero su asignación se conserva:
+// si se reactiva, vuelve como estaba.
+function readStfSvcs(prev){
+  if(g('a-stf-all').checked) return null;
+  var marcados = [].map.call(g('a-stf-svcs').querySelectorAll('input:checked'), function(i){ return i.dataset.stfsvc; });
+  var previos = prev && Array.isArray(prev.serviceIds) ? prev.serviceIds : [];
+  return marcados.concat(previos.filter(function(id){
+    return D.services.some(function(v){ return v.id === id && v.status !== 'active'; });
+  }));
+}
+
+// Citas por venir de servicios que este profesional no tiene asignados. Quitarle
+// un servicio no toca lo ya agendado: esas citas se avisan para revisarlas.
+function citasFueraDeLista(s){
+  var X = window.SWMetrics;
+  if(!X || !Array.isArray(s.serviceIds)) return 0;
+  var hoy = X.bizToday((D.info && D.info.tz) || DEFAULT_TZ);
+  return getBookings().filter(function(b){
+    return b.barberId === s.id && isBlockingStatus(b.status)
+      && String(b.date || '').substring(0, 10) >= hoy && s.serviceIds.indexOf(b.svcId) === -1;
+  }).length;
 }
 
 function openStfModal(s){
@@ -4265,6 +4539,7 @@ function openStfModal(s){
   var prev = g('a-stp-prev'), lbl = g('a-stp-lbl');
   if(stfPh){ prev.src = stfPh; prev.style.display='block'; lbl.style.display='none'; }
   else { prev.style.display='none'; lbl.style.display='block'; }
+  renderStfSvcs(s);
   document.querySelectorAll('#a-stm .a-f').forEach(function(f){f.classList.remove('a-err')});
   openModal('a-stm');
 }
@@ -4282,6 +4557,7 @@ g('a-stf-save').addEventListener('click', async function(){
     bio: g('a-stf-b').value.trim(),
     status: g('a-stf-st').value,
     photo: stfPh,
+    serviceIds: readStfSvcs(D.staff.find(function(x){ return x.id === eid; })),
     schedule: null
   };
   if(eid){
@@ -4295,17 +4571,33 @@ g('a-stf-save').addEventListener('click', async function(){
     D.staff.push(s);
   }
   closeModal('a-stm');
-  renderStaff(); renderSchedule(); updateBadges();
+  // renderSvcs: la marca "Sin profesional" depende de estas listas.
+  renderStaff(); renderSchedule(); renderSvcs(); updateBadges();
   var res = await log(eid ? 'Editó barbero' : 'Agregó barbero', s.name);
-  showAlert('a-stf-alert', res.ok ? 'ok' : 'err', res.ok ? '"'+s.name+'" guardado.' : 'No se pudo guardar. Reintentá.');
+  if(!res.ok && !eid){
+    // Sin rollback el barbero fallido se queda en D y hace fallar todos los
+    // guardados siguientes del panel hasta recargar.
+    D.staff = D.staff.filter(function(x){ return x.id !== s.id; });
+    renderStaff(); renderSchedule(); renderSvcs(); updateBadges();
+  }
+  var why = res.code === 'permission-denied' ? ' Sin permiso: revisá que el servicio esté activo y tu sesión sea de administradora.'
+    : (res.code === 'invalid-argument' || /exceeds|size/i.test(res.message || '')) ? ' La foto es demasiado pesada.' : '';
+  var fuera = citasFueraDeLista(s);
+  var aviso = !fuera ? ''
+    : fuera === 1 ? ' Tiene 1 cita futura de un servicio que no presta: sigue agendada, revísala en la Agenda.'
+    : ' Tiene ' + fuera + ' citas futuras de servicios que no presta: siguen agendadas, revísalas en la Agenda.';
+  showAlert('a-stf-alert', res.ok ? 'ok' : 'err', res.ok ? '"'+s.name+'" guardado.'+aviso : 'No se pudo guardar.'+why+' Reintentá.');
 });
 g('a-stp-file').addEventListener('change', function(e){
   var f = e.target.files[0]; if(!f) return;
   var r = new FileReader();
   r.onload = function(ev){
-    stfPh = ev.target.result;
-    var p = g('a-stp-prev'); p.src = stfPh; p.style.display = 'block';
-    g('a-stp-lbl').style.display = 'none';
+    // Firestore limita cada documento a 1 MiB: la foto va comprimida.
+    compressImage(ev.target.result, 400, 0.8, function(small){
+      stfPh = small;
+      var p = g('a-stp-prev'); p.src = stfPh; p.style.display = 'block';
+      g('a-stp-lbl').style.display = 'none';
+    });
   };
   r.readAsDataURL(f);
 });
@@ -4467,6 +4759,12 @@ function loadInfo(){
   if(bufEl) bufEl.value = Number.isFinite(f.bufferMin) ? f.bufferMin : DEFAULT_BUFFER_MIN;
   var nudgeEl = g('ai-nudgeLeadMin');
   if(nudgeEl) nudgeEl.value = Number.isFinite(f.nudgeLeadMin) ? f.nudgeLeadMin : DEFAULT_NUDGE_LEAD_MIN;
+  // Horario público: ausente = el que la landing ya trae escrito.
+  var ph = f.publicHours || {};
+  g('ai-hwStart').value = ph.weekStart || '10:00';
+  g('ai-hwEnd').value = ph.weekEnd || '20:00';
+  g('ai-hsStart').value = ph.satStart || '10:00';
+  g('ai-hsEnd').value = ph.satEnd || '17:00';
 }
 g('ai-save').addEventListener('click', async function(){
   D.info = {
@@ -4476,6 +4774,10 @@ g('ai-save').addEventListener('click', async function(){
     tz: g('ai-tz').value,
     bufferMin: parseInt(g('ai-bufferMin').value, 10) || 0,
     nudgeLeadMin: parseInt(g('ai-nudgeLeadMin').value, 10) || 0,
+    publicHours: {
+      weekStart: g('ai-hwStart').value || '10:00', weekEnd: g('ai-hwEnd').value || '20:00',
+      satStart: g('ai-hsStart').value || '10:00', satEnd: g('ai-hsEnd').value || '17:00',
+    },
     // Vacío es un valor válido y significa "resolvelo solo": la Cloud
     // Function busca la ficha por nombre + dirección y persiste acá el id que
     // encuentre, así que si este guardado lo borra, la próxima sincronización

@@ -28,6 +28,10 @@ function run(cmd, args, cwd, env) {
 }
 
 async function sembrar() {
+  // Vaciar antes de sembrar: el seed solo hace set(), así que lo que crea una
+  // suite (p. ej. E2E-ADM1/2 de adminSaveBooking) contaminaría a la siguiente.
+  await fetch('http://localhost:8080/emulator/v1/projects/scissor-white/databases/(default)/documents',
+    { method: 'DELETE' });
   const a = await run('npm', ['run', 'seed'], path.join(ROOT, 'seed'),
     { FIRESTORE_EMULATOR_HOST: 'localhost:8080', GCLOUD_PROJECT: 'scissor-white' });
   if (a.code !== 0) throw new Error('falló el seed base:\n' + a.out.slice(-800));

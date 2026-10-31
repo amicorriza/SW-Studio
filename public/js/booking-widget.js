@@ -70,16 +70,22 @@ async function refreshCatalog(){
   const activeSvcs = (services||[]).filter(s=>s.status==='active')
     .slice()
     .sort((a,b)=>(a.order==null?1e9:a.order)-(b.order==null?1e9:b.order));
+  const activeStaff = (staff||[]).filter(s=>s.status==='active');
+  // Un servicio que nadie del equipo presta no se ofrece: el cliente llegaría
+  // al paso 2 sin a quién elegir. Sin barberos cargados no se filtra nada, para
+  // no vaciar el catálogo por un dato que no llegó (el widget falla abierto).
+  const bookableSvcs = activeStaff.length
+    ? activeSvcs.filter(s=>activeStaff.some(b=>canPerformService(b,s.id)))
+    : activeSvcs;
   if(activeSvcs.length){
     CATS = Object.keys(CAT_NAMES).map(cid=>({
       id: cid, name: CAT_NAMES[cid],
-      items: activeSvcs.filter(s=>s.cat===cid).map(s=>({
+      items: bookableSvcs.filter(s=>s.cat===cid).map(s=>({
         id:s.id, name:s.name, dur:s.dur, price:s.price,
         tag:s.tag||'', ts:s.ts||'', desc:s.desc||'', cat:s.cat
       }))
     })).filter(c=>c.items.length);
   }
-  const activeStaff = (staff||[]).filter(s=>s.status==='active');
   if(activeStaff.length){
     BARBERS = [
       ...activeStaff.map(b=>({
@@ -87,6 +93,7 @@ async function refreshCatalog(){
         init:(b.name&&b.name[0]||'?').toUpperCase(),
         role:b.role||'Barbero',
         photo:b.photo||'',
+        serviceIds: b.serviceIds,
         // schedule[dow] (0=Dom..6=Sáb): {open,start,end}|null|undefined.
         // Usado por hoursRangeFor() para que el calendario/horarios respeten
         // el horario propio de este barbero en vez del HOURS genérico.
@@ -96,8 +103,23 @@ async function refreshCatalog(){
   }
 }
 
+// ¿Este profesional presta este servicio? Copia deliberada de
+// canPerformService() en functions/shared/staffServices.js (este <script> es
+// plano, sin bundler). Sin lista, presta todos. Esto solo evita ofrecer lo que
+// no corresponde: quien rechaza de verdad es createBooking.
+function canPerformService(staff, svcId){
+  if(!staff) return false;
+  return !Array.isArray(staff.serviceIds) || staff.serviceIds.indexOf(svcId)!==-1;
+}
+// Los barberos que se pueden elegir para el servicio actual; sin servicio
+// elegido todavía, todos. Filtra por el `S.svc` vigente: todo lo que dependa de
+// a quién se puede elegir pasa por acá.
+function qualifiedBarbers(){
+  return BARBERS.filter(b=>!S.svc || canPerformService(b,S.svc.id));
+}
+
 const HOURS = {1:[10,20],2:[10,20],3:[10,20],4:[10,20],5:[10,20],6:[10,17],0:null};
-const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MONTHS =['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 // 'HH:MM' -> minutos desde medianoche. Mismo criterio que
 // functions/shared/availability.js#toMinutes (no se puede importar acá:
@@ -114,11 +136,17 @@ function toMin(hhmm){
 // - Si no ('any', sin barbero elegido aún, o el barbero no trae schedule
 //   -p.ej. quedó en el arreglo de respaldo sin Firestore-), se usa el
 //   horario general HOURS como fallback.
-function hoursRangeFor(dow, barber){
-  if(barber && !barber.any && Array.isArray(barber.schedule)){
-    const day=barber.schedule[dow];
-    if(!day || !day.open) return null;
-    return [toMin(day.start), toMin(day.end)];
+function hoursRangeFor(dow, barber, dateKey){
+  if(dateKey && dateKey===WORK_DATE){
+    if(barber && !barber.any && barber.id in WORK){
+      const w=WORK[barber.id];
+      return w ? [toMin(w.start), toMin(w.end)] : null;
+    }
+    // 'any': de la primera apertura a la última cierre entre los activos.
+    const ws=Object.keys(WORK).map(k=>WORK[k]).filter(Boolean);
+    if(!(barber && !barber.any) && ws.length){
+      return [Math.min(...ws.map(w=>toMin(w.start))), Math.max(...ws.map(w=>toMin(w.end)))];
+    }
   }
   const h=HOURS[dow];
   return h ? [h[0]*60, h[1]*60] : null;
@@ -207,8 +235,15 @@ let MAX_DATE = new Date(TODAY); MAX_DATE.setMonth(MAX_DATE.getMonth()+2);
 // cierra al cerrar el widget -- ver loadAvailability/closeBK).
 let AVAIL = {barberBusy:{}};
 let AVAIL_LOADING = false;
+// Horario del día elegido, por barbero ({start,end}|null), y colaciones. Vienen
+// de getAvailability: `staff` ya no es público, así que el widget no conoce el
+// horario semanal de nadie, solo el del día que consulta. WORK_DATE dice a qué
+// fecha corresponde; si no calza con la consulta se usa el horario general.
+let WORK = {};
+let WORK_DATE = null;
+let BREAKS = {};
 let availUnsub = null;
-function activeBarberIds(){ return BARBERS.filter(b=>!b.any).map(b=>b.id); }
+function activeBarberIds(){ return qualifiedBarbers().filter(b=>!b.any).map(b=>b.id); }
 
 // ══ OPEN / CLOSE ══
 // aria-modal="true" (ver el div arriba) no mueve el foco por sí solo -- sin
@@ -251,6 +286,15 @@ function openBK(){
   // aún no seleccionó (para no pisar una selección en curso).
   refreshCatalog().then(()=>{
     if(!S.svc) renderSvcs();
+    // Con el listado de respaldo (un solo barbero) renderBarbers() preselecciona
+    // a ese barbero solo; si el catálogo real trae más gente hay que volver a
+    // dibujar, o el cliente ve únicamente al de respaldo hasta reabrir el
+    // widget. Solo se suelta una preselección automática y mientras no haya
+    // fecha elegida: nunca pisa una elección del cliente.
+    if(S.barberAuto && !S.date){ S.barber=null; S.barberAuto=false; document.getElementById('bk-next2').disabled=true; updateSummary(); }
+    // El catálogo real trae las listas de servicios que el de respaldo no tenía:
+    // el barbero elegido antes de que llegara puede no prestar el servicio.
+    if(S.barber && !qualifiedBarbers().some(b=>b.id===S.barber.id)) clearBarber();
     if(!S.barber) renderBarbers();
     // TODAY puede haberse corregido de DEFAULT_TZ a la zona real del
     // negocio -- si el usuario ya eligió una fecha, no se toca (mismo
@@ -641,18 +685,61 @@ function renderSvcs(){
       wrap.querySelectorAll('.bk-svc').forEach(x=>x.classList.remove('bk-sel'));
       el.classList.add('bk-sel');
       const cat=CATS.find(c=>c.id===el.dataset.gid);
+      const prevId=S.svc&&S.svc.id;
       S.svc=cat.items.find(s=>s.id===el.dataset.sid);
       document.getElementById('bk-next1').disabled=false;
+      if(S.svc.id!==prevId) onServiceChanged();
       updateSummary();
     });
   });
 }
 
+// Deja la selección sin barbero. La hora elegida era de ese barbero, así que se
+// va con él; la fecha se conserva, igual que al cambiar de barbero a mano.
+function clearBarber(){
+  S.barber=null;
+  S.barberAuto=false;
+  document.getElementById('bk-next2').disabled=true;
+  if(S.date){
+    S.time=null;
+    document.getElementById('bk-next3').disabled=true;
+  }
+  updateSummary();
+}
+
+// El filtro automático: al elegir servicio, el paso 2 muestra solo a quienes lo
+// prestan. Una elección del cliente que sigue siendo válida se respeta; una
+// preselección automática no, porque fue para el servicio anterior.
+function onServiceChanged(){
+  if(S.barber && (S.barberAuto || !qualifiedBarbers().some(b=>b.id===S.barber.id))) clearBarber();
+  renderBarbers();
+  // Los horarios dependen de cuánto dura el servicio: la hora elegida pudo
+  // dejar de caber aunque el barbero sea el mismo.
+  if(S.date){
+    S.time=null;
+    document.getElementById('bk-next3').disabled=true;
+    loadAvailability();
+  }
+}
+
 // ══ RENDER BARBERS ══
+function setBarberMsg(msg){
+  const el=document.getElementById('bk-barber-msg');
+  el.textContent=msg||'';
+  el.style.display=msg?'block':'none';
+}
 function renderBarbers(){
   const wrap=document.getElementById('bk-barbers');
-  wrap.innerHTML=BARBERS.map(b=>`
-    <div class="bk-barber" data-bid="${b.id}">
+  setBarberMsg('');
+  const lista=qualifiedBarbers();
+  if(!lista.length){
+    // Solo se llega acá si la lista cambió con el widget abierto: refreshCatalog
+    // ya saca del paso 1 los servicios que nadie presta.
+    wrap.innerHTML=`<div class="bk-slots-empty" style="grid-column:1/-1">Este servicio no está disponible por ahora. Elige otro servicio.</div>`;
+    return;
+  }
+  wrap.innerHTML=lista.map(b=>`
+    <div class="bk-barber${S.barber&&S.barber.id===b.id?' bk-sel':''}" data-bid="${b.id}">
       <div class="bk-bav">${b.photo?`<img src="${b.photo}" alt="${b.name}">`:b.init}</div>
       <div class="bk-bname">${b.name}</div>
       <div class="bk-brole">${b.role}</div>
@@ -663,6 +750,8 @@ function renderBarbers(){
       wrap.querySelectorAll('.bk-barber').forEach(x=>x.classList.remove('bk-sel'));
       el.classList.add('bk-sel');
       S.barber=BARBERS.find(b=>b.id===el.dataset.bid);
+      S.barberAuto=false;
+      setBarberMsg('');
       document.getElementById('bk-next2').disabled=false;
       // Bug confirmado: cambiar de barbero antes no volvía a renderizar nada
       // de la fecha/horarios (solo el click de un día lo hacía). El horario
@@ -680,15 +769,16 @@ function renderBarbers(){
       if(S.date) loadAvailability();
     });
   });
-  // Con un solo profesional activo (sin contar 'Sin preferencia'),
-  // preseleccionar para no bloquear el paso.
+  // Con un solo profesional disponible para este servicio (sin contar 'Sin
+  // preferencia'), preseleccionar para no bloquear el paso.
   if(!S.barber){
-    const activos = BARBERS.filter(function(b){ return !b.any; });
+    const activos = lista.filter(function(b){ return !b.any; });
     if(activos.length===1){
       const only = wrap.querySelector('[data-bid="'+activos[0].id+'"]');
       if(only){
         only.classList.add('bk-sel');
         S.barber = activos[0];
+        S.barberAuto = true;
         document.getElementById('bk-next2').disabled=false;
         updateSummary();
       }
@@ -766,17 +856,15 @@ function isBarberFreeAt(barberId, candStart, candEnd){
     const buf = r.kind==='booking' ? BUSINESS_BUFFER_MIN : 0;
     return candStart<toMin(r.end)+buf && candEnd>toMin(r.start)-buf;
   })) return false;
-  // Colación recurrente: se resuelve en cliente, no vía la vista materializada
-  // `availability/{fecha}`. Es semanal (no por fecha) y viene en `staff`, que
-  // es lectura pública y refreshCatalog() ya mantiene al día en BARBERS[] --
-  // igual que el horario de apertura, que hoursRangeFor() también resuelve
-  // acá. Así siempre refleja el último cambio del admin, sin obligar a
-  // recalcular todas las fechas futuras de la vista ante cada guardado.
-  // Ver recomputeAvailabilityForDate() en functions/index.js.
-  const b=BARBERS.find(x=>x.id===barberId);
-  const day=(b && Array.isArray(b.schedule) && S.date) ? b.schedule[dowOfDateKey(S.date)] : null;
-  const brk=day && day.break;
-  if(brk && brk.start && brk.end && candStart<toMin(brk.end) && candEnd>toMin(brk.start)) return false;
+  // Horario y colación del día: vienen de getAvailability (WORK/BREAKS), no de
+  // un horario semanal en el navegador. Sin datos de esta fecha: fail-open.
+  if(WORK_DATE===S.date){
+    if(barberId in WORK){
+      const w=WORK[barberId];
+      if(!w || candStart<toMin(w.start) || candEnd>toMin(w.end)) return false;
+    }
+    if((BREAKS[barberId]||[]).some(r=>candStart<toMin(r.end) && candEnd>toMin(r.start))) return false;
+  }
   return true;
 }
 
@@ -811,7 +899,7 @@ function loadAvailability(){
   if(availUnsub){ availUnsub(); availUnsub=null; }
   if(!S.date){ AVAIL_LOADING=false; renderSlots(); return; }
   const dow=dowOfDateKey(S.date);
-  if(!hoursRangeFor(dow,S.barber)){
+  if(!hoursRangeFor(dow,S.barber,S.date)){
     // Día cerrado para el barbero/horario vigente: no tiene sentido
     // suscribirse a disponibilidad real; renderSlots ya muestra "Cerrado
     // este día".
@@ -821,6 +909,24 @@ function loadAvailability(){
   }
   AVAIL_LOADING=true;
   renderSlots();
+  const askedDate=S.date;
+  if(WORK_DATE!==askedDate){
+    // Fail-open: si falla, el widget sigue con el horario general.
+    window.SWData.getAvailability(askedDate,'any').then(function(r){
+      if(S.date!==askedDate) return;
+      WORK=(r&&r.workHours)||{};
+      BREAKS={};
+      const bb=(r&&r.barberBusy)||{};
+      Object.keys(bb).forEach(id=>{ BREAKS[id]=bb[id].filter(x=>x.kind==='break'); });
+      WORK_DATE=askedDate;
+      loadAvailability();
+    }).catch(function(e){
+      console.error('No se pudo leer el horario del día (fail-open: horario general)', e);
+      WORK={}; BREAKS={}; WORK_DATE=askedDate;
+      renderSlots();
+    });
+    return;
+  }
   // S.date ya ES el date-key -- antes había que derivarlo de un ISO
   // instante (.toISOString().slice(0,10)), ya no hace falta.
   availUnsub=window.SWData.subscribeAvailability(S.date, function(barberBusy){
@@ -840,7 +946,7 @@ function renderSlots(){
   const cont=document.getElementById('bk-slots');
   if(!S.date){cont.innerHTML=`<div class="bk-slots-empty">Elige un día del calendario.</div>`;return}
   const dow=dowOfDateKey(S.date);
-  const range=hoursRangeFor(dow,S.barber);
+  const range=hoursRangeFor(dow,S.barber,S.date);
   if(!range){cont.innerHTML=`<div class="bk-slots-empty">Cerrado este día.</div>`;return}
   const [start,end]=range; // minutos desde medianoche
   const dur=S.svc?.dur||30;
@@ -1010,6 +1116,18 @@ document.getElementById('bk-submit').addEventListener('click',()=>{
       // La página se cargó antes de suspender: se muestra el mismo aviso
       // neutro en vez de "problema de conexión".
       if(e && e.details && e.details.license === 'suspended'){ bkSetSuspended(true); return; }
+      // La lista de servicios del barbero cambió con el widget abierto. No es un
+      // problema de conexión: se trae la lista nueva y se vuelve a elegir.
+      if(e && e.details && e.details.reason === 'barber-not-qualified'){
+        const previous = S.barber ? S.barber.name : 'Ese profesional';
+        await withTimeout(refreshCatalog(), 8000, 'refreshCatalog')
+          .catch(err=>console.error('No se pudo recargar el catálogo', err));
+        clearBarber();
+        renderBarbers();
+        bkGoTo(2);
+        setBarberMsg(`${previous} ya no presta este servicio. Elige otro profesional.`);
+        return;
+      }
       const slotMsg = BK_SLOT_TAKEN_MESSAGES[bkErrorCode(e)];
       if(slotMsg){
         // No es un fallo de conexión: el horario elegido ya no está libre.

@@ -10,6 +10,7 @@ const {
 const { zonedInstant } = require('./shared/timezone.js');
 const { isValidBookingPayload } = require('./shared/validate.js');
 const { DEFAULT_BOOKING_STATUS } = require('./shared/status.js');
+const { BARBER_NOT_QUALIFIED, canPerformService } = require('./shared/staffServices.js');
 const { generateReminderToken } = require('./reminders.js');
 
 // Único punto de la política de asignación cuando el cliente pide 'any' (o
@@ -26,8 +27,10 @@ function orderCandidateBarbers(activeBarberIds) {
 // `barberBusy` ya viene calculado (una sola vez, para todos los barberos
 // activos) por el llamador -- ver resolveCreateBooking. `bufferMin` (default
 // 0) solo afecta el margen contra otras reservas -- ver isRangeFree en
-// shared/availability.js.
-function resolveBarber({ barberId, activeStaff, dow, time, endTime, barberBusy, bufferMin = 0 }) {
+// shared/availability.js. `svcId` limita a quienes prestan el servicio (ver
+// shared/staffServices.js): la calificación va antes que el horario porque, si
+// no puede prestarlo, ese es el motivo real aunque además estuviera ocupado.
+function resolveBarber({ barberId, svcId, activeStaff, dow, time, endTime, barberBusy, bufferMin = 0 }) {
   const wantsAny = !barberId || barberId === 'any';
 
   function fitsAt(staffMember) {
@@ -40,6 +43,12 @@ function resolveBarber({ barberId, activeStaff, dow, time, endTime, barberBusy, 
     if (!candidate) {
       return { ok: false, code: 'not-found', message: 'El barbero seleccionado no existe o no está activo.' };
     }
+    if (!canPerformService(candidate, svcId)) {
+      return {
+        ok: false, code: 'failed-precondition', message: 'Ese profesional no presta este servicio.',
+        details: { reason: BARBER_NOT_QUALIFIED },
+      };
+    }
     if (!isWithinOpenHours(candidate.schedule, dow, time, endTime)) {
       return { ok: false, code: 'failed-precondition', message: 'Ese horario está fuera de la disponibilidad del barbero.' };
     }
@@ -49,7 +58,7 @@ function resolveBarber({ barberId, activeStaff, dow, time, endTime, barberBusy, 
     return { ok: true, barber: candidate };
   }
 
-  const order = orderCandidateBarbers(activeStaff.map(s => s.id));
+  const order = orderCandidateBarbers(activeStaff.filter(s => canPerformService(s, svcId)).map(s => s.id));
   for (const id of order) {
     const staffMember = activeStaff.find(s => s.id === id);
     if (staffMember && fitsAt(staffMember)) return { ok: true, barber: staffMember };
@@ -159,7 +168,7 @@ function resolveCreateBooking({ payload, now, service, staff, bookingsForDay, sc
   });
 
   const resolved = resolveBarber({
-    barberId: payload.barberId, activeStaff, dow, time: payload.time, endTime, barberBusy, bufferMin,
+    barberId: payload.barberId, svcId: payload.svcId, activeStaff, dow, time: payload.time, endTime, barberBusy, bufferMin,
   });
   if (!resolved.ok) return resolved;
 

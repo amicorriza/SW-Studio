@@ -26,6 +26,12 @@ async function readAdminLog(n = 40) {
   return snap.docs.map(d => ({ ...d.data(), id: d.id }));
 }
 
+// Ids de servicios que ESTA sesion leyo de Firestore (o ya guardo). Guarda
+// anti-resurreccion de saveAdmin(): si un id de este conjunto ya no existe en
+// Firestore, otra sesion lo borro y no hay que volver a crearlo. Un id que
+// nunca estuvo aca (alta o duplicado de esta sesion) se escribe normalmente.
+let loadedSvcIds = new Set();
+
 // Carga el objeto D que usa el admin: {services, staff, info, log, schedule}
 async function loadAdmin() {
   const [services, staff, infoSnap, log, accounts] = await Promise.all([
@@ -34,6 +40,7 @@ async function loadAdmin() {
     readCol('staffAccounts'),
   ]);
   const infoDoc = infoSnap.docs.find(d => d.id === 'main');
+  loadedSvcIds = new Set(services.map(s => s.id));
   // El vínculo con Firebase Auth va en un MAPA APARTE, nunca pegado al objeto
   // de staff: saveAdmin() persiste el array de staff entero, así que un `uid`
   // colgado ahí volvería a escribirse en staff/{id} -- que tiene lectura
@@ -54,6 +61,11 @@ async function loadAdmin() {
 // Firestore los docs que ya no están en D — sin esto, un barbero/servicio
 // eliminado en el admin reaparece al recargar porque loadAdmin lee la
 // colección completa.
+//
+// Guarda anti-resurreccion: batch.set de TODO D re-creaba un servicio que otra
+// pestaña/dispositivo ya habia borrado (D obsoleto). Si un servicio de D no
+// existe hoy en Firestore pero esta sesion lo habia cargado, se saca de D y se
+// devuelve en removedElsewhere ([{id,name}]) para que el panel avise.
 async function saveAdmin(D) {
   const batch = writeBatch(db);
   const [svcSnap, stfSnap] = await Promise.all([
@@ -64,10 +76,30 @@ async function saveAdmin(D) {
   const keepStf = new Set((D.staff || []).map(s => s.id));
   svcSnap.docs.forEach(d => { if (!keepSvc.has(d.id)) batch.delete(d.ref); });
   stfSnap.docs.forEach(d => { if (!keepStf.has(d.id)) batch.delete(d.ref); });
+  const liveSvc = new Set(svcSnap.docs.map(d => d.id));
+  const removedElsewhere = [];
+  if (Array.isArray(D.services)) {
+    D.services = D.services.filter(s => {
+      if (!liveSvc.has(s.id) && loadedSvcIds.has(s.id)) {
+        removedElsewhere.push({ id: s.id, name: s.name });
+        loadedSvcIds.delete(s.id);
+        return false;
+      }
+      return true;
+    });
+  }
   (D.services || []).forEach(s => batch.set(doc(db, 'services', s.id), stripId(s)));
   (D.staff || []).forEach(s => batch.set(doc(db, 'staff', s.id), stripId(s)));
   if (D.info) batch.set(doc(db, 'businessInfo', 'main'), D.info);
+  // Ids que ESTE batch escribe, capturados ANTES del await: D puede ganar un
+  // servicio nuevo mientras el commit vuela, y marcarlo como "ya en Firestore"
+  // haria que un guardado concurrente lo tomara por borrado ajeno.
+  const writtenIds = new Set((D.services || []).map(s => s.id));
   await batch.commit();
+  // Lo que acaba de escribirse ya existe en Firestore: de ahora en adelante,
+  // que desaparezca significa que otra sesion lo borro.
+  loadedSvcIds = writtenIds;
+  return { ok: true, removedElsewhere };
 }
 
 function stripId(o) { const { id, ...rest } = o; return rest; }
@@ -82,10 +114,10 @@ function stripId(o) { const { id, ...rest } = o; return rest; }
 // que hay en Firestore, sin lógica de negocio.
 async function loadCatalog() {
   const [services, staff, infoSnap] = await Promise.all([
-    readCol('services'), readCol('staff'), getDoc(doc(db, 'businessInfo', 'main')),
+    readCol('services'), readCol('staffPublic'), getDoc(doc(db, 'businessInfo', 'main')),
   ]);
   const info = infoSnap.exists() ? infoSnap.data() : {};
-  return { services, staff, tz: info.tz, bufferMin: info.bufferMin };
+  return { services, staff, tz: info.tz, bufferMin: info.bufferMin, publicHours: info.publicHours };
 }
 
 // Licencia del servicio (spec 2026-10-05-suspension-servicio-design.md).
@@ -404,9 +436,11 @@ async function getMyRange(from, to) {
 // Anota una acción del panel en `adminLog`. La hora y el autor los pone el
 // servidor: un registro de auditoría donde el actor declara quién es no sirve
 // para auditar nada.
-async function adminLogEvent(action, item) {
+// `extra` (opcional): serviceId, price, before, after, outcome, sessionId. El
+// servidor los valida y acota; action/item nunca se pisan.
+async function adminLogEvent(action, item, extra) {
   const call = httpsCallable(functions, 'adminLogEvent');
-  const { data } = await guarded(call({ action, item }));
+  const { data } = await guarded(call({ ...(extra || {}), action, item }));
   return data;
 }
 
@@ -440,6 +474,22 @@ async function linkStaffAccount(staffId, email) {
   return data; // { ok, uid }
 }
 
+// Crea la cuenta de Auth del profesional, la vincula a su ficha y le MANDA POR
+// CORREO el enlace para elegir su contraseña (nunca vuelve al navegador).
+// Admin-only.
+async function createStaffAccount(staffId, email) {
+  const call = httpsCallable(functions, 'createStaffAccount');
+  const { data } = await guarded(call({ staffId, email }));
+  return data; // { ok, uid, authEmail, emailSent, masked }
+}
+
+// Reenvía la invitación mientras el profesional nunca haya entrado. Admin-only.
+async function resendStaffInvite(staffId) {
+  const call = httpsCallable(functions, 'resendStaffInvite');
+  const { data } = await guarded(call({ staffId }));
+  return data; // { ok, emailSent, masked }
+}
+
 // arrayUnion y no un set del array completo: el barbero puede tener el
 // teléfono y una tablet, y dos dispositivos registrándose casi a la vez no
 // deben pisarse. Los tokens muertos los purga el scheduler cuando FCM los
@@ -458,7 +508,7 @@ window.SWData = {
   getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
   loadGoogleReviews, saveManualReviews, syncGoogleReviews,
   getBookingForReminderAction, respondToBookingReminder,
-  getMyDay, getMyRange, getMyClients, markAttendance, linkStaffAccount, saveMyPushToken,
+  getMyDay, getMyRange, getMyClients, markAttendance, linkStaffAccount, createStaffAccount, resendStaffInvite, saveMyPushToken,
   adminSaveBooking, adminLogEvent,
 };
 export {
@@ -469,6 +519,6 @@ export {
   getScheduleBlocks, saveScheduleBlock, deleteScheduleBlock,
   loadGoogleReviews, saveManualReviews, syncGoogleReviews,
   getBookingForReminderAction, respondToBookingReminder,
-  getMyDay, getMyRange, getMyClients, markAttendance, linkStaffAccount, saveMyPushToken,
+  getMyDay, getMyRange, getMyClients, markAttendance, linkStaffAccount, createStaffAccount, resendStaffInvite, saveMyPushToken,
   adminSaveBooking, adminLogEvent,
 };

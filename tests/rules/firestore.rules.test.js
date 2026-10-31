@@ -180,3 +180,14 @@ test('y el claim sigue siendo suficiente, venga del UID que venga', async () => 
   await assertSucceeds(getDoc(doc(db, 'bookings/b1')));
   await assertSucceeds(setDoc(doc(db, 'services/s1'), { name: 'x' }));
 });
+// staff lleva el horario de cada barbero: un barbero con sesión no debe verlo.
+test('anónimo y barbero (sin claim admin) NO leen staff (lleva schedule)', async () => {
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'staff/st1')));
+  await assertFails(getDoc(doc(env.authenticatedContext('staff1').firestore(), 'staff/st1')));
+});
+
+test('admin SÍ lee staff; staffPublic es público y de solo lectura para clientes', async () => {
+  await assertSucceeds(getDoc(doc(env.authenticatedContext('admin1', { admin: true }).firestore(), 'staff/st1')));
+  await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'staffPublic/st1')));
+  await assertFails(setDoc(doc(env.authenticatedContext('admin1', { admin: true }).firestore(), 'staffPublic/st1'), { name: 'X' }));
+});

@@ -141,7 +141,20 @@ function computeAvailability({ bookings, staff, barberId, dow, scheduleBlocks })
     addBusy(blk.barberId, blk.start, blk.end, 'block');
   });
 
-  return { barberBusy, activeBarberIds };
+  // Horario de apertura del día consultado, por barbero: {start,end} o null
+  // si cierra. Existe porque `staff` (que lleva el horario semanal completo)
+  // ya no es legible por el público: el widget recibe SOLO el día que consulta
+  // y nunca el horario semanal de nadie. Solo si se pasó `dow`.
+  const workHours = {};
+  if (typeof dow === 'number') {
+    (staff || []).forEach(s => {
+      if (relevantStaffIds.indexOf(s.id) === -1) return;
+      const day = Array.isArray(s.schedule) ? s.schedule[dow] : null;
+      workHours[s.id] = day && day.open ? { start: day.start, end: day.end } : null;
+    });
+  }
+
+  return { barberBusy, activeBarberIds, workHours };
 }
 
 // Predicado atómico de solape en minutos desde medianoche, con un margen de

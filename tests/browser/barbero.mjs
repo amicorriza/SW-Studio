@@ -338,14 +338,16 @@ check('el rótulo dice qué período se está mirando',
   /mar 1 sep — mié 30 sep/.test(await page.textContent('#b-met-r')),
   await page.textContent('#b-met-r'));
 
-// Recaudación: 3 atenciones cerradas de $14.000. La no_show NO suma.
+// El barbero no ve ingresos, ni propios (ver proyectarReserva en
+// functions/index.js). Los stubs SÍ traen `price`, como el servidor viejo:
+// lo que se fija es que la app no lo muestre aunque le llegue.
+const sinMontos = (t) => !/Recaudad|agendado sin cerrar|\$\s?\d|\d{1,3}\.\d{3}/i.test(t);
 const rec = await page.textContent('#b-met-k');
-check('la recaudación cuenta solo lo cerrado', /42.000/.test(rec), rec);
-check('y no cuenta el no-show', !/56.000/.test(rec), rec);
-check('sin nada agendado lo dice así', /atenciones cerradas/.test(rec), rec);
+check('Métricas no muestra ingresos', sinMontos(rec), rec);
+const metas = await page.$$eval('#b-list .b-meta, #b-review .b-meta', (e) => e.map((x) => x.textContent));
+check('las citas de la agenda no muestran precio', metas.length > 0 && metas.every(sinMontos), metas);
 
-// Lo agendado va aparte, nunca sumado: si no, 'este mes' mostraría como
-// recaudado algo que todavía no ocurrió.
+// Una cita futura con precio tampoco aparece como monto agendado.
 await page.evaluate(() => {
   window.__RANGO.push({ id:'r5', code:'H5', name:'Eva', time:'18:00', dur:45, svcId:'corte',
     svcName:'Corte de cabello', price:20000, status:'confirmed', date:'2026-09-20',
@@ -354,8 +356,7 @@ await page.evaluate(() => {
 await page.click('[data-per="semana"]');
 await page.waitForTimeout(400);
 const rec2 = await page.textContent('#b-met-k');
-check('lo agendado se muestra aparte, no sumado a lo recaudado',
-  /42.000/.test(rec2) && /20.000 agendado sin cerrar/.test(rec2), rec2);
+check('ni lo agendado se muestra como monto', sinMontos(rec2), rec2);
 
 // Clientes
 await page.click('.b-tab[data-tab="cli"]');

@@ -422,3 +422,59 @@ test('isValidBookingPayload rechaza email/phone/name inválidos y acepta un payl
 test('orderCandidateBarbers ordena alfabéticamente por id (política actual, aislada a propósito)', () => {
   assert.deepStrictEqual(orderCandidateBarbers(['victoria', 'felipe', 'ariel']), ['ariel', 'felipe', 'victoria']);
 });
+
+// ══ Servicios por profesional (staff.serviceIds) ══
+// Felipe va primero por orden alfabético: si el filtro por servicio no se
+// aplicara, 'any' se lo llevaría a él y estos tests lo delatarían.
+function staffConLista(listaFelipe) {
+  return [
+    { id: 'felipe', name: 'Felipe', status: 'active', schedule: openAllWeek(), serviceIds: listaFelipe },
+    { id: 'victoria', name: 'Victoria', status: 'active', schedule: openAllWeek() },
+  ];
+}
+function reservar(payload, staff) {
+  return resolveCreateBooking({
+    businessTz: TZ, payload: basePayload(payload), now: NOW, service: SERVICE, staff,
+    bookingsForDay: [], scheduleBlocksForDay: [],
+  });
+}
+
+test('un profesional con el servicio en su lista puede tomar la reserva', () => {
+  const r = reservar({ barberId: 'felipe' }, staffConLista(['lp']));
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.doc.barberId, 'felipe');
+});
+
+test('un profesional sin el servicio en su lista no puede tomar la reserva, y el motivo viaja en details', () => {
+  const r = reservar({ barberId: 'felipe' }, staffConLista(['otro']));
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'failed-precondition');
+  assert.strictEqual(r.details.reason, 'barber-not-qualified');
+});
+
+test('una lista vacía no presta nada', () => {
+  assert.strictEqual(reservar({ barberId: 'felipe' }, staffConLista([])).ok, false);
+});
+
+test('una ficha sin lista sigue tomando reservas: el despliegue no cambia nada hasta que el negocio lo configure', () => {
+  assert.strictEqual(reservar({ barberId: 'victoria' }, staffConLista(['otro'])).ok, true);
+});
+
+test('la calificación se revisa antes que el horario: el motivo real es el servicio', () => {
+  const cerrado = [{ id: 'felipe', name: 'Felipe', status: 'active', schedule: Array(7).fill({ open: false }), serviceIds: ['otro'] }];
+  const r = reservar({ barberId: 'felipe' }, cerrado);
+  assert.strictEqual(r.details && r.details.reason, 'barber-not-qualified');
+});
+
+test("'any' salta a quien no presta el servicio aunque vaya primero en el orden", () => {
+  const r = reservar({ barberId: 'any' }, staffConLista(['otro']));
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.doc.barberId, 'victoria');
+});
+
+test("'any' sin nadie que preste el servicio no asigna a un profesional cualquiera", () => {
+  const nadie = staffConLista(['otro']).map(s => ({ ...s, serviceIds: ['otro'] }));
+  const r = reservar({ barberId: 'any' }, nadie);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'resource-exhausted');
+});

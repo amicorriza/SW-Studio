@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <script src="/js/sentry-init.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Entrar — SW Studio</title>
   <meta name="robots" content="noindex, nofollow">
@@ -41,6 +42,8 @@
   }
   button:hover:not(:disabled){background:var(--sl)}
   button:disabled{opacity:.65;cursor:default}
+  button.lnk{background:none;color:var(--sd);border:0;padding:12px 8px;margin-top:6px;font-size:12px;font-weight:400;letter-spacing:0;text-transform:none;width:auto;text-decoration:underline}
+  button.lnk:hover:not(:disabled){background:none;color:#fff}
   .msg{font-size:12.5px;line-height:1.6;margin-top:14px;max-width:300px;display:none}
   .msg.err{color:var(--err);display:block}
   .msg.info{color:var(--sl);display:block}
@@ -61,6 +64,7 @@
 <label class="sr" for="pass">Contraseña</label>
 <input id="pass" type="password" autocomplete="current-password" placeholder="Contraseña">
 <button id="btn">Entrar</button>
+<button id="olvido" type="button" class="lnk">¿Olvidaste tu contraseña?</button>
 <p class="msg" id="msg"></p>
 
 <script type="module" src="/js/firebase-init.js"></script>
@@ -155,6 +159,17 @@ async function entrar(){
 }
 
 btn.addEventListener('click', entrar);
+
+// Restablecer contraseña. Siempre el mismo mensaje, exista o no el correo:
+// decir lo contrario permitiría averiguar quién tiene cuenta.
+g('olvido').addEventListener('click', async function(){
+  const email = g('email').value.trim();
+  if(!email){ decir('Escribe tu correo arriba y vuelve a tocar esto.'); return; }
+  g('olvido').disabled = true;
+  await window.SWAuth.resetPassword(email);
+  decir('Si ese correo tiene acceso, te enviamos un enlace para elegir una contraseña nueva. Revisa también spam.', 'info');
+  setTimeout(function(){ g('olvido').disabled = false; }, 30000);
+});
 g('pass').addEventListener('keydown', function(e){ if(e.key === 'Enter') entrar(); });
 g('email').addEventListener('keydown', function(e){ if(e.key === 'Enter') g('pass').focus(); });
 

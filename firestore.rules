@@ -38,7 +38,11 @@ service cloud.firestore {
 
     // Catálogo público: lectura libre, escritura solo admin
     match /services/{id}   { allow read: if true; allow write: if canAdminWrite(); }
-    match /staff/{id}      { allow read: if true; allow write: if canAdminWrite(); }
+    // staff lleva el horario semanal de cada barbero: lectura SOLO admin. El
+    // público lee staffPublic (sin horario), que mantiene la Cloud Function
+    // mirrorStaffPublic; nadie lo escribe desde el cliente.
+    match /staff/{id}      { allow read: if isAdmin(); allow write: if canAdminWrite(); }
+    match /staffPublic/{id}{ allow read: if true; allow write: if false; }
     match /businessInfo/{id}{ allow read: if true; allow write: if canAdminWrite(); }
 
     // Imágenes del sitio (herramienta de reemplazo manual desde el admin):

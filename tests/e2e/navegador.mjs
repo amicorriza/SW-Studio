@@ -31,14 +31,16 @@ const errB = [];
 bp.on('pageerror', (e) => errB.push(String(e)));
 bp.on('console', (m) => { if (m.type() === 'error') errB.push(m.text()); });
 
+// La PWA ya no tiene formulario: sin sesión manda a /login, la puerta única.
 await bp.goto(BASE + '/barbero/', { waitUntil: 'load' });
-await bp.waitForTimeout(1200);
-check('la PWA carga y muestra el login', await bp.isVisible('#b-login'));
+await bp.waitForURL(/\/login/, { timeout: 15000 }).catch(() => {});
+check('sin sesión la PWA manda a /login', /\/login/.test(bp.url()), bp.url());
 check('la agenda está oculta sin sesión', !(await bp.isVisible('#b-app')));
 
-await bp.fill('#b-email', 'victoria@scissorwhite.cl');
-await bp.fill('#b-pass', 'barbero123');
-await bp.click('#b-signin');
+await bp.fill('#email', 'victoria@scissorwhite.cl');
+await bp.fill('#pass', 'barbero123');
+await bp.click('#btn');
+await bp.waitForURL(/\/barbero\//, { timeout: 15000 });
 await bp.waitForSelector('#b-app', { state: 'visible', timeout: 15000 });
 await bp.waitForSelector('#b-list .b-card', { timeout: 15000 });
 await bp.waitForTimeout(500);
@@ -140,11 +142,11 @@ const errA = [];
 ap.on('pageerror', (e) => errA.push(String(e)));
 ap.on('console', (m) => { if (m.type() === 'error') errA.push(m.text()); });
 
-await ap.goto(BASE + '/admin/', { waitUntil: 'load' });
-await ap.waitForTimeout(1200);
-await ap.fill('#adm-email', 'admin@scissorwhite.cl');
-await ap.fill('#adm-pass', 'admin123');
-await ap.click('#adm-login-btn');
+await ap.goto(BASE + '/login', { waitUntil: 'load' });
+await ap.fill('#email', 'admin@scissorwhite.cl');
+await ap.fill('#pass', 'admin123');
+await ap.click('#btn');
+await ap.waitForURL(/\/admin\//, { timeout: 15000 });
 await ap.waitForSelector('#adm-app', { state: 'visible', timeout: 15000 });
 await ap.waitForSelector('#a-dash .a-dash-kpis .a-sc', { timeout: 15000 });
 await ap.waitForTimeout(1500);

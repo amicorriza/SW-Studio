@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+  <script src="/js/sentry-init.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>SW Barbero</title>
 <meta name="theme-color" content="#0A0A0A">
@@ -591,7 +592,7 @@ function cardHTML(b) {
       <span class="b-name">${esc(b.name || 'Sin nombre')}</span>
       ${tag ? `<span class="b-tag ${tag[0]}">${esc(tag[1])}</span>` : ''}
     </div>
-    <div class="b-meta">${esc(b.svcName || 'Servicio')} · ${Number(b.dur) || 0} min · ${clp(b.price)}</div>
+    <div class="b-meta">${esc(b.svcName || 'Servicio')} · ${Number(b.dur) || 0} min</div>
     ${cronometro}
     ${res ? `<div class="b-meta" style="margin-bottom:0">${esc(res)}</div>` : ''}
     ${acts.length ? `<div class="b-acts">${acts.map(([a, txt, cls]) =>
@@ -909,19 +910,7 @@ async function loadMetricas() {
         : (d > 0 ? d + '% más que lo planificado' : (-d) + '% menos que lo planificado');
     }
 
-    // Recaudación = SOLO lo cerrado. mRevenue suma todo salvo los no_show, y
-    // en el admin se le pasa un set ya filtrado por mFilterPeriod; acá el rango
-    // viene crudo, así que aplicarlo entero contaría canceladas y citas que
-    // todavía no ocurrieron: un barbero mirando 'este mes' vería como recaudado
-    // algo que aún no pasó. Lo agendado se muestra aparte, no sumado.
-    const recaudado = M.mRevenue(hechas);
-    const porVenir = bs.filter((b) => b.status === 'pending' || b.status === 'confirmed'
-      || b.status === 'arrived' || b.status === 'in_service');
-    const agendado = M.mRevenue(porVenir);
-
     els.metK.innerHTML = [
-      kpi('Recaudado', clp(recaudado),
-        agendado ? clp(agendado) + ' agendado sin cerrar' : 'atenciones cerradas'),
       kpi('Atenciones', String(a.atendidas), a.total + ' reservas en el período'),
       kpi('Asistencia', pct(a.atendidas, a.total), a.sinMarcar ? a.sinMarcar + ' sin marcar' : 'todo marcado'),
       kpi('No-show', pct(a.noShow, a.total), a.noShow + (a.noShow === 1 ? ' cita' : ' citas')),

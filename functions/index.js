@@ -1,15 +1,14 @@
 // functions/index.js — envía emails al crear una reserva.
 'use strict';
-const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onDocumentCreated, onDocumentWritten, onCall, onSchedule } = require('./sentry.js');
+const { HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { getMessaging } = require('firebase-admin/messaging');
-const { sendBookingEmails, sendReminderEmail, sendReminderResponseEmail, sendConfirmationEmail, sendSurveyEmail } = require('./email.js');
+const { sendBookingEmails, sendReminderEmail, sendReminderResponseEmail, sendConfirmationEmail, sendSurveyEmail, sendStaffInviteEmail } = require('./email.js');
 const { buildPatientUpsert, countClubVisits } = require('./patients.js');
 const { computeAvailability, dateKeyOf, dayBoundsOf } = require('./shared/availability.js');
 const { resolveCreateBooking } = require('./createBooking.js');
@@ -17,10 +16,12 @@ const { resolveBusinessTz, resolveBufferMin, resolveNudgeLeadMin, dateKeyInZone 
 const { searchPlaceId, fetchPlaceDetails, isFresh } = require('./googleReviews.js');
 const { REMINDER_LEAD_MS, REMINDER_WINDOW_MS, generateReminderToken, findBookingsNeedingReminder } = require('./reminders.js');
 const { findBookingsNeedingSurvey } = require('./surveys.js');
+const { sanitizeLogExtras } = require('./shared/auditLog.js');
 const { ATTENDANCE_ACTIONS, applyAction, computeNudges, SNOOZE_MS } = require('./shared/attendance.js');
 const { aggregateMyClients } = require('./shared/clients.js');
 const { isValidAdminBookingPayload } = require('./shared/validate.js');
 const { DEFAULT_BOOKING_STATUS } = require('./shared/status.js');
+const { BARBER_NOT_QUALIFIED, canAssignBooking } = require('./shared/staffServices.js');
 const { normalizeLicense, isSuspended } = require('./shared/license.js');
 
 const app = initializeApp();
@@ -238,7 +239,7 @@ exports.createBooking = onCall(
       return { ok: true, id: ref.id };
     });
 
-    if (!result.ok) throw new HttpsError(result.code, result.message);
+    if (!result.ok) throw new HttpsError(result.code, result.message, result.details);
     return { id: result.id };
   }
 );
@@ -369,6 +370,22 @@ exports.onBookingWritten = onDocumentWritten(
     if (!dates.size) return;
     const db = getFirestore(app);
     await Promise.all([...dates].map(dk => recomputeAvailabilityForDate(db, dk)));
+  }
+);
+
+// `staff/{id}` guarda el horario semanal (`schedule`) y es de lectura SOLO
+// admin: un barbero con sesión no debe poder leer el horario de otro. El
+// widget público lee `staffPublic/{id}`, espejo sin `schedule` que mantiene
+// este trigger (Admin SDK). Los horarios disponibles llegan al público solo
+// por getAvailability / la vista `availability`.
+exports.mirrorStaffPublic = onDocumentWritten(
+  { document: 'staff/{id}', region: 'southamerica-east1' },
+  async (event) => {
+    const db = getFirestore(app);
+    const ref = db.collection('staffPublic').doc(event.params.id);
+    if (!event.data.after.exists) { await ref.delete(); return; }
+    const { schedule, ...publico } = event.data.after.data();
+    await ref.set(publico);
   }
 );
 
@@ -883,12 +900,12 @@ function isAdminRequest(request) {
 // Lo que la PWA puede ver de una reserva. Es una lista BLANCA: 'email' y
 // 'phone' NO están, y no por olvido -- el barbero ve a quién atiende, no cómo
 // contactarlo (decisión tomada con el usuario, ver el spec de la app
-// completa). Un campo nuevo en 'bookings' no se filtra solo al teléfono.
+// completa). Tampoco 'price': el barbero no ve ingresos, ni propios. Un campo nuevo en 'bookings' no se filtra solo al teléfono.
 function proyectarReserva(d, conFecha) {
   const b = d.data();
   const o = {
     id: d.id, code: b.code || '', name: b.name || '', time: b.time || '',
-    dur: b.dur || 0, svcName: b.svcName || '', price: b.price || 0,
+    dur: b.dur || 0, svcName: b.svcName || '',
     status: b.status || 'pending', arrivedAt: b.arrivedAt || null,
     startedAt: b.startedAt || null, endedAt: b.endedAt || null,
     actualDur: Number.isFinite(b.actualDur) ? b.actualDur : null,
@@ -991,6 +1008,9 @@ exports.adminLogEvent = onCall(
       at: now.toISOString(),
       by: request.auth.uid,
       byEmail: (request.auth.token && request.auth.token.email) || '',
+      // Opcionales (serviceId, price, before, after, outcome, sessionId):
+      // validados y acotados en shared/auditLog.js.
+      ...sanitizeLogExtras(request.data),
     });
     return { ok: true };
   }
@@ -1044,6 +1064,15 @@ exports.adminSaveBooking = onCall(
     const ref = db.collection('bookings').doc(id);
     const prev = await ref.get();
     const antes = prev.exists ? prev.data() : null;
+
+    // El modal ya filtra por servicio; esto cubre un panel abierto con la ficha
+    // vieja. Mismo criterio que createBooking, salvo la cita que ya tenía este
+    // cruce: esa se puede seguir editando (ver shared/staffServices.js).
+    if (!canAssignBooking({ staff, barberId: String(p.barberId), svcId: String(p.svcId), prev: antes })) {
+      throw new HttpsError('failed-precondition',
+        `${staff.name || 'Ese profesional'} no tiene asignado ese servicio. Asígnaselo en Personal o elige a otra persona.`,
+        { reason: BARBER_NOT_QUALIFIED });
+    }
 
     const doc = {
       code: String(p.code),
@@ -1225,7 +1254,7 @@ exports.linkStaffAccount = onCall(
       // desmentirlo. Ahora el código real siempre va al log, y solo el caso
       // genuino conserva el mensaje amable.
       logger.error('linkStaffAccount getUserByEmail', {
-        code: (e && e.code) || null, message: (e && e.message) || String(e), correo,
+        code: (e && e.code) || null, message: (e && e.message) || String(e), who: maskEmail(correo),
       });
       if (e && e.code === 'auth/user-not-found') {
         throw new HttpsError('not-found', 'No existe ninguna cuenta con ese correo. Creala primero en Firebase Auth.');
@@ -1248,9 +1277,30 @@ exports.linkStaffAccount = onCall(
       throw new HttpsError('already-exists', `Esa cuenta ya está vinculada a ${nombre}.`);
     }
 
-    await db.collection('staffAccounts').doc(String(staffId)).set({
-      uid: user.uid, authEmail: user.email || '', linkedAt: new Date().toISOString(),
+    // Una cuenta nunca verificada ni usada puede ser un pre-registro de un
+    // tercero (el registro público de Auth está abierto): vincularla le daría
+    // la agenda y los clientes a quien la creó. Esas se invitan con "Crear
+    // acceso" (createStaffAccount), que les cambia la contraseña.
+    if (!cuentaEnUso(user)) {
+      throw new HttpsError('failed-precondition',
+        'Esa cuenta nunca se usó ni se verificó, así que no se vincula directamente. Usá "Crear acceso" para enviarle una invitación.');
+    }
+
+    // Índice uid -> ficha dentro de una transacción: dos vínculos simultáneos
+    // del mismo uid a fichas distintas no pueden pasar ambos (resolveStaffFor
+    // tomaría una al azar y un barbero vería la agenda de otro).
+    const idxRef = db.collection('staffUids').doc(user.uid);
+    await db.runTransaction(async (tx) => {
+      const idx = await tx.get(idxRef);
+      if (idx.exists && idx.data().staffId !== String(staffId)) {
+        throw new HttpsError('already-exists', 'Esa cuenta ya está vinculada a otro profesional.');
+      }
+      tx.set(idxRef, { staffId: String(staffId) });
+      tx.set(db.collection('staffAccounts').doc(String(staffId)), {
+        uid: user.uid, authEmail: user.email || '', linkedAt: new Date().toISOString(),
+      });
     });
+    await auditServer(db, request, 'Vinculó cuenta', `${snap.data().name || staffId} (${maskEmail(user.email)})`);
 
     // Limpieza: versiones anteriores guardaban el vínculo en el propio doc de
     // staff, que es de lectura pública. Si quedó alguno, se borra acá.
@@ -1259,6 +1309,205 @@ exports.linkStaffAccount = onCall(
     }
 
     return { ok: true, uid: user.uid };
+  }
+);
+
+// ── Alta de cuentas del equipo ──────────────────────────────────────────────
+// La administradora crea el acceso de un profesional desde el panel, sin la
+// consola de Firebase. El enlace para elegir contraseña viaja SOLO por correo
+// (Resend), directo al buzón del profesional, y NUNCA se devuelve al navegador
+// de la administradora: un enlace que pasa por WhatsApp o el portapapeles es
+// una llave de la cuenta en manos de cualquiera que lo lea. Que el profesional
+// pueda abrirlo prueba además que el correo es suyo.
+
+// 'pedro@gmail.com' -> 'p***@gmail.com'. Para auditoría y logs: el correo
+// completo del profesional no tiene por qué quedar en Cloud Logging.
+function maskEmail(correo) {
+  const [u, d] = String(correo || '').split('@');
+  return u && d ? `${u[0]}***@${d}` : '***';
+}
+
+// Auditoría escrita por el SERVIDOR (autor y hora no los declara el cliente);
+// mismo formato que adminLogEvent. Nunca lleva el enlace.
+async function auditServer(db, request, action, item) {
+  const now = new Date();
+  await db.collection('adminLog').add({
+    action, item: String(item).slice(0, 300),
+    ts: now.getTime(), at: now.toISOString(),
+    by: request.auth.uid,
+    byEmail: (request.auth.token && request.auth.token.email) || '',
+  });
+}
+
+// Tope de invitaciones por profesional: 1 cada 60 s y 5 al día. Transaccional
+// para que dos clics seguidos no pasen ambos. staffInvites no tiene regla en
+// firestore.rules (denegado por defecto): solo el Admin SDK lo toca.
+async function reserveInviteSlot(db, staffId) {
+  const ref = db.collection('staffInvites').doc(String(staffId));
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const now = Date.now();
+    const hoy = new Date(now).toISOString().slice(0, 10);
+    const d = snap.exists ? snap.data() : {};
+    if (d.lastSentAt && now - d.lastSentAt < 60000) {
+      throw new HttpsError('resource-exhausted', 'Ya se envió una invitación hace un momento. Esperá un minuto.');
+    }
+    const count = d.day === hoy ? (d.count || 0) : 0;
+    if (count >= 5) {
+      throw new HttpsError('resource-exhausted', 'Se alcanzó el máximo de invitaciones de hoy para este profesional.');
+    }
+    tx.set(ref, { lastSentAt: now, day: hoy, count: count + 1 });
+  });
+}
+
+// Enlace de contraseña con regreso a /login. Si el dominio no está entre los
+// autorizados de Auth, Firebase lo rechaza: se reintenta sin continueUrl, que
+// funciona con el dominio por defecto.
+async function inviteLink(auth, correo) {
+  try {
+    return await auth.generatePasswordResetLink(correo, { url: 'https://scissorwhite.cl/login/' });
+  } catch (e) {
+    logger.warn('inviteLink: reintento sin continueUrl', { code: (e && e.code) || null, who: maskEmail(correo) });
+    return await auth.generatePasswordResetLink(correo);
+  }
+}
+
+// Genera el enlace y lo manda por correo. Devuelve false si el envío falla (la
+// cuenta ya existe; la administradora puede pedir otra invitación).
+async function sendInvite(auth, correo, name) {
+  try {
+    const link = await inviteLink(auth, correo);
+    await sendStaffInviteEmail({ to: correo, name, link }, {
+      apiKey: RESEND_API_KEY.value(), fromEmail: FROM_EMAIL.value(),
+    });
+    return true;
+  } catch (e) {
+    logger.error('sendInvite', { code: (e && e.code) || null, message: (e && e.message) || String(e), who: maskEmail(correo) });
+    return false;
+  }
+}
+
+// ¿Alguien reclamó ya esta cuenta de Auth? Verificada (la invitación la
+// verifica al fijar la contraseña) o con un ingreso POSTERIOR a su creación.
+// `lastSignInTime` solo no sirve: según el entorno viene vacío o igual a la
+// fecha de creación en una cuenta que nadie usó.
+function cuentaEnUso(user) {
+  if (user.emailVerified) return true;
+  const m = user.metadata || {};
+  const ingreso = m.lastSignInTime ? Date.parse(m.lastSignInTime) : NaN;
+  const creada = m.creationTime ? Date.parse(m.creationTime) : NaN;
+  return Number.isFinite(ingreso) && (!Number.isFinite(creada) || ingreso > creada);
+}
+
+const randomPassword = () => require('crypto').randomBytes(24).toString('base64url');
+
+exports.createStaffAccount = onCall(
+  { region: 'southamerica-east1', secrets: [RESEND_API_KEY, FROM_EMAIL] },
+  async (request) => {
+    assertAdmin(request);
+    await assertActive(getFirestore(app));
+    const db = getFirestore(app);
+    const { staffId, email } = request.data || {};
+    const correo = String(email || '').trim().toLowerCase();
+    if (!staffId || !correo) throw new HttpsError('invalid-argument', 'Falta el profesional o el correo.');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) throw new HttpsError('invalid-argument', 'Ese correo no es válido.');
+
+    const ficha = await db.collection('staff').doc(String(staffId)).get();
+    if (!ficha.exists) throw new HttpsError('not-found', 'Ese profesional no existe.');
+    const name = ficha.data().name || '';
+    const ya = await db.collection('staffAccounts').doc(String(staffId)).get();
+    if (ya.exists && ya.data().uid) {
+      throw new HttpsError('already-exists', 'Ese profesional ya tiene una cuenta vinculada.');
+    }
+    await reserveInviteSlot(db, staffId);
+
+    const auth = getAuth(app);
+    let user = null;
+    let creada = false;
+    try {
+      user = await auth.getUserByEmail(correo);
+    } catch (e) {
+      if (!e || e.code !== 'auth/user-not-found') {
+        logger.error('createStaffAccount getUserByEmail', { code: (e && e.code) || null, who: maskEmail(correo) });
+        throw new HttpsError('internal', `No se pudo consultar Firebase Auth (${(e && e.code) || 'sin código'}).`);
+      }
+    }
+
+    if (user) {
+      // El correo ya tiene cuenta. Con el registro público de Auth abierto,
+      // alguien pudo registrar ese correo ANTES con su propia contraseña para
+      // quedar vinculado a la ficha. Una cuenta nunca verificada ni usada se
+      // toma: se le cambia la contraseña y se revocan sus sesiones, y entonces
+      // solo entra quien abra la invitación (quien controla el buzón). Una
+      // cuenta ya usada o verificada es de alguien real: no se toca.
+      const otra = await db.collection('staffAccounts').where('uid', '==', user.uid).get();
+      if (!otra.empty) throw new HttpsError('already-exists', 'Esa cuenta ya está vinculada a otro profesional.');
+      if (cuentaEnUso(user)) {
+        throw new HttpsError('already-exists', 'Ese correo ya tiene una cuenta en uso. Si es de la persona correcta, usá "Vincular cuenta".');
+      }
+      await auth.updateUser(user.uid, { password: randomPassword(), disabled: false });
+      await auth.revokeRefreshTokens(user.uid);
+    } else {
+      try {
+        user = await auth.createUser({ email: correo, password: randomPassword(), displayName: name || undefined });
+        creada = true;
+      } catch (e) {
+        logger.error('createStaffAccount createUser', { code: (e && e.code) || null, message: (e && e.message) || String(e), who: maskEmail(correo) });
+        if (e && e.code === 'auth/invalid-email') throw new HttpsError('invalid-argument', 'Ese correo no es válido.');
+        throw new HttpsError('internal', `No se pudo crear la cuenta (${(e && e.code) || 'sin código'}). El detalle quedó en los logs de createStaffAccount.`);
+      }
+    }
+
+    // create() falla si la ficha se vinculó entretanto (dos clics, dos
+    // pestañas): la segunda llamada pierde en vez de pisar a la primera.
+    try {
+      await db.collection('staffAccounts').doc(String(staffId)).create({
+        uid: user.uid, authEmail: user.email || correo,
+        linkedAt: new Date().toISOString(), invitedAt: new Date().toISOString(),
+      });
+      await db.collection('staffUids').doc(user.uid).set({ staffId: String(staffId) });
+    } catch (e) {
+      // Sin vínculo no hay motivo para dejar un usuario huérfano en Auth.
+      if (creada) { try { await auth.deleteUser(user.uid); } catch (_) { /* queda en el log de abajo */ } }
+      logger.error('createStaffAccount vínculo', { code: (e && e.code) || null, message: (e && e.message) || String(e) });
+      if (e && (e.code === 6 || /already exists/i.test(e.message || ''))) {
+        throw new HttpsError('already-exists', 'Ese profesional ya tiene una cuenta vinculada.');
+      }
+      throw new HttpsError('internal', 'No se pudo vincular la cuenta. No quedó nada creado: reintentá.');
+    }
+
+    const emailSent = await sendInvite(auth, correo, name);
+    await auditServer(db, request, 'Creó acceso', `${name} (${maskEmail(correo)})${emailSent ? '' : ' — correo NO enviado'}`);
+    return { ok: true, uid: user.uid, authEmail: user.email || correo, emailSent, masked: maskEmail(correo) };
+  }
+);
+
+// Reenvía la invitación mientras el profesional nunca haya entrado. Si ya
+// entró, el camino es "¿Olvidaste tu contraseña?" en /login: así una sesión de
+// administradora comprometida no puede usar esto para tomar una cuenta en uso.
+exports.resendStaffInvite = onCall(
+  { region: 'southamerica-east1', secrets: [RESEND_API_KEY, FROM_EMAIL] },
+  async (request) => {
+    assertAdmin(request);
+    await assertActive(getFirestore(app));
+    const db = getFirestore(app);
+    const { staffId } = request.data || {};
+    if (!staffId) throw new HttpsError('invalid-argument', 'Falta el profesional.');
+    const acc = await db.collection('staffAccounts').doc(String(staffId)).get();
+    if (!acc.exists || !acc.data().uid) throw new HttpsError('not-found', 'Ese profesional no tiene cuenta vinculada.');
+    const auth = getAuth(app);
+    let user;
+    try { user = await auth.getUser(acc.data().uid); }
+    catch (e) { throw new HttpsError('not-found', 'La cuenta vinculada ya no existe en Firebase Auth.'); }
+    if (cuentaEnUso(user)) {
+      throw new HttpsError('failed-precondition', 'Esa persona ya entró alguna vez. Si olvidó su contraseña, que use "¿Olvidaste tu contraseña?" en la pantalla de entrada.');
+    }
+    await reserveInviteSlot(db, staffId);
+    const ficha = await db.collection('staff').doc(String(staffId)).get();
+    const name = (ficha.exists && ficha.data().name) || '';
+    const emailSent = await sendInvite(auth, user.email, name);
+    await auditServer(db, request, 'Reenvió invitación', `${name} (${maskEmail(user.email)})${emailSent ? '' : ' — correo NO enviado'}`);
+    return { ok: true, emailSent, masked: maskEmail(user.email) };
   }
 );
 

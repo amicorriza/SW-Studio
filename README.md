@@ -160,9 +160,10 @@ npm i -D playwright && npx playwright install chromium
 node tests/browser/dashboard.mjs          # Dashboard de métricas
 node tests/browser/barbero.mjs            # PWA del barbero (/barbero/)
 node tests/browser/admin-asistencia.mjs   # asistencia y cancelar-sin-borrar
+node tests/browser/servicios-por-barbero.mjs   # filtro por servicio en widget y panel
 ```
 
-Estos tres **stubbean `window.SWData`**: verifican la interfaz, no la
+Estos cuatro **stubbean `window.SWData`**: verifican la interfaz, no la
 integración. Para el camino completo hay pruebas end-to-end contra el
 emulador, con Firebase Auth, callables y Firestore de verdad:
 
@@ -235,8 +236,15 @@ functions:getAvailability,functions:onBookingWritten,functions:onScheduleBlockWr
 functions:refreshGoogleReviews,functions:syncGoogleReviews,\
 functions:getMyDay,functions:markAttendance,functions:linkStaffAccount,\
 functions:staffAttendanceNudges,functions:getMyRange,functions:getMyClients,functions:adminSaveBooking,functions:adminLogEvent,\
-functions:sendBookingReminders,functions:respondToBookingReminder,functions:getBookingForReminderAction
+functions:sendBookingReminders,functions:respondToBookingReminder,functions:getBookingForReminderAction,\
+functions:mirrorStaffPublic,functions:createStaffAccount,functions:resendStaffInvite
 ```
+
+> **Orden obligatorio al activar `staffPublic` (horarios de barberos no públicos):**
+> 1. Desplegar `functions:mirrorStaffPublic` (y las demás funciones).
+> 2. `cd functions && node scripts/backfillStaffPublic.js --apply`.
+> 3. Recién entonces `firestore:rules` y `hosting`. Con las reglas nuevas y
+>    `staffPublic` vacío, el widget se queda sin barberos.
 
 ### Función `site` (portada y 404) — ANTES que hosting
 
@@ -547,3 +555,13 @@ se mezclan con las verificadas: las de respaldo no llevan la marca de Google.
 - Bloqueo de horarios (colación + puntuales), con su sección de trabajo futuro
   —agenda multi-barbero en columnas—: [`docs/superpowers/specs/2026-07-31-bloqueo-horarios-design.md`](docs/superpowers/specs/2026-07-31-bloqueo-horarios-design.md)
 - Módulo WhatsApp/Kapso (planificado): ver `docs/superpowers/specs/`
+
+## Registro de errores (Sentry)
+
+Ya tiene un DSN puesto: desplegar lo activa. Para cambiar de proyecto de Sentry:
+
+1. En sentry.io crear dos proyectos: uno **Node.js** (funciones) y uno **Browser JavaScript** (sitio).
+2. Funciones: cambiar `DEFAULT_DSN` en `functions/sentry.js` (no usar `.env` ni `defineString`: ver el comentario del archivo) y desplegar las funciones (con los nombres a mano, ver arriba).
+3. Sitio: pegar el DSN del proyecto Browser en `SENTRY_DSN` de `public/js/sentry-init.js` y desplegar hosting.
+
+Detalles: `functions/sentry.js` envuelve `onCall/onSchedule/onDocument*` y también reenvía cada `logger.error()` (las onSchedule atrapan sus errores, así que si no, nunca llegarían). Los `HttpsError` de cliente (permission-denied, failed-precondition por licencia suspendida, etc.) no se reportan. Sin PII: correos y teléfonos se borran antes de enviar. No corre en emulador ni en localhost.

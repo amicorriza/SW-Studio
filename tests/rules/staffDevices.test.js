@@ -59,9 +59,11 @@ test('staffAccounts: un barbero autenticado tampoco puede leerlo', async () => {
   await assertFails(setDoc(doc(db, 'staffAccounts/esteban'), { uid: 'uid-victoria' }));
 });
 
-// El contraste que justifica todo: staff SÍ es público, y por eso no puede
-// guardar el vínculo.
-test('staff sigue siendo de lectura pública (lo necesita el widget)', async () => {
+// El contraste que justifica todo: el catálogo público es staffPublic (sin
+// horario, sin vínculo con la cuenta). staff lleva el horario semanal y solo lo
+// lee el admin.
+test('staffPublic es de lectura pública (lo necesita el widget); staff no', async () => {
   const db = env.unauthenticatedContext().firestore();
-  await assertSucceeds(getDoc(doc(db, 'staff/victoria')));
+  await assertSucceeds(getDoc(doc(db, 'staffPublic/victoria')));
+  await assertFails(getDoc(doc(db, 'staff/victoria')));
 });

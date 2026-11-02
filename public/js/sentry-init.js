@@ -65,7 +65,14 @@
       environment: 'scissor-white-web',
       sendDefaultPii: false,
       tracesSampleRate: 0,
-      ignoreErrors: ['ResizeObserver loop', 'Non-Error promise rejection captured'],
+      // El último es del navegador interno de Instagram/Facebook en Android
+      // (iabjs://navigation_performance_logger_android, sendDataToNative): su
+      // propio script falla al hablar con la app nativa. No es código nuestro.
+      ignoreErrors: [
+        'ResizeObserver loop',
+        'Non-Error promise rejection captured',
+        'Error invoking postMessage: Java object is gone',
+      ],
       denyUrls: [/^chrome-extension:/, /^moz-extension:/, /^safari-extension:/],
       beforeSend: function (event, hint) {
         var orig = hint && hint.originalException;

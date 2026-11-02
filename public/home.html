@@ -2224,7 +2224,13 @@ body.sw-intro-lock{overflow:hidden;height:100vh;height:100dvh}
 
   document.querySelectorAll('a[href^="#"]').forEach(a=>{
     a.addEventListener('click',function(e){
-      const t=document.querySelector(this.getAttribute('href'));
+      // #gr-see nace con href="#" y booking-widget.js lo cambia a una URL de
+      // Google Maps: ese valor no es un selector y querySelector lanzaba
+      // SyntaxError. Solo se interceptan anclas internas reales.
+      const h=this.getAttribute('href');
+      if(!h||h.length<2||h.charAt(0)!=='#') return;
+      let t=null;
+      try{ t=document.querySelector(h); }catch(_){ return; }
       if(t){e.preventDefault();window.scrollTo({top:t.getBoundingClientRect().top+window.pageYOffset-80,behavior:'smooth'})}
     })
   });

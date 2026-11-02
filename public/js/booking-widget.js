@@ -697,11 +697,16 @@ function renderSvcs(){
 
   wrap.querySelectorAll('.bk-svc').forEach(el=>{
     el.addEventListener('click',()=>{
+      // refreshCatalog() puede haber reemplazado CATS mientras este DOM (pintado
+      // con el catálogo de respaldo) seguía en pantalla: el servicio clicado ya
+      // no existe y S.svc quedaba undefined (TypeError en S.svc.id, nov-2026).
+      const cat=CATS.find(c=>c.id===el.dataset.gid);
+      const found=cat&&cat.items.find(s=>s.id===el.dataset.sid);
+      if(!found){ renderSvcs(); return; }
       wrap.querySelectorAll('.bk-svc').forEach(x=>x.classList.remove('bk-sel'));
       el.classList.add('bk-sel');
-      const cat=CATS.find(c=>c.id===el.dataset.gid);
       const prevId=S.svc&&S.svc.id;
-      S.svc=cat.items.find(s=>s.id===el.dataset.sid);
+      S.svc=found;
       document.getElementById('bk-next1').disabled=false;
       if(S.svc.id!==prevId) onServiceChanged();
       updateSummary();
